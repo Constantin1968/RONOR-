@@ -1,0 +1,147 @@
+# MI9 Gate Policy — RONOR Build Week
+#
+# This is the declarative rule set consulted by the MI9 Gate on every
+# decision request. It is intentionally simple and human-auditable.
+#
+# Semantics: the strictest verdict across all 9 gates wins.
+#   allow < allow-with-cosign < escalate < block
+#
+# All impact thresholds map to Romanian energy operations (BESS 20 MWh,
+# OPCOM DAM/ID/aFRR, EUR-denominated commercial flows). Domains follow the
+# convention: <sector>.<asset>.<action>.
+
+version: "build-week-2026.07.20"
+description: >
+  MI9 Gate policy for Work & Productivity submission. Calibrated for a
+  20 MWh BESS in Romania trading on OPCOM DAM/ID/aFRR/balancing markets.
+  All thresholds are derived from public 2026 market analysis (max daily
+  spread ~€168/MWh, average DAM ~€110/MWh, aFRR upward ~€9/MW/h).
+
+gates:
+
+  # -------------------------------------------------------------
+  # Gate 1 — Sovereignty
+  # -------------------------------------------------------------
+  sovereignty:
+    allowed_residencies: [eu, uk]
+    required_for_jurisdictions:
+      RO: [eu]
+      EU: [eu]
+      UK: [uk, eu]
+      US: [eu, uk, us]
+      OTHER: [eu, uk, us]
+
+  # -------------------------------------------------------------
+  # Gate 2 — Risk tier (EU AI Act mapping)
+  # -------------------------------------------------------------
+  risk_tier:
+    domain_tiers:
+      energy.bess.dispatch:            high
+      energy.bess.bid:                 high
+      energy.vpp.dispatch:             high
+      energy.vpp.aggregate:            high
+      energy.ancillary.fcr_bid:        high
+      energy.ancillary.afrr_bid:       high
+      energy.ancillary.balancing_bid:  high
+      energy.forecast.load:            limited
+      energy.forecast.price:           limited
+      energy.observability.query:      minimal
+      energy.reporting.generate:       minimal
+    cosign_required_at_tier:  [high]
+    escalation_required_at_tier: []
+
+  # -------------------------------------------------------------
+  # Gate 3 — Reversibility
+  # -------------------------------------------------------------
+  reversibility:
+    # An irreversible action (e.g. accepted market bid past gate close)
+    # must at minimum require human co-sign.
+    irreversible_action_verdict: allow-with-cosign
+
+  # -------------------------------------------------------------
+  # Gate 4 — Impact magnitude
+  # (Thresholds calibrated to a 20 MWh BESS trading in Romania)
+  # -------------------------------------------------------------
+  impact:
+    cosign_thresholds:
+      - unit: EUR
+        value: 1000        # any decision moving >€1k requires co-sign
+      - unit: MWh
+        value: 5           # >5 MWh dispatch requires co-sign
+      - unit: MW
+        value: 10          # >10 MW capacity commitment requires co-sign
+    escalation_thresholds:
+      - unit: EUR
+        value: 10000       # >€10k escalates to a human operator
+      - unit: MWh
+        value: 15
+      - unit: MW
+        value: 30
+    block_thresholds:
+      - unit: EUR
+        value: 100000      # >€100k is blocked outright without policy update
+      - unit: MWh
+        value: 40          # exceeds full BESS energy capacity → obviously wrong
+      - unit: MW
+        value: 100
+
+  # -------------------------------------------------------------
+  # Gate 5 — Confidence
+  # -------------------------------------------------------------
+  confidence:
+    minimum_autonomous: 0.85       # >= this → allow autonomously
+    minimum_cosign:     0.55       # >= this and < autonomous → co-sign
+    # anything below minimum_cosign → escalate
+
+  # -------------------------------------------------------------
+  # Gate 6 — Evidence
+  # -------------------------------------------------------------
+  evidence:
+    min_source_count: 2
+    max_data_age_ms: 900000        # 15 minutes — DAM/ID freshness horizon
+    consensus_required_for_domains:
+      - energy.bess.dispatch
+      - energy.vpp.dispatch
+      - energy.ancillary.fcr_bid
+      - energy.ancillary.afrr_bid
+
+  # -------------------------------------------------------------
+  # Gate 7 — Policy compliance (domain-specific rules)
+  # -------------------------------------------------------------
+  policy_compliance:
+    domain_specific_rules:
+      energy.bess.dispatch:
+        - "ANRE Order 46/2024: state-of-charge visible to TSO"
+        - "EU AI Act high-risk logging retention: 6 months minimum"
+        - "OPCOM balancing rules: bid volumes rounded to 0.1 MW"
+        - "Degradation-aware: no more than 1.5 equivalent full cycles per day without cosign"
+      energy.bess.bid:
+        - "ANRE Order 46/2024 §12: bid transparency"
+        - "OPCOM DAM gate close: 12:00 CET day D-1"
+      energy.vpp.dispatch:
+        - "ANRE VPP framework 2026: aggregator liability chain declared"
+        - "Reliability-adjusted bidding: probability of delivery attached"
+      energy.ancillary.fcr_bid:
+        - "ENTSO-E FCR technical requirements (SO GL Article 154)"
+        - "Symmetric ±: bid must be simultaneously up and down"
+      energy.ancillary.afrr_bid:
+        - "ENTSO-E aFRR technical requirements (SO GL Article 158)"
+        - "aFRR activation lead time: <=30 seconds"
+
+  # -------------------------------------------------------------
+  # Gate 8 — Rate limits (per hour, in-memory sliding window)
+  # -------------------------------------------------------------
+  rate_limits:
+    autonomous_per_hour: 12         # max fully-autonomous decisions per hour
+    cosign_per_hour:     24         # max co-sign decisions per hour
+
+  # -------------------------------------------------------------
+  # Gate 9 — Fallback plan
+  # -------------------------------------------------------------
+  fallback:
+    required_for_domains:
+      - energy.bess.dispatch
+      - energy.vpp.dispatch
+      - energy.ancillary.fcr_bid
+      - energy.ancillary.afrr_bid
+      - energy.ancillary.balancing_bid

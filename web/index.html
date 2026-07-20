@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RONOR — Model Exchange & Governance Spine for Energy Operations</title>
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span class="wordmark">RONOR</span>
+        <span class="tagline">Model Exchange &amp; Governance Spine for Energy Operations</span>
+      </div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="decision">BESS Decision Loop</button>
+        <button class="tab" data-tab="exchange">Model Exchange</button>
+        <button class="tab" data-tab="ledger">Cost Ledger</button>
+      </div>
+      <nav>
+        <span id="policyBadge" class="badge">policy: —</span>
+        <span id="exposureBadge" class="badge">exposure: —</span>
+        <span id="chainBadge" class="badge chain">chain: —</span>
+      </nav>
+    </header>
+
+    <main>
+      <section class="pane control">
+        <h2>Run a governed BESS decision</h2>
+        <p class="lede">
+          A 20 MWh BESS in Craiova, Romania. OPCOM day-ahead prices with
+          realistic aFRR / FCR overlays. Baseline "charge low / discharge
+          high" is compared to the RONOR governed policy proposed by GPT-5.6
+          (with deterministic fallback). Every action is gated by the
+          <b>MI9 Gate</b>, scored by <b>Exposure Analysis</b>, and appended
+          to the <b>SHA-256 hash-chain</b>.
+        </p>
+        <div class="row">
+          <button id="runBtn" class="primary">Run decision loop</button>
+          <button id="verifyBtn">Verify chain</button>
+          <button id="exportBtn">Export chain</button>
+        </div>
+        <div id="runningState" class="running" hidden>Working…</div>
+      </section>
+
+      <section class="pane summary" id="summaryPane" hidden>
+        <h2>Session summary</h2>
+        <div class="kpi-grid">
+          <div class="kpi"><span class="label">Verified gain</span><span class="value" id="kpiGain">—</span></div>
+          <div class="kpi"><span class="label">OSaaS fee (15%)</span><span class="value" id="kpiFee">—</span></div>
+          <div class="kpi"><span class="label">Baseline net</span><span class="value" id="kpiBaseline">—</span></div>
+          <div class="kpi"><span class="label">Proposed net</span><span class="value" id="kpiProposed">—</span></div>
+          <div class="kpi"><span class="label">Model</span><span class="value" id="kpiModel">—</span></div>
+          <div class="kpi"><span class="label">Latency</span><span class="value" id="kpiLatency">—</span></div>
+        </div>
+        <div class="verdict-grid">
+          <div class="verdict allow"><span class="label">Allowed</span><span class="value" id="cAllowed">0</span></div>
+          <div class="verdict cosign"><span class="label">Co-sign</span><span class="value" id="cCosign">0</span></div>
+          <div class="verdict escalate"><span class="label">Escalated</span><span class="value" id="cEscalate">0</span></div>
+          <div class="verdict block"><span class="label">Blocked</span><span class="value" id="cBlocked">0</span></div>
+        </div>
+        <div class="exposure-summary">
+          <h3>Exposure summary</h3>
+          <p id="exposureSummaryLine" class="mono">—</p>
+        </div>
+        <p class="rationale" id="rationaleBox">—</p>
+      </section>
+
+      <section class="pane timeline" id="timelinePane" hidden>
+        <h2>Decision timeline</h2>
+        <div id="timelineList"></div>
+      </section>
+
+      <section class="pane verify" id="verifyPane" hidden>
+        <h2>Chain verification</h2>
+        <pre id="verifyOut" class="mono"></pre>
+      </section>
+
+      <!-- ===================== MODEL EXCHANGE TAB ===================== -->
+      <section class="pane control tab-content" id="exchangePane" hidden>
+        <h2>Governed Model Exchange</h2>
+        <p class="lede">
+          A 6-dimension router (quality · sovereignty · evidence − cost − latency − risk)
+          chooses the right model for every query, then the request runs through the
+          same <b>MI9 Gate</b> + <b>audit chain</b> + <b>R-Assurance</b> as the BESS loop.
+          Model registry, policy filter (P1–P8) and Work Ledger are hot-swappable.
+        </p>
+        <div class="row">
+          <select id="mxTaskType">
+            <option value="reasoning">reasoning</option>
+            <option value="analysis">analysis</option>
+            <option value="calculation">calculation</option>
+            <option value="summary">summary</option>
+            <option value="routing">routing</option>
+          </select>
+          <select id="mxConf">
+            <option value="public">confidentiality: public</option>
+            <option value="internal" selected>confidentiality: internal</option>
+            <option value="confidential">confidentiality: confidential</option>
+            <option value="sovereign">confidentiality: sovereign</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="mxQuery" type="text" placeholder="Ask a governed question…"
+            value="Should we sell 8 MWh on OPCOM DAM tomorrow given aFRR forecast?" />
+        </div>
+        <div class="row">
+          <button id="mxRouteBtn">Dry-run route</button>
+          <button id="mxQueryBtn" class="primary">Run governed query</button>
+          <button id="mxRegistryBtn">Refresh registry</button>
+        </div>
+
+        <h3>Registry</h3>
+        <div id="mxRegistry" class="mono">—</div>
+
+        <h3>Routing table</h3>
+        <div id="mxRouteTable" class="mono">—</div>
+
+        <h3>Result</h3>
+        <pre id="mxResult" class="mono">—</pre>
+      </section>
+
+      <!-- ===================== COST LEDGER TAB ===================== -->
+      <section class="pane control tab-content" id="ledgerPane" hidden>
+        <h2>Cost of Intelligence Ledger</h2>
+        <p class="lede">
+          Every governed query records tokens, cost, latency and simulation flag
+          in a SQLite-persisted Work Ledger. This is the raw feed for OSaaS
+          <i>Net Verified Gain</i> accounting.
+        </p>
+        <div class="row">
+          <button id="mxLedgerBtn" class="primary">Refresh ledger</button>
+        </div>
+        <pre id="mxLedger" class="mono">—</pre>
+      </section>
+    </main>
+
+    <footer>
+      <span>RONOR · Build Week 2026 · Ma11AI · Mayleven Ecosystem</span>
+      <span>Every decision cryptographically anchored — no hidden reasoning.</span>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

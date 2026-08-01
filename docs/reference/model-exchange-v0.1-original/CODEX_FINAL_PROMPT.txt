@@ -1,0 +1,12 @@
+Act as the principal engineer for RONOR Model Exchange v0.1. Review the attached repository as an existing, tested codebase rather than generating an unrelated replacement.
+
+Objectives:
+1. Preserve the current Unified Request API, Model Registry, Policy Engine, transparent Dynamic Router, deterministic engine, OpenAI adapter, fallback chain, R-Assurance, Cost Ledger and SHA-256 Trace Ledger.
+2. Run the existing build and end-to-end tests. Do not claim success unless every test passes.
+3. Add production-readiness improvements without changing demonstrated behavior: `/api/health`, `.env.example`, Render deployment configuration, safe error handling and documentation.
+4. Keep secrets server-side. Never commit API keys.
+5. Keep Anthropic explicitly labelled simulated unless a real key is configured.
+6. Document Continuumpedia as the first native application and RONOR Intelligence Credits as a future provider-neutral accounting layer that may combine external inference capacity with Mayleven/Ma11AI-owned compute powered by owned and managed energy assets. Do not present future energy or compute integrations as already live.
+7. Return a concise change log and exact commands used for build and tests.
+
+The final implementation must remain credible for the OpenAI Build Week Developer Tools category and must not overstate production maturity.

@@ -1,18 +1,26 @@
 /**
- * RONOR v1.0 — Sovereign Generative Intelligence Runtime
- * Main Entry Point
+ * RONOR — Governed Intelligence for Energy Operations
+ * Main Entry Point (Build Week 2026)
  *
  * Ma11AI · Mayleven Ecosystem
  * Mayleven Ltd, Company No. 17000500, England & Wales
  *
- * Architecture: 7 Operational Planes
- *   1. R-Gateway       — Ingress, auth, rate-limiting
- *   2. R-Context       — Context management & compression
- *   3. R-Model Fabric  — Intelligent model routing (GPT-5.6 core)
- *   4. R-Agent Runtime — Multi-agent orchestration
- *   5. R-Execution     — Sandboxed tool & code execution
- *   6. R-Assurance     — Quality, evidence & audit
- *   7. R-Economics     — EMS scoring & cost optimisation
+ * Architecture: 7 Operational Planes + Governance & Audit Spine
+ *   Planes:
+ *     1. R-Gateway       — Ingress, auth, rate-limiting
+ *     2. R-Context       — Context management & compression
+ *     3. R-Model Fabric  — Intelligent model routing (GPT-5.6 core)
+ *     4. R-Agent Runtime — Multi-agent orchestration
+ *     5. R-Execution     — Sandboxed tool & code execution
+ *     6. R-Assurance     — Quality, evidence & audit
+ *     7. R-Economics     — EMS scoring & cost optimisation
+ *   Governance & Audit Spine (Build Week 2026):
+ *     · MI9 Gate               — 9-gate policy engine (sovereignty, risk, impact,
+ *                                confidence, evidence, reversibility, policy,
+ *                                rate-limit, fallback)
+ *     · Exposure Analysis      — 8-dimension risk register, SHA-256 fingerprinted
+ *     · SHA-256 Hash-Chain     — bankable audit chain (SQLite-persisted)
+ *     · Decision Loop          — end-to-end BESS governed dispatch scenario
  */
 
 import 'dotenv/config';
@@ -20,6 +28,11 @@ import express from 'express';
 import cors from 'cors';
 import { createLogger } from './utils/logger';
 import { createRouter } from './api/router';
+import { createDecisionsRouter } from './api/decisions-router';
+import { modelExchangeRouter } from './api/model-exchange-router';
+import { initModelExchange } from './model-exchange/orchestrator';
+import { loadPolicy } from './governance/mi9-gate';
+import { getDb } from './audit/hash-chain';
 import { RGatewayPlane } from './planes/r-gateway';
 import { RContextPlane } from './planes/r-context';
 import { RModelFabricPlane } from './planes/r-model-fabric';
@@ -34,15 +47,23 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 async function bootstrap(): Promise<void> {
   logger.info('╔══════════════════════════════════════════════════╗');
-  logger.info('║  RONOR v1.0 — Sovereign Generative Intelligence  ║');
-  logger.info('║  Runtime — Ma11AI · Mayleven Ecosystem            ║');
+  logger.info('║  RONOR — Model Exchange & Governance Spine       ║');
+  logger.info('║  for Energy Operations · Ma11AI Mayleven         ║');
   logger.info('╚══════════════════════════════════════════════════╝');
 
-  // Validate required environment
+  // OPENAI_API_KEY is recommended but not required — the decision loop
+  // falls back to a deterministic proposer when it is absent, so judges can
+  // still exercise MI9 Gate + Exposure Analysis + audit chain end-to-end.
   if (!process.env.OPENAI_API_KEY) {
-    logger.error('OPENAI_API_KEY is required. Set it in your .env file.');
-    process.exit(1);
+    logger.warn('OPENAI_API_KEY not set — frontier-model proposer will fall back to deterministic policy.');
   }
+
+  // Boot governance + audit primitives first so they are ready before the
+  // first decision request lands.
+  loadPolicy();
+  getDb();
+  initModelExchange();
+  logger.info('Governance policy loaded + audit chain DB ready + Model Exchange work-ledger initialised ✓');
 
   // Initialise all 7 operational planes
   logger.info('Initialising 7 operational planes...');
@@ -86,6 +107,11 @@ async function bootstrap(): Promise<void> {
 
   // Mount API routes
   app.use('/api/v1', createRouter(orchestrator));
+  app.use('/api/v1', createDecisionsRouter());
+  app.use('/api/v1/model-exchange', modelExchangeRouter);
+
+  // Static web UI (decision timeline + audit verifier)
+  app.use('/', express.static('web'));
 
   // Health endpoint
   app.get('/health', async (_req, res) => {

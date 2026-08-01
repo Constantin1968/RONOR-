@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+.env.local
+.DS_Store
+data/*.db
+data/*.db-*
+tests
+docs
+*.md
+!README.md
+*.log

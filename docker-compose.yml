@@ -1,0 +1,76 @@
+version: '3.9'
+
+services:
+  ronor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ronor-runtime
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL_PRIMARY=${OPENAI_MODEL_PRIMARY:-gpt-4o}
+      - GATEWAY_API_KEY=${GATEWAY_API_KEY:-ronor-dev-key-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-60}
+      - MODEL_FABRIC_STRATEGY=${MODEL_FABRIC_STRATEGY:-ems}
+      - AUDIT_DB_PATH=/app/data/audit.db
+      - MI9_POLICY_PATH=/app/src/governance/policies.yaml
+      - REDIS_URL=redis://redis:6379
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - DATABASE_URL=postgresql://ronor:ronor_dev@postgres:5432/ronor
+      - DATABASE_ENABLED=${DATABASE_ENABLED:-false}
+    volumes:
+      - ronor-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ronor-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ronor-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=ronor
+      - POSTGRES_PASSWORD=ronor_dev
+      - POSTGRES_DB=ronor
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ronor"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ronor-data:
+  redis-data:
+  postgres-data:

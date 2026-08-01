@@ -1,0 +1,36 @@
+name: Release Verification
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  verify-release:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Generate checksums
+        run: |
+          mkdir -p release-artifacts
+          tar -czf release-artifacts/ronor-${{ github.ref_name }}.tar.gz \
+            dist/ package.json package-lock.json \
+            Dockerfile docker-compose.yml \
+            src/governance/policies.yaml web/
+          cd release-artifacts
+          sha256sum *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}
+          path: release-artifacts/

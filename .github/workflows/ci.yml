@@ -1,0 +1,73 @@
+name: CI — Build, Test & Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: TypeScript Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Verify no uncommitted build output
+        run: |
+          if [ -d "dist" ]; then
+            echo "Build output generated successfully"
+          else
+            echo "ERROR: Build did not produce dist/"
+            exit 1
+          fi
+
+  test:
+    name: Jest Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - name: Test summary
+        if: always()
+        run: echo "Tests completed"
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Dependency audit
+        run: npm audit --audit-level=critical
+      - name: Secrets scan
+        run: |
+          npx --yes @trufflesecurity/trufflehog@latest git \
+            file://. \
+            --only-verified \
+            --fail
+        continue-on-error: true

@@ -18,7 +18,10 @@
     "typecheck": "tsc --noEmit",
     "seed": "ts-node scripts/seed.ts",
     "benchmark": "ts-node scripts/benchmark.ts",
-    "verify-chain": "ts-node scripts/verify-chain.ts"
+    "verify-chain": "ts-node scripts/verify-chain.ts",
+    "ci": "npm run build && npm test && npm audit --audit-level=critical",
+    "build:check": "tsc --noEmit",
+    "checksum": "bash scripts/generate-checksums.sh"
   },
   "keywords": [
     "governance",

@@ -5,7 +5,7 @@
  * Ma11AI · Mayleven Ecosystem
  * Mayleven Ltd, Company No. 17000500, England & Wales
  *
- * Architecture: 7 Operational Planes + Governance & Audit Spine
+ * Architecture: 8 Operational Planes + Governance & Audit Spine
  *   Planes:
  *     1. R-Gateway       — Ingress, auth, rate-limiting
  *     2. R-Context       — Context management & compression
@@ -14,6 +14,7 @@
  *     5. R-Execution     — Sandboxed tool & code execution
  *     6. R-Assurance     — Quality, evidence & audit
  *     7. R-Economics     — EMS scoring & cost optimisation
+ *     8. R-Sentinel      — Operational resource intelligence (MIP-013)
  *   Governance & Audit Spine (Build Week 2026):
  *     · MI9 Gate               — 9-gate policy engine (sovereignty, risk, impact,
  *                                confidence, evidence, reversibility, policy,
@@ -30,6 +31,7 @@ import { createLogger } from './utils/logger';
 import { createRouter } from './api/router';
 import { createDecisionsRouter } from './api/decisions-router';
 import { modelExchangeRouter } from './api/model-exchange-router';
+import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
 import { getDb } from './audit/hash-chain';
@@ -40,6 +42,7 @@ import { RAgentRuntimePlane } from './planes/r-agent-runtime';
 import { RExecutionPlane } from './planes/r-execution';
 import { RAssurancePlane } from './planes/r-assurance';
 import { REconomicsPlane } from './planes/r-economics';
+import { RSentinelPlane } from './planes/r-sentinel';
 import { RONOROrchestrator } from './orchestrator';
 
 const logger = createLogger('RONOR:Main');
@@ -65,8 +68,8 @@ async function bootstrap(): Promise<void> {
   initModelExchange();
   logger.info('Governance policy loaded + audit chain DB ready + Model Exchange work-ledger initialised ✓');
 
-  // Initialise all 7 operational planes
-  logger.info('Initialising 7 operational planes...');
+  // Initialise all 8 operational planes
+  logger.info('Initialising 8 operational planes...');
 
   const gateway = new RGatewayPlane();
   const context = new RContextPlane();
@@ -75,6 +78,18 @@ async function bootstrap(): Promise<void> {
   const execution = new RExecutionPlane();
   const assurance = new RAssurancePlane();
   const economics = new REconomicsPlane();
+  const sentinel = new RSentinelPlane();
+
+  const planes = [
+    gateway,
+    context,
+    modelFabric,
+    agentRuntime,
+    execution,
+    assurance,
+    economics,
+    sentinel,
+  ];
 
   await Promise.all([
     gateway.init(),
@@ -84,9 +99,10 @@ async function bootstrap(): Promise<void> {
     execution.init(),
     assurance.init(),
     economics.init(),
+    sentinel.init(),
   ]);
 
-  logger.info('All 7 planes operational ✓');
+  logger.info(`All ${planes.length} planes operational ✓`);
 
   // Build orchestrator
   const orchestrator = new RONOROrchestrator({
@@ -109,6 +125,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1', createRouter(orchestrator));
   app.use('/api/v1', createDecisionsRouter());
   app.use('/api/v1/model-exchange', modelExchangeRouter);
+  app.use('/api/v1/sentinel', createSentinelRouter(sentinel));
 
   // Static web UI (decision timeline + audit verifier)
   app.use('/', express.static('web'));
@@ -116,10 +133,15 @@ async function bootstrap(): Promise<void> {
   // Health endpoint
   app.get('/health', async (_req, res) => {
     const health = await orchestrator.getSystemHealth();
+    const sentinelHealth = await sentinel.health();
     res.json({
       status: 'ok',
       version: '1.0.0',
-      planes: health,
+      planes: [...health, sentinelHealth],
+      sentinel: {
+        severity: sentinel.getSeverity(),
+        degradationLevel: sentinel.getResponseController().level,
+      },
       models: modelFabric.getAvailableModels().length,
       uptime: process.uptime(),
     });
@@ -130,6 +152,7 @@ async function bootstrap(): Promise<void> {
     logger.info(`API: http://localhost:${PORT}/api/v1`);
     logger.info(`Health: http://localhost:${PORT}/health`);
     logger.info(`Models active: ${modelFabric.getAvailableModels().length}`);
+    logger.info(`Sentinel: http://localhost:${PORT}/api/v1/sentinel/status`);
     logger.info('Ready to process requests ✓');
   });
 }

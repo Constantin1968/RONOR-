@@ -41,7 +41,8 @@ export type PlaneId =
   | 'r-agent-runtime'
   | 'r-execution'
   | 'r-assurance'
-  | 'r-economics';
+  | 'r-economics'
+  | 'r-sentinel';
 
 export interface PlaneHealth {
   planeId: PlaneId;

@@ -1,0 +1,225 @@
+{
+  "corpusVersion": "1.0",
+  "description": "R-Knowledge retrieval benchmark corpus. Energy-sector and governance documents with labelled relevance judgements. Deliberately includes lexically-distant queries so that the benchmark measures retrieval quality rather than string matching.",
+  "authority": "MIP-014 STEP 2, Phase 7, Gate G7",
+  "documents": [
+    {
+      "id": "D01",
+      "title": "Grid Frequency Response Obligations",
+      "sourceUri": "internal:benchmark/D01",
+      "sourceType": "standard",
+      "classification": "INTERNAL",
+      "content": "Grid frequency must be maintained within a narrow band around fifty hertz. When frequency deviates beyond the statutory deadband, balancing reserves are dispatched automatically. Primary response must begin within two seconds and reach full delivery within ten seconds. Secondary response sustains delivery for up to thirty minutes. Providers of frequency response services must demonstrate compliance through metered evidence at one-second granularity. Failure to deliver contracted response results in a financial penalty proportional to the shortfall in megawatts."
+    },
+    {
+      "id": "D02",
+      "title": "Battery Storage Degradation Modelling",
+      "sourceUri": "internal:benchmark/D02",
+      "sourceType": "report",
+      "classification": "INTERNAL",
+      "content": "Lithium-ion cells lose usable capacity through calendar ageing and cycle ageing. Calendar ageing depends principally on temperature and state of charge during idle periods. Cycle ageing depends on depth of discharge and charge rate. A storage asset operated at shallow depth of discharge and moderate temperature retains substantially more capacity after ten years than one cycled deeply at elevated temperature. Warranty terms typically guarantee seventy percent retained capacity after a specified number of equivalent full cycles."
+    },
+    {
+      "id": "D03",
+      "title": "Power Purchase Agreement Price Structures",
+      "sourceUri": "internal:benchmark/D03",
+      "sourceType": "filing",
+      "classification": "INTERNAL",
+      "content": "A corporate power purchase agreement may be structured as a physical sleeve, a virtual contract for difference, or a synthetic hedge. Under a contract for difference the generator and the offtaker settle against a reference market price, with the offtaker paying the difference when the market price falls below the strike and receiving it when the market price exceeds the strike. Shape risk arises because generation profiles rarely match consumption profiles hour by hour. Basis risk arises where the settlement node differs from the consumption node."
+    },
+    {
+      "id": "D04",
+      "title": "Heat Pump Retrofit Economics",
+      "sourceUri": "internal:benchmark/D04",
+      "sourceType": "report",
+      "classification": "INTERNAL",
+      "content": "The economic case for replacing a gas boiler with an air source heat pump depends on the ratio of electricity price to gas price and on the achieved coefficient of performance. A seasonal coefficient of performance of three means one unit of electricity delivers three units of heat. Where electricity costs four times as much as gas per unit of energy, a coefficient of performance of three yields a higher running cost than the boiler it replaced. Building fabric improvement and correctly sized emitters raise the achieved coefficient of performance materially."
+    },
+    {
+      "id": "D05",
+      "title": "Sovereignty Tiers and Data Residency",
+      "sourceUri": "internal:benchmark/D05",
+      "sourceType": "standard",
+      "classification": "INTERNAL",
+      "content": "Sovereignty tier one denotes data that must remain within the operator's own infrastructure and may not be transmitted to any third party. Tier two permits processing by a contracted processor within an approved jurisdiction. Tier three permits processing by any processor subject to an adequacy determination. Classification and sovereignty tier are orthogonal: a public document may be tier one where its aggregation reveals operational posture, and an internal document may be tier three where its content is commercially unremarkable."
+    },
+    {
+      "id": "D06",
+      "title": "Interconnector Flow Constraints",
+      "sourceUri": "internal:benchmark/D06",
+      "sourceType": "dataset",
+      "classification": "INTERNAL",
+      "content": "Cross-border transmission capacity is allocated through explicit auctions and implicit market coupling. Available capacity is reduced by planned outages, by loop flows arising from unscheduled transit, and by thermal limits during high ambient temperature. When an interconnector is constrained, price separation between the coupled markets emerges and congestion rent accrues to the capacity holder. Ramp rate limits prevent instantaneous reversal of flow direction."
+    },
+    {
+      "id": "D07",
+      "title": "Audit Chain Integrity and Hash Linking",
+      "sourceUri": "internal:benchmark/D07",
+      "sourceType": "standard",
+      "classification": "INTERNAL",
+      "content": "An append-only audit chain links each record to its predecessor by including the predecessor's digest in the material hashed for the current record. Any retrospective alteration changes the digest of the altered record and therefore breaks every link that follows it. Verification walks the chain from genesis and recomputes each digest. The chain proves ordering and integrity but does not by itself prove that a recorded event occurred, since a false record correctly linked remains internally consistent."
+    },
+    {
+      "id": "D08",
+      "title": "Curtailment Compensation Mechanisms",
+      "sourceUri": "internal:benchmark/D08",
+      "sourceType": "filing",
+      "classification": "INTERNAL",
+      "content": "When a renewable generator is instructed to reduce output for network reasons rather than economic reasons, compensation arrangements determine whether the generator is made whole. Under a firm connection the network operator bears the cost of constraint and pays the generator for lost output including foregone subsidy. Under a flexible or non-firm connection the generator accepts curtailment risk in exchange for earlier connection and lower reinforcement charges. The expected annual energy yield must therefore be discounted by a curtailment factor."
+    },
+    {
+      "id": "D09",
+      "title": "Prompt Injection in Retrieval Augmented Generation",
+      "sourceUri": "internal:benchmark/D09",
+      "sourceType": "standard",
+      "classification": "INTERNAL",
+      "content": "Retrieved passages are untrusted data, not instructions. A retrieval augmented generation composer must place retrieved material inside a delimited region and place its own instructions outside that region, so that text within the region cannot be interpreted as directing the model. Pattern screening at admission reduces but does not eliminate the hazard, because an adversary controlling source material can encode directives in forms no finite pattern set anticipates. Structural separation is therefore the primary control and screening is secondary."
+    },
+    {
+      "id": "D10",
+      "title": "Demand Side Response Aggregation",
+      "sourceUri": "internal:benchmark/D10",
+      "sourceType": "report",
+      "classification": "INTERNAL",
+      "content": "An aggregator assembles many small flexible loads into a portfolio large enough to meet minimum bid sizes in balancing markets. Portfolio diversity reduces delivery risk because individual site availability varies independently. Baseline methodology determines the measured volume of a response event, and a poorly specified baseline permits gaming through pre-event load inflation. Settlement disputes commonly turn on baseline adjustment rather than on metered delivery."
+    },
+    {
+      "id": "D11",
+      "title": "Embedding Dimensionality and Retrieval Quality",
+      "sourceUri": "internal:benchmark/D11",
+      "sourceType": "report",
+      "classification": "INTERNAL",
+      "content": "Vector dimensionality bounds the information a representation can carry, but higher dimensionality does not monotonically improve retrieval. A hashed feature projection captures lexical co-occurrence and little semantic structure, so queries phrased differently from the documents they should match retrieve poorly regardless of dimensionality. Learned representations trained on paraphrase pairs capture semantic proximity and retrieve well across paraphrase, at the cost of a dependency on a model whose behaviour must itself be governed."
+    },
+    {
+      "id": "D12",
+      "title": "Capacity Market Derating Factors",
+      "sourceUri": "internal:benchmark/D12",
+      "sourceType": "dataset",
+      "classification": "INTERNAL",
+      "content": "A capacity market awards agreements in units of derated capacity rather than nameplate capacity. The derating factor reflects the technology's expected contribution during system stress. Duration limited storage receives a derating factor that falls sharply as the stress event lengthens, because a two hour battery cannot sustain output through a four hour event. Interconnectors are derated according to the expected availability of imports during correlated scarcity in the connected market."
+    }
+  ],
+  "queries": [
+    {
+      "id": "Q01",
+      "query": "how quickly must primary frequency response be delivered",
+      "relevant": ["D01"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q02",
+      "query": "what makes a battery lose capacity over time",
+      "relevant": ["D02"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q03",
+      "query": "contract for difference strike price settlement",
+      "relevant": ["D03"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q04",
+      "query": "is it cheaper to run a heat pump than a gas boiler",
+      "relevant": ["D04"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q05",
+      "query": "where may tier one data be processed",
+      "relevant": ["D05"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q06",
+      "query": "why do prices diverge between coupled markets",
+      "relevant": ["D06"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q07",
+      "query": "how does tamper evidence work in an append only log",
+      "relevant": ["D07"],
+      "lexicalOverlap": "low"
+    },
+    {
+      "id": "Q08",
+      "query": "who pays when a wind farm is told to switch off",
+      "relevant": ["D08"],
+      "lexicalOverlap": "low"
+    },
+    {
+      "id": "Q09",
+      "query": "stopping retrieved text from acting as instructions",
+      "relevant": ["D09"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q10",
+      "query": "minimum bid size flexible load portfolio",
+      "relevant": ["D10"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q11",
+      "query": "does a bigger vector always retrieve better",
+      "relevant": ["D11"],
+      "lexicalOverlap": "low"
+    },
+    {
+      "id": "Q12",
+      "query": "derating factor duration limited storage capacity market",
+      "relevant": ["D12"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q13",
+      "query": "penalty for failing to deliver contracted balancing reserve",
+      "relevant": ["D01"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q14",
+      "query": "shape risk and basis risk in offtake agreements",
+      "relevant": ["D03"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q15",
+      "query": "classification and residency are independent properties",
+      "relevant": ["D05"],
+      "lexicalOverlap": "low"
+    },
+    {
+      "id": "Q16",
+      "query": "baseline gaming in response settlement disputes",
+      "relevant": ["D10"],
+      "lexicalOverlap": "medium"
+    },
+    {
+      "id": "Q17",
+      "query": "why pattern matching alone cannot stop adversarial source text",
+      "relevant": ["D09"],
+      "lexicalOverlap": "low"
+    },
+    {
+      "id": "Q18",
+      "query": "non firm connection curtailment risk earlier connection",
+      "relevant": ["D08"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q19",
+      "query": "coefficient of performance seasonal heat delivery",
+      "relevant": ["D04"],
+      "lexicalOverlap": "high"
+    },
+    {
+      "id": "Q20",
+      "query": "thermal limits and loop flows reduce available transfer",
+      "relevant": ["D06"],
+      "lexicalOverlap": "high"
+    }
+  ]
+}

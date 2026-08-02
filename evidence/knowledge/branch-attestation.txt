@@ -1,0 +1,121 @@
+================================================================================
+MIP-014 STEP 2 — PHASE 0 BRANCH ATTESTATION
+Gate G0 — Branch creation and zero-divergence attestation
+================================================================================
+
+Order of authority : MIP-014-EO-STEP2 Revision 2 (as validated by
+                     MIP-014-EO-STEP2-VAL-001), Article 1.3
+Execution Plan     : MIP-014 STEP 2 Execution Plan Revision 3, Section 2
+Governing baseline : MIP-014 STEP 1 Revision 3.1, Section 3.2 (six conditions)
+Repository         : Constantin1968/RONOR- (GitHub)
+Prepared by        : AMB (Archeon Master the Best), COO — Mayleven Ecosystem
+
+--------------------------------------------------------------------------------
+CANONICAL BASELINE DECLARED BY THE ORDER
+--------------------------------------------------------------------------------
+Canonical HEAD commit : d058544d1c579611cce99cdf2b87a78d7534e75b
+Canonical tree        : 629cd547b24c33118c039cab8c863b6a10cd8d59
+
+--------------------------------------------------------------------------------
+BRANCH CREATED
+--------------------------------------------------------------------------------
+Branch name : mip-014/r-knowledge
+Created from: d058544d1c579611cce99cdf2b87a78d7534e75b
+Commits at creation: 0 — the branch is a pointer, not a change.
+
+--------------------------------------------------------------------------------
+THE SIX BINDING CONDITIONS OF STEP 1 SECTION 3.2 — VERIFIED
+--------------------------------------------------------------------------------
+
+Condition 1 — Branch tip identical to the canonical baseline commit
+  Command : git rev-parse refs/heads/mip-014/r-knowledge
+  Required: d058544d1c579611cce99cdf2b87a78d7534e75b
+  Observed: d058544d1c579611cce99cdf2b87a78d7534e75b
+  Result  : PASS
+
+Condition 2 — Branch tree identical to the canonical baseline tree
+  Command : git rev-parse refs/heads/mip-014/r-knowledge^{tree}
+  Required: 629cd547b24c33118c039cab8c863b6a10cd8d59
+  Observed: 629cd547b24c33118c039cab8c863b6a10cd8d59
+  Result  : PASS
+
+Condition 3 — Zero commits ahead of main
+  Command : git rev-list --count main..mip-014/r-knowledge
+  Required: 0
+  Observed: 0
+  Result  : PASS
+
+Condition 4 — Zero commits behind main
+  Command : git rev-list --count mip-014/r-knowledge..main
+  Required: 0
+  Observed: 0
+  Result  : PASS
+
+Condition 5 — Zero content divergence
+  Command : git diff --stat main mip-014/r-knowledge
+  Required: empty output
+  Observed: empty output
+  Result  : PASS
+
+Condition 6 — No working-tree contamination
+  Command : git status --porcelain
+  Required: empty output
+  Observed: empty output
+  Result  : PASS
+
+--------------------------------------------------------------------------------
+BASELINE CORPUS VERIFICATION (BE-4 pre-condition)
+--------------------------------------------------------------------------------
+Command : npm ci && npm test
+Node    : v22.13.0 (baseline engines requirement >=20.0.0 satisfied)
+Result  : Test Suites 8 passed, 8 total
+          Tests       137 passed, 137 total
+          Failures    0
+          Skipped     0
+Verdict : PASS — the pre-existing 137-test corpus passes unmodified.
+
+Command : npm run build
+Result  : PASS — tsc emitted dist/, postbuild copied web/ and policies.yaml.
+Command : git status --porcelain (after build)
+Result  : empty — build output is gitignored; no working-tree contamination.
+
+--------------------------------------------------------------------------------
+BASELINE INTEGRITY REFERENCES CAPTURED AT PHASE 0
+--------------------------------------------------------------------------------
+Blob SHA-1 of files scheduled for later modification (STEP 1 Section 6.2):
+  src/index.ts        d8b37589accbcbbbb389590270aa3beb892c61a2
+  src/types/index.ts  e6d59aa46eeb0704650324c7e6020c357a0f8ab0
+  .env.example        939752ba29bc45259ececbfba695fe309e16872a
+  package.json        b966670492a699f4907e6d6c18b8e2c5928ed027
+  jest.config.js      f7e7c16c643bf4e2a66bf290f47d6dbf3ca7433d
+  .gitignore          146706be5509423c1abdcd9ed8dc16cb31983548
+
+Dependency surface at baseline:
+  package.json dependencies    : 9
+  package.json devDependencies : 15
+  package-lock.json packages   : 558
+  npm audit --audit-level=critical : exit 0 (2 advisories, 1 moderate 1 high;
+                                    none critical — baseline condition preserved)
+
+--------------------------------------------------------------------------------
+CONSTRAINTS RECORDED AS BINDING AT PHASE 0
+--------------------------------------------------------------------------------
+- No real or emulated Qdrant service shall be provisioned, started, contacted or
+  operated at any point of this execution (Order Article 3A, MT-1 to MT-8).
+- Stage D-F is excluded from Gate G9 and from the authority of the Order
+  (Order Article 6A, DF-1 to DF-6).
+- AuditHashChain shall not be modified; no Evidence Registry shall be created
+  (ADR-K01 Revision 3, decision items 4, 5, 6).
+- ChromaDB remains excluded for the current baseline (ADR-K02 Revision 3, § 3).
+- KNOWLEDGE_ENABLED default false; activation predicate is strict equality
+  against the lowercase literal 'true' (Order Article 2).
+
+--------------------------------------------------------------------------------
+GATE G0 — DETERMINATION
+--------------------------------------------------------------------------------
+All six binding conditions PASS. The pre-existing corpus passes 137/137.
+No commit has been created on the branch at the time of this attestation.
+
+GATE G0: PASS
+
+Attested by AMB, COO — Mayleven Ecosystem.

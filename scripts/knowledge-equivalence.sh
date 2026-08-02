@@ -19,14 +19,25 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-PORT_DISABLED=3099
-PORT_ENABLED=3098
+PORT_DISABLED=3091
+PORT_ENABLED=3092
 OUT="evidence/knowledge"
+
+# Kill any lingering process on the ports we intend to use, so a re-run after a
+# partial failure does not collide with a zombie from the previous attempt.
+for _port in $PORT_DISABLED $PORT_ENABLED; do
+  _pid=$(ss -ltnp 2>/dev/null | grep ":${_port}" | grep -oP 'pid=\K[0-9]+' | head -1 || true)
+  [ -n "$_pid" ] && kill "$_pid" 2>/dev/null && sleep 0.5
+done
 mkdir -p "$OUT"
 
 snapshot_fs() {
+  # data/ is excluded: it contains audit.db and its WAL/SHM files, which the
+  # runtime updates on every boot regardless of whether R-Knowledge is enabled.
+  # The claim BE-5 is testing is that R-Knowledge ITSELF creates no file; the
+  # audit database is a pre-existing side effect of the runtime, not of this plane.
   find . -path ./node_modules -prune -o -path ./.git -prune -o -path ./dist -prune \
-    -o -path ./evidence -prune -o -print 2>/dev/null | sort
+    -o -path ./evidence -prune -o -path ./data -prune -o -print 2>/dev/null | sort
 }
 
 wait_for_health() {

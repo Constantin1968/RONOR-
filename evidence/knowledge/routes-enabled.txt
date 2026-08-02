@@ -1,0 +1,8 @@
+/api/v1/knowledge/ingest 400
+/api/v1/knowledge/query 200
+/api/v1/knowledge/compose 403
+/api/v1/knowledge/status 200
+/api/v1/knowledge/quarantine 200
+/health 200
+/api/v1/sentinel/status 200
+/api/v1/model-exchange/registry 200

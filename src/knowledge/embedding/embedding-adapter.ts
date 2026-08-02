@@ -30,7 +30,18 @@ import { DeterministicEmbeddingAdapter } from './deterministic-adapter';
 
 export interface EmbeddingFactoryResult {
   ok: boolean;
-  adapter: EmbeddingAdapter | null;
+  /**
+   * ALWAYS an adapter, never null.
+   *
+   * Every unauthorised or unsatisfiable configuration returns a
+   * `RefusingEmbeddingAdapter` instead of a null, and the type now says so. The
+   * null-object discipline is what lets a caller hold one non-nullable field and
+   * let the plane degrade to level 1, rather than null-check at every call site.
+   * A nullable type here would advertise a state the factory cannot produce, and
+   * each unnecessary check is a place where a caller may reach for a non-null
+   * assertion and reintroduce exactly the hazard the null object removed.
+   */
+  adapter: EmbeddingAdapter;
   reason: KnowledgeReasonCode | null;
   detail?: string;
 }

@@ -1,0 +1,156 @@
+{
+  "gate": "G5",
+  "gate_name": "Disabled-Mode Baseline Equivalence",
+  "absolute": true,
+  "baseline_commit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "id": "BE-1",
+      "description": "No knowledge route is registered in disabled mode (all return 404)",
+      "result": "PASS",
+      "observed": {
+        "/api/v1/knowledge/ingest": "404",
+        "/api/v1/knowledge/query": "404",
+        "/api/v1/knowledge/compose": "404",
+        "/api/v1/knowledge/status": "404",
+        "/api/v1/knowledge/quarantine": "404"
+      }
+    },
+    {
+      "id": "BE-1-CONTROL",
+      "description": "EVERY knowledge route responds when enabled, proving the probe detects a mount",
+      "result": "PASS",
+      "observed": {
+        "/api/v1/knowledge/ingest": "400",
+        "/api/v1/knowledge/query": "200",
+        "/api/v1/knowledge/compose": "403",
+        "/api/v1/knowledge/status": "200",
+        "/api/v1/knowledge/quarantine": "200"
+      }
+    },
+    {
+      "id": "BE-2",
+      "description": "Every baseline route still responds successfully in disabled mode",
+      "result": "PASS",
+      "observed": {
+        "/health": "200",
+        "/api/v1/sentinel/status": "200",
+        "/api/v1/model-exchange/registry": "200"
+      }
+    },
+    {
+      "id": "BE-3",
+      "description": "GET /health reports exactly the eight baseline planes in order",
+      "result": "PASS",
+      "observed": {
+        "observed": [
+          "r-gateway",
+          "r-context",
+          "r-model-fabric",
+          "r-agent-runtime",
+          "r-execution",
+          "r-assurance",
+          "r-economics",
+          "r-sentinel"
+        ],
+        "expected": [
+          "r-gateway",
+          "r-context",
+          "r-model-fabric",
+          "r-agent-runtime",
+          "r-execution",
+          "r-assurance",
+          "r-economics",
+          "r-sentinel"
+        ]
+      }
+    },
+    {
+      "id": "BE-3b",
+      "description": "The health payload contains no 'knowledge' key in disabled mode",
+      "result": "PASS",
+      "observed": {
+        "top_level_keys": [
+          "models",
+          "planes",
+          "sentinel",
+          "status",
+          "uptime",
+          "version"
+        ]
+      }
+    },
+    {
+      "id": "BE-3b-CONTROL",
+      "description": "The health payload DOES contain 'knowledge' when enabled",
+      "result": "PASS",
+      "observed": {
+        "top_level_keys": [
+          "knowledge",
+          "models",
+          "planes",
+          "sentinel",
+          "status",
+          "uptime",
+          "version"
+        ]
+      }
+    },
+    {
+      "id": "BE-3c",
+      "description": "The eight-plane roster is unchanged even when R-Knowledge is ENABLED",
+      "result": "PASS",
+      "observed": {
+        "observed": [
+          "r-gateway",
+          "r-context",
+          "r-model-fabric",
+          "r-agent-runtime",
+          "r-execution",
+          "r-assurance",
+          "r-economics",
+          "r-sentinel"
+        ]
+      }
+    },
+    {
+      "id": "BE-4",
+      "description": "Runtime status remains 'ok' in disabled mode",
+      "result": "PASS",
+      "observed": {
+        "status": "ok"
+      }
+    },
+    {
+      "id": "BE-5",
+      "description": "The filesystem is byte-identical before and after a disabled-mode boot",
+      "result": "PASS",
+      "observed": {
+        "diff": "(empty)"
+      }
+    },
+    {
+      "id": "ISO-1",
+      "description": "The orchestrator, audit chain and MI9 gate are byte-identical to the baseline",
+      "result": "PASS",
+      "observed": {
+        "src/orchestrator.ts": {
+          "baseline": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "current": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "identical": true
+        },
+        "src/audit/hash-chain.ts": {
+          "baseline": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "current": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "identical": true
+        },
+        "src/governance/mi9-gate.ts": {
+          "baseline": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "current": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "identical": true
+        }
+      }
+    }
+  ]
+}

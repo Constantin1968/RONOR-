@@ -43,6 +43,8 @@ import { RExecutionPlane } from './planes/r-execution';
 import { RAssurancePlane } from './planes/r-assurance';
 import { REconomicsPlane } from './planes/r-economics';
 import { RSentinelPlane } from './planes/r-sentinel';
+import { RKnowledgePlane } from './planes/r-knowledge';
+import { createKnowledgeRouter } from './api/knowledge-router';
 import { RONOROrchestrator } from './orchestrator';
 
 const logger = createLogger('RONOR:Main');
@@ -104,6 +106,26 @@ async function bootstrap(): Promise<void> {
 
   logger.info(`All ${planes.length} planes operational ✓`);
 
+  // ── R-Knowledge (MIP-014) — plane 9, fail-closed ────────────────────────────
+  //
+  // THE ABSOLUTE GATE. `create()` returns null unless KNOWLEDGE_ENABLED is
+  // exactly "true", and a null result means NO INSTANCE EXISTS. Every statement
+  // below that touches the plane is therefore inside a null check, and when the
+  // flag is absent the runtime's observable behaviour is byte-for-byte what it was
+  // at the baseline commit: the same route table, the same eight plane health
+  // entries, the same files on disk, the same open handles.
+  //
+  // The plane is deliberately NOT added to the `planes` array and NOT passed to
+  // the orchestrator. It is not in the inference pipeline: `GET /health` continues
+  // to report exactly eight planes, and R-Knowledge reports separately. Adding it
+  // to that array would change a baseline-equivalence invariant (BE-3) for no
+  // functional gain, since nothing in the orchestrator consumes retrieval.
+  const knowledge = RKnowledgePlane.create();
+  if (knowledge !== null) {
+    await knowledge.init();
+    logger.info('R-Knowledge (plane 9) enabled ✓');
+  }
+
   // Build orchestrator
   const orchestrator = new RONOROrchestrator({
     gateway,
@@ -126,6 +148,11 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1', createDecisionsRouter());
   app.use('/api/v1/model-exchange', modelExchangeRouter);
   app.use('/api/v1/sentinel', createSentinelRouter(sentinel));
+  if (knowledge !== null) {
+    // Registered only when the plane exists. In disabled mode this mount does not
+    // occur, so the route table is identical to the baseline's (invariant BE-1).
+    app.use('/api/v1/knowledge', createKnowledgeRouter(knowledge));
+  }
 
   // Static web UI (decision timeline + audit verifier)
   app.use('/', express.static('web'));
@@ -144,8 +171,18 @@ async function bootstrap(): Promise<void> {
       },
       models: modelFabric.getAvailableModels().length,
       uptime: process.uptime(),
+      // Present ONLY when the plane is enabled. The key is absent in disabled
+      // mode, so the health payload is structurally identical to the baseline's —
+      // not merely similar with a null field, which would still be a diff.
+      ...(knowledge !== null
+        ? { knowledge: { degradationLevel: knowledge.getDegradation().level } }
+        : {}),
     });
   });
+
+  if (knowledge !== null) {
+    logger.info(`Knowledge: http://localhost:${PORT}/api/v1/knowledge/status`);
+  }
 
   app.listen(PORT, () => {
     logger.info(`RONOR Runtime listening on http://localhost:${PORT}`);

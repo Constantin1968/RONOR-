@@ -258,6 +258,10 @@ function main(): number {
     'qdrant-dependency-assessment.md',
     'mocked-transport-attestation.txt',
     'benchmark-report.json',
+    'benchmark-report.md',
+    'rollback-report.md',
+    'security-review.md',
+    'sbom.json',
   ];
   const missing = requiredEvidence.filter((file) => !existsSync(join(EVIDENCE_DIR, file)));
   record('CONF-14', 'All required evidence artefacts present', true, missing.length === 0, {

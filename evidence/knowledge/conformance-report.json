@@ -3,7 +3,7 @@
   "name": "R-Knowledge conformance",
   "baselineCommit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
   "branch": "mip-014/r-knowledge",
-  "head": "f68f4e7e2732bcc2234031c3656cfa41b75d0b7d",
+  "head": "fd9009be37dbab3bf905ca6018bd2f132136a95d",
   "verdict": "PASS",
   "determinativeChecks": 13,
   "informationalChecks": 1,
@@ -187,7 +187,7 @@
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "required": 12,
+        "required": 16,
         "missing": []
       }
     }

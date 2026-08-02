@@ -39,6 +39,8 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -108,6 +110,8 @@ jobs:
         run: npx jest tests/knowledge/equivalence.test.ts
 
       - name: Runtime equivalence harness (boots both modes)
+        env:
+          OPENAI_API_KEY: placeholder
         run: |
           npm run build
           bash scripts/knowledge-equivalence.sh

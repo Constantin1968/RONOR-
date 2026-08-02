@@ -57,7 +57,10 @@ probe_routes() {
   # uniform POST probe would have reported /status and /quarantine as absent even
   # when the plane was enabled — an accidental false PASS on the disabled-mode
   # claim, caused by the probe rather than by the runtime.
-  for route in ingest query compose; do
+  # `corpus` added by MIP-015 Stage D. It MUST appear here: a route absent from this
+  # probe would never be checked for the disabled-mode 404, and the equivalence
+  # claim would be silently narrower than it appears.
+  for route in ingest corpus query compose; do
     printf '/api/v1/knowledge/%s %s\n' "$route" \
       "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
          -d '{}' "http://localhost:${port}/api/v1/knowledge/${route}")"

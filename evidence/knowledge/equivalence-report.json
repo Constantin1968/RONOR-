@@ -11,6 +11,7 @@
       "result": "PASS",
       "observed": {
         "/api/v1/knowledge/ingest": "404",
+        "/api/v1/knowledge/corpus": "404",
         "/api/v1/knowledge/query": "404",
         "/api/v1/knowledge/compose": "404",
         "/api/v1/knowledge/status": "404",
@@ -23,6 +24,7 @@
       "result": "PASS",
       "observed": {
         "/api/v1/knowledge/ingest": "400",
+        "/api/v1/knowledge/corpus": "400",
         "/api/v1/knowledge/query": "200",
         "/api/v1/knowledge/compose": "403",
         "/api/v1/knowledge/status": "200",

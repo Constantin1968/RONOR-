@@ -123,7 +123,26 @@ async function bootstrap(): Promise<void> {
   const knowledge = RKnowledgePlane.create();
   if (knowledge !== null) {
     await knowledge.init();
-    logger.info('R-Knowledge (plane 9) enabled ✓');
+
+    // ---- Stage F: knowledge grounding (MIP-015 STEP 3) ----
+    //
+    // R-Knowledge supplies grounded context to the inference pipeline through a
+    // narrow provider interface attached to R-Context. Three properties are
+    // preserved, and each is load-bearing:
+    //
+    //   - The orchestrator's plane composition is UNCHANGED. R-Knowledge is still
+    //     not a member of the eight, `GET /health` still reports exactly eight
+    //     planes, and invariant BE-3 is untouched.
+    //   - The attachment happens ONLY inside this null check. When the plane is
+    //     disabled no provider is attached, R-Context's `knowledgeProvider` stays
+    //     null, and the system prompt it produces is byte-identical to the
+    //     baseline's.
+    //   - A knowledge failure degrades the answer rather than denying it. The
+    //     provider returns a value on every path and raises nothing.
+    const { createKnowledgeContextProvider } = await import('./knowledge/context-provider');
+    context.attachKnowledgeProvider(createKnowledgeContextProvider(knowledge));
+
+    logger.info('R-Knowledge (plane 9) enabled ✓ — Stage F grounding attached to R-Context');
   }
 
   // Build orchestrator

@@ -59,6 +59,62 @@ export function createKnowledgeRouter(plane: RKnowledgePlane): Router {
     }
   });
 
+  /**
+   * POST /corpus — batch ingestion (Stage D, MIP-015).
+   *
+   * Status semantics differ deliberately from /ingest. A batch is not one thing that
+   * succeeded or failed: it is many. 200 is returned whenever the batch was
+   * PROCESSED, with per-document dispositions in the body, and 207 would be more
+   * precise but is not in the plane's declared status set. A non-2xx status is
+   * reserved for a batch that could not be processed at all — a malformed request or
+   * a plane too degraded to accept writes — because an operator's retry logic should
+   * distinguish "nothing happened, try again" from "most of it worked, read the
+   * report".
+   */
+  router.post('/corpus', async (req: Request, res: Response) => {
+    try {
+      const documents = req.body?.documents;
+      if (!Array.isArray(documents)) {
+        res.status(400).json({
+          ok: false,
+          reason: 'ADMISSION_MALFORMED',
+          detail: 'the request body must contain a `documents` array',
+        });
+        return;
+      }
+      if (documents.length === 0) {
+        // An empty batch is not an error. It is a batch of nothing, and it succeeded
+        // at doing nothing — which matters to an idempotent loader that may legitimately
+        // find no new documents to offer.
+        res.status(200).json({
+          ok: true,
+          documentsOffered: 0,
+          documentsIngested: 0,
+          documentsDuplicate: 0,
+          documentsRefused: 0,
+          documentsQuarantined: 0,
+          documentsDegraded: 0,
+          objectsWritten: 0,
+          outcomes: [],
+        });
+        return;
+      }
+
+      const report = await plane.ingestCorpusBatch(documents, {
+        stopOnFirstFailure: req.body?.stopOnFirstFailure === true,
+      });
+
+      // 503 only when the plane could not write at all, which is visible as every
+      // document having been dispositioned 'degraded'.
+      const allDegraded =
+        report.documentsOffered > 0 && report.documentsDegraded === report.documentsOffered;
+      res.status(allDegraded ? 503 : 200).json(report);
+    } catch (error) {
+      logger.error(`corpus handler error: ${error instanceof Error ? error.message : 'unknown'}`);
+      res.status(503).json({ ok: false, reason: 'RETRIEVAL_UNAVAILABLE' });
+    }
+  });
+
   /** POST /query — governed retrieval. */
   router.post('/query', async (req: Request, res: Response) => {
     try {

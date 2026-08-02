@@ -43,6 +43,12 @@ import { ingest } from '../../knowledge/ingestion';
 import type { IngestionResult } from '../../knowledge/ingestion';
 import { composeRag } from '../../knowledge/rag';
 import type { RagComposition, RagRequest } from '../../knowledge/rag';
+import { ingestCorpus } from '../../knowledge/corpus';
+import type {
+  CorpusDocument,
+  CorpusIngestionOptions,
+  CorpusIngestionReport,
+} from '../../knowledge/corpus';
 import { retrieve } from '../../knowledge/retrieval';
 import { selectVectorStore } from '../../knowledge/stores/vector-store';
 import { isKnowledgeEnabled, resolveKnowledgeConfig } from './config';
@@ -194,6 +200,44 @@ export class RKnowledgePlane {
       this.errorsTotal += 1;
     }
     return result;
+  }
+
+  /**
+   * Batch corpus ingestion (Stage D).
+   *
+   * Delegates to the corpus service, which loops over the SAME governed pipeline
+   * used for a single document. No stage is skipped for batch input, because a
+   * second ingestion law is how a corpus acquires documents that could never have
+   * been admitted individually.
+   */
+  async ingestCorpusBatch(
+    documents: CorpusDocument[],
+    options: CorpusIngestionOptions = {}
+  ): Promise<CorpusIngestionReport> {
+    this.requestsTotal += 1;
+    await this.refreshDegradation();
+
+    const report = await ingestCorpus(
+      documents,
+      {
+        config: this.config,
+        store: this.store,
+        embedder: this.embedder,
+        degradation: this.degradation,
+        now: () => new Date(),
+        onQuarantine: (record) => {
+          this.quarantineEvents += 1;
+          if (this.quarantineRecords.length >= 1000) this.quarantineRecords.shift();
+          this.quarantineRecords.push(record);
+        },
+      },
+      options
+    );
+
+    this.objectsIngested += report.objectsWritten;
+    this.objectsRefused += report.documentsRefused + report.documentsQuarantined;
+    if (!report.ok) this.errorsTotal += 1;
+    return report;
   }
 
   async query(raw: unknown): Promise<KnowledgeRetrievalResponse> {

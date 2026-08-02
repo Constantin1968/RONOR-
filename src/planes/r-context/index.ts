@@ -12,6 +12,7 @@
 
 import { createLogger } from '../../utils/logger';
 import type { RONORRequest, PlaneHealth, ContextMessage } from '../../types';
+import type { KnowledgeContextProvider } from '../../knowledge/context-provider';
 
 const logger = createLogger('Plane:R-Context');
 
@@ -25,8 +26,46 @@ export class RContextPlane {
   private requestsTotal = 0;
   private errorsTotal = 0;
 
+  /**
+   * Optional knowledge grounding (MIP-015 STEP 3, Stage F).
+   *
+   * `null` when R-Knowledge is absent, which is its state in every deployment that
+   * has not enabled the plane. The field is optional rather than a required
+   * constructor argument so that the plane's construction signature is unchanged and
+   * every existing caller — including the composition root and the existing tests —
+   * continues to work untouched.
+   */
+  private knowledgeProvider: KnowledgeContextProvider | null = null;
+
+  /** Grounding statistics, for diagnosis. */
+  private groundedRequests = 0;
+  private ungroundedRequests = 0;
+
   async init(): Promise<void> {
     logger.info('R-Context plane initialised ✓');
+  }
+
+  /**
+   * Attach knowledge grounding.
+   *
+   * Separate from `init()` deliberately. R-Knowledge is constructed by the
+   * composition root only when enabled, and attaching afterwards means R-Context has
+   * no knowledge of how the plane is created, no import of it, and no behaviour that
+   * changes when it is absent.
+   */
+  attachKnowledgeProvider(provider: KnowledgeContextProvider | null): void {
+    this.knowledgeProvider = provider;
+    if (provider !== null) {
+      logger.info('R-Context: knowledge grounding attached (R-Knowledge Stage F)');
+    }
+  }
+
+  getGroundingStats(): { grounded: number; ungrounded: number; attached: boolean } {
+    return {
+      grounded: this.groundedRequests,
+      ungrounded: this.ungroundedRequests,
+      attached: this.knowledgeProvider !== null,
+    };
   }
 
   async process(request: RONORRequest): Promise<RONORRequest> {
@@ -54,11 +93,47 @@ export class RContextPlane {
     // Persist updated context
     sessionStore.set(request.sessionId, compressedHistory);
 
+    // ---- Stage F: knowledge grounding (MIP-015) ----
+    //
+    // Additive in the strictest sense: when no provider is attached, `systemPrompt`
+    // is byte-identical to what this plane produced before Stage F existed. The
+    // grounding is APPENDED to the system prompt rather than merged into the message
+    // history, because the retrieved region must stay outside the conversation: a
+    // data region placed among user messages would be indistinguishable from
+    // something the user said.
+    let systemPrompt = request.context?.systemPrompt || this.buildSystemPrompt();
+
+    if (this.knowledgeProvider !== null) {
+      const contribution = await this.knowledgeProvider.provide({
+        query: request.prompt,
+        // No ceiling is asserted here. The provider's own default applies, and
+        // R-Context has no basis for widening it: it does not know the requester's
+        // clearance, and inventing one would be an authorisation decision taken
+        // without the information needed to take it.
+      });
+
+      if (contribution.grounded && contribution.dataRegion !== null) {
+        this.groundedRequests += 1;
+        systemPrompt = `${systemPrompt}\n\n${contribution.dataRegion}`;
+        logger.info(
+          `R-Context: grounded with ${contribution.sourceCount} source(s), ` +
+            `complete=${contribution.complete}`
+        );
+      } else {
+        this.ungroundedRequests += 1;
+        // Recorded, not raised. An ungrounded request is a normal outcome — an empty
+        // corpus produces one on every request — and it must not read as an error.
+        logger.debug(
+          `R-Context: proceeding ungrounded (${contribution.reason ?? 'unknown'})`
+        );
+      }
+    }
+
     return {
       ...request,
       context: {
         messages: compressedHistory,
-        systemPrompt: request.context?.systemPrompt || this.buildSystemPrompt(),
+        systemPrompt,
         maxTokens: MAX_TOKENS,
         compressionEnabled: true,
       },

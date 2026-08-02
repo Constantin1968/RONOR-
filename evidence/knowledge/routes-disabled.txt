@@ -1,4 +1,5 @@
 /api/v1/knowledge/ingest 404
+/api/v1/knowledge/corpus 404
 /api/v1/knowledge/query 404
 /api/v1/knowledge/compose 404
 /api/v1/knowledge/status 404

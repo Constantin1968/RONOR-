@@ -18,15 +18,17 @@
  * therefore satisfies the interface without simulating a network, and the adapter
  * cannot smuggle a request through a generic escape hatch.
  *
- * Second, NO IMPLEMENTATION OF THIS INTERFACE THAT PERFORMS NETWORK INPUT OR
- * OUTPUT EXISTS ANYWHERE IN THIS REPOSITORY. Under MIP-014-EO-STEP2 the only
- * implementation is the in-process double used by the adapter's own tests. A live
- * implementation would require `@qdrant/js-client-rest`, which is deliberately
- * NOT added as a dependency, because adding it under an Order that authorises no
- * egress would create a capability the Order withholds. The dependency, its
- * pinned version and its `undici` floor are assessed in the dossier and recorded
- * in the Phase 6 dependency assessment; the assessment is the deliverable, the
- * installation is not.
+ * Second — AMENDED BY MIP-015 STEP 3. Under MIP-014-EO-STEP2 no implementation of
+ * this interface performed network input or output: the only implementation was the
+ * in-process double used by the adapter's own tests, and `@qdrant/js-client-rest`
+ * was deliberately not installed because an Order authorising no egress should not
+ * create a capability it withholds.
+ *
+ * MIP-015 authorises Qdrant as the production store. A LIVE implementation now
+ * exists in `qdrant-live-transport.ts`, and the client is installed and pinned
+ * exactly. The mocked double remains, and remains the default: the adapter's
+ * refusal paths are still proved with no possibility of egress, and the live
+ * transport must be injected deliberately.
  */
 
 import type { KnowledgeClassification } from '../../planes/r-knowledge/types';
@@ -120,15 +122,43 @@ export class QdrantTransportError extends Error {
 }
 
 /**
+ * Collection provisioning specification.
+ *
+ * Deliberately minimal: a name, a width and a metric. There is no shard count, no
+ * replication factor and no quantisation setting, because those are capacity and
+ * durability decisions belonging to whoever operates the cluster — not to an
+ * application that merely needs somewhere to put vectors.
+ */
+export interface QdrantCollectionSpec {
+  dimensions: number;
+  distance: 'Cosine' | 'Dot' | 'Euclid';
+}
+
+/**
  * The operations the adapter requires of a Qdrant server.
  *
- * Note what is absent. There is no `createCollection` and no `deleteCollection`:
- * prohibition AC-2 denies the application the capability to create or delete a
- * collection, and an interface that lacks the operation cannot exercise it even if
- * a credential were mistakenly over-scoped. There is no snapshot operation, for
- * the same reason. Provisioning and elimination are operator actions recorded in
- * a deployment record, and Stage D-F — where they would first be exercised — is
- * excluded from this Order.
+ * Note what is still absent, and why.
+ *
+ * `deleteCollection` does not exist. Prohibition AC-2 denies the application the
+ * capability to destroy a collection, and an interface that lacks the operation
+ * cannot exercise it even if a credential were mistakenly over-scoped. Elimination
+ * remains an operator action recorded in a deployment record. There is likewise no
+ * snapshot operation.
+ *
+ * `createCollection` DOES now exist — amended by MIP-015 STEP 3, which requires
+ * collection auto-creation with correct vector dimensions. The capability is
+ * narrowly drawn and doubly gated:
+ *
+ *   1. It can only CREATE, never destroy or reshape. An existing collection is
+ *      never touched by it.
+ *   2. The adapter invokes it only when `autoCreateCollection` is explicitly
+ *      enabled in configuration. The default is DISABLED, so a deployment that has
+ *      not asked for provisioning still refuses on a missing collection exactly as
+ *      it did under MIP-014.
+ *
+ * The asymmetry between create and delete is intentional rather than an oversight:
+ * creating an empty collection is recoverable by deleting it, whereas deleting a
+ * populated one is not recoverable at all.
  */
 export interface QdrantTransport {
   /** Server version, asserted against the pin at initialisation (rule VP-5). */
@@ -141,6 +171,12 @@ export interface QdrantTransport {
   scrollByContentHash(collection: string, contentHash: string): Promise<QdrantScoredPoint[]>;
   deletePoints(collection: string, ids: string[]): Promise<{ deleted: number }>;
   countPoints(collection: string): Promise<number>;
+  /**
+   * Create a collection. Optional on the interface so that a transport which
+   * cannot or must not provision simply does not offer it, and the adapter then
+   * refuses on a missing collection rather than failing at the call site.
+   */
+  createCollection?(collection: string, spec: QdrantCollectionSpec): Promise<void>;
 }
 
 /**
@@ -200,6 +236,9 @@ export const UNAVAILABLE_TRANSPORT_FACTORY: QdrantTransportFactory = () => ({
     throw new QdrantTransportError('unreachable', 'no transport implementation is present');
   },
   async countPoints(): Promise<number> {
+    throw new QdrantTransportError('unreachable', 'no transport implementation is present');
+  },
+  async createCollection(): Promise<void> {
     throw new QdrantTransportError('unreachable', 'no transport implementation is present');
   },
 });

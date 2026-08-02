@@ -54,6 +54,20 @@ export interface MockTransportOptions {
   failWith?: QdrantTransportFailure;
   /** Injected failure applied only to write operations. */
   failWritesWith?: QdrantTransportFailure;
+  /** Injected failure applied only to collection creation (MIP-015). */
+  failCreateWith?: QdrantTransportFailure;
+  /**
+   * Omit the `createCollection` method entirely, modelling a transport that
+   * cannot provision. The adapter must then refuse rather than call an absent
+   * method (MIP-015).
+   */
+  omitCreateCollection?: boolean;
+  /**
+   * Report the collection as still absent AFTER a successful creation, modelling a
+   * server that acknowledges a create it did not perform. The adapter must refuse
+   * on re-read rather than proceed against storage whose state it cannot confirm.
+   */
+  createSilentlyFails?: boolean;
 }
 
 export interface MockTransportRecorder {
@@ -65,6 +79,8 @@ export interface MockTransportRecorder {
   points: Map<string, QdrantPoint>;
   /** Every value the adapter passed as a bearer token, for hygiene assertions. */
   tokensObserved: string[];
+  /** Collections created through the double, with the spec each was created from. */
+  collectionsCreated: { collection: string; dimensions: number; distance: string }[];
 }
 
 export const PINNED_SERVER_VERSION = 'v1.18.3';
@@ -84,7 +100,13 @@ export function makeMockQdrantTransportWithRecorder(
     operations: [],
     points: new Map<string, QdrantPoint>(),
     tokensObserved: [],
+    collectionsCreated: [],
   };
+
+  // Existence is STATEFUL in the double, because auto-creation is only meaningful
+  // if a collection that did not exist can come to exist. A double reporting a
+  // fixed value could not distinguish a successful creation from a no-op.
+  let collectionPresent = options.collectionExists ?? true;
 
   const factory: QdrantTransportFactory = (transportOptions) => {
     recorder.factoryInvocations += 1;
@@ -111,8 +133,11 @@ export function makeMockQdrantTransportWithRecorder(
 
       async getCollectionInfo(): Promise<QdrantCollectionInfo> {
         guard('getCollectionInfo');
+        if (!collectionPresent) {
+          return { exists: false, pointCount: 0, dimensions: null, distance: null };
+        }
         return {
-          exists: options.collectionExists ?? true,
+          exists: true,
           pointCount: recorder.points.size,
           dimensions: options.collectionDimensions ?? options.dimensions,
           distance: 'Cosine',
@@ -198,6 +223,35 @@ export function makeMockQdrantTransportWithRecorder(
         return recorder.points.size;
       },
     };
+
+    // Provisioning is attached CONDITIONALLY, so that a transport genuinely lacking
+    // the capability can be modelled. The adapter must detect absence and refuse,
+    // rather than calling a method that is not there.
+    if (!options.omitCreateCollection) {
+      transport.createCollection = async (
+        collection: string,
+        spec: { dimensions: number; distance: string }
+      ): Promise<void> => {
+        guard('createCollection', true);
+        if (options.failCreateWith) {
+          throw new QdrantTransportError(
+            options.failCreateWith,
+            `injected ${options.failCreateWith} creation failure`
+          );
+        }
+        recorder.collectionsCreated.push({
+          collection,
+          dimensions: spec.dimensions,
+          distance: spec.distance,
+        });
+        // A server that acknowledges a create it did not perform. The adapter's
+        // re-read must catch this; without the re-read it would proceed against a
+        // collection that does not exist.
+        if (!options.createSilentlyFails) {
+          collectionPresent = true;
+        }
+      };
+    }
 
     return transport;
   };

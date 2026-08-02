@@ -221,6 +221,22 @@ function resolveStrictBoolean(raw: string | undefined): boolean {
   return raw === 'true';
 }
 
+/**
+ * Distance metric for a provisioned collection.
+ *
+ * Cosine is the default and is the correct pairing for the plane's L2-normalised
+ * vectors: with unit-length vectors cosine and dot agree, and cosine remains
+ * correct if a future embedder emits unnormalised output. An unrecognised value
+ * resolves to Cosine rather than being refused, because the metric is a
+ * performance characteristic rather than a governance boundary.
+ */
+function resolveDistance(env: EnvSource): 'Cosine' | 'Dot' | 'Euclid' {
+  const raw = (env.KNOWLEDGE_QDRANT_DISTANCE || '').trim().toLowerCase();
+  if (raw === 'dot') return 'Dot';
+  if (raw === 'euclid' || raw === 'euclidean') return 'Euclid';
+  return 'Cosine';
+}
+
 function resolveQdrant(env: EnvSource): QdrantAdapterConfig {
   return Object.freeze({
     // Two variable families, plane-specific first. `QDRANT_URL`,
@@ -241,6 +257,11 @@ function resolveQdrant(env: EnvSource): QdrantAdapterConfig {
       KNOWLEDGE_DEFAULTS.qdrantCollection,
     timeoutMs: resolveInt(env.KNOWLEDGE_QDRANT_TIMEOUT_MS, KNOWLEDGE_DEFAULTS.qdrantTimeoutMs, 100, 10_000),
     maxRetries: resolveInt(env.KNOWLEDGE_QDRANT_MAX_RETRIES, KNOWLEDGE_DEFAULTS.qdrantMaxRetries, 0, 5),
+    // Strict, like every other boolean in the plane: only the exact string 'true'
+    // enables provisioning. Auto-creating storage nobody asked for is how a typo in
+    // a collection name becomes an empty corpus that appears to be working.
+    autoCreateCollection: resolveStrictBoolean(env.KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION),
+    distance: resolveDistance(env),
     environmentAuthorisationRef: (env.KNOWLEDGE_QDRANT_ENVIRONMENT_AUTHORISATION || '').trim(),
     telemetryDisabled: env.QDRANT__TELEMETRY_DISABLED === 'true',
     tlsRequired: true,

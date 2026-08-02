@@ -525,6 +525,17 @@ export interface QdrantAdapterConfig {
   readonly collection: string;
   readonly timeoutMs: number;
   readonly maxRetries: number;
+  /**
+   * Whether the adapter may CREATE a missing collection (MIP-015 STEP 3).
+   *
+   * Default DISABLED. A deployment that has not asked for provisioning refuses on
+   * a missing collection exactly as it did under MIP-014, because silently
+   * creating storage an operator did not ask for is how a typo in a collection
+   * name becomes an empty corpus that appears to work.
+   */
+  readonly autoCreateCollection: boolean;
+  /** Distance metric used when provisioning. Cosine matches L2-normalised vectors. */
+  readonly distance: 'Cosine' | 'Dot' | 'Euclid';
   readonly environmentAuthorisationRef: string;
   readonly telemetryDisabled: boolean;
   readonly tlsRequired: true;

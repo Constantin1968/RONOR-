@@ -125,6 +125,8 @@ export class QdrantVectorStore implements VectorStore {
 
   private readonly config: KnowledgeConfig;
   private readonly transportFactory: QdrantTransportFactory;
+  /** Diagnostic: how many collections this adapter has provisioned. */
+  private collectionsCreated = 0;
   private transport: QdrantTransport | null = null;
   private lastErrorCode: KnowledgeReasonCode | null = null;
   /** Count of transport constructions. Asserted to be zero on refusal paths. */
@@ -304,22 +306,72 @@ export class QdrantVectorStore implements VectorStore {
         };
       }
 
-      const collection = await transport.getCollectionInfo(this.config.qdrant.collection);
+      let collection = await transport.getCollectionInfo(this.config.qdrant.collection);
+
       if (!collection.exists) {
-        // The adapter has no capability to create a collection (AC-2), and the
-        // transport interface has no such operation. Provisioning is an operator
-        // action recorded in a deployment record.
-        this.lastErrorCode = 'STORE_UNAVAILABLE';
-        return {
-          ok: false,
-          storeId: this.id,
-          reason: 'STORE_UNAVAILABLE',
-          detail:
-            `collection "${this.config.qdrant.collection}" does not exist. The application holds ` +
-            'no capability to create or delete a collection; provisioning is an operator action.',
-          degradationLevel: 3,
-        };
+        // MIP-015 STEP 3 amends the MIP-014 position, under which the adapter held
+        // no capability to create a collection at all. It now may — but ONLY when
+        // provisioning has been explicitly requested, and only to CREATE. There is
+        // still no capability to delete or reshape, because creating an empty
+        // collection is recoverable and destroying a populated one is not.
+        if (!this.config.qdrant.autoCreateCollection || typeof transport.createCollection !== 'function') {
+          this.lastErrorCode = 'STORE_UNAVAILABLE';
+          return {
+            ok: false,
+            storeId: this.id,
+            reason: 'STORE_UNAVAILABLE',
+            detail:
+              `collection "${this.config.qdrant.collection}" does not exist and auto-creation is not ` +
+              'enabled. Set KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION=true to permit the adapter to ' +
+              'provision it, or create it as an operator action. Auto-creation is disabled by ' +
+              'default so that a mistyped collection name cannot silently produce an empty corpus.',
+            degradationLevel: 3,
+          };
+        }
+
+        try {
+          await transport.createCollection(this.config.qdrant.collection, {
+            // The width comes from the ACTIVE embedding adapter, not from a
+            // configured constant, so a provisioned collection cannot disagree with
+            // the vectors that will be written into it.
+            dimensions: this.config.embeddingDimensions,
+            distance: this.config.qdrant.distance,
+          });
+          this.collectionsCreated += 1;
+        } catch (creationError) {
+          const reason = this.mapTransportFailure(creationError);
+          this.lastErrorCode = reason;
+          return {
+            ok: false,
+            storeId: this.id,
+            reason,
+            detail: redactCredentials(
+              `collection "${this.config.qdrant.collection}" could not be created: ` +
+                (creationError instanceof Error ? creationError.message : 'unknown failure')
+            ),
+            degradationLevel: 3,
+          };
+        }
+
+        // Re-read rather than assume. A creation that reported success but produced
+        // a collection of the wrong width would otherwise pass unnoticed until the
+        // first upsert failed, far from the cause.
+        collection = await transport.getCollectionInfo(this.config.qdrant.collection);
+        if (!collection.exists) {
+          this.lastErrorCode = 'STORE_UNAVAILABLE';
+          return {
+            ok: false,
+            storeId: this.id,
+            reason: 'STORE_UNAVAILABLE',
+            detail:
+              `collection "${this.config.qdrant.collection}" was reported created but is not present ` +
+              'on re-read. The adapter refuses rather than proceeding against storage whose state ' +
+              'it cannot confirm.',
+            degradationLevel: 3,
+          };
+        }
       }
+
       if (
         collection.dimensions !== null &&
         collection.dimensions !== this.config.embeddingDimensions
@@ -630,6 +682,17 @@ export class QdrantVectorStore implements VectorStore {
    */
   getTransportConstructionCount(): number {
     return this.transportConstructions;
+  }
+
+  /**
+   * Number of collections this adapter has provisioned.
+   *
+   * Exposed so that a test can assert provisioning did NOT occur, which is a
+   * stronger claim than asserting that open() refused: an adapter could refuse and
+   * still have created a collection on the way.
+   */
+  getCollectionsCreatedCount(): number {
+    return this.collectionsCreated;
   }
 
   isOpen(): boolean {

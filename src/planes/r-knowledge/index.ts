@@ -45,7 +45,7 @@ import { composeRag } from '../../knowledge/rag';
 import type { RagComposition, RagRequest } from '../../knowledge/rag';
 import { retrieve } from '../../knowledge/retrieval';
 import { selectVectorStore } from '../../knowledge/stores/vector-store';
-import { resolveKnowledgeConfig } from './config';
+import { isKnowledgeEnabled, resolveKnowledgeConfig } from './config';
 import type {
   DegradationState,
   EmbeddingAdapter,
@@ -60,17 +60,22 @@ import type {
 const logger = createLogger('Plane:R-Knowledge');
 
 /**
- * The activation predicate, stated once.
+ * The activation predicate is IMPORTED, not redefined here.
+ *
+ * It previously existed twice — once in `config.ts` and once in this file. Both said
+ * `=== 'true'`, so the duplication was harmless on the day it was written, and that is
+ * exactly the hazard. Two copies of a security-relevant predicate drift silently,
+ * because the copy someone later relaxes to accept `'1'` is not necessarily the copy
+ * the conformance suite asserts against. The G8 rollback drill found this by counting
+ * definitions rather than by reading them, which is the kind of defect a drill exists
+ * to catch.
  *
  * `=== 'true'` exactly: lowercase, untrimmed, string-compared. `1`, `yes`, `TRUE`,
  * `True`, `on` and `' true '` all evaluate false. A permissive predicate on a
- * fail-closed flag is how a plane ends up enabled in an environment nobody
- * intended, and the strictness is therefore a feature rather than an
- * inconvenience.
+ * fail-closed flag is how a plane ends up enabled in an environment nobody intended,
+ * so the strictness is a feature rather than an inconvenience.
  */
-export function isKnowledgeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.KNOWLEDGE_ENABLED === 'true';
-}
+export { isKnowledgeEnabled } from './config';
 
 export class RKnowledgePlane {
   private readonly config: KnowledgeConfig;

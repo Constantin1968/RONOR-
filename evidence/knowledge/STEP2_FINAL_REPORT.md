@@ -11,9 +11,8 @@
 | **Baseline commit** | `d058544d1c579611cce99cdf2b87a78d7534e75b` |
 | **Baseline tree** | `629cd547b24c33118c039cab8c863b6a10cd8d59` |
 | **Branch** | `mip-014/r-knowledge` |
-| **Branch HEAD** | `aaeaaaa7f50e826fe3fb2c8f26b4ff30d650df55` |
-| **Branch tree** | `bf7c24b57a3af9be2f39e74f75964f8faa0485a7` |
-| **Commits** | 10, all local — **not pushed**; see § 9 |
+| **Branch HEAD** | `57f6420f37908ca30e2d4fc97a2462705ed4cf90` |
+| **Commits** | 11, all local — **not pushed**; see § 9 |
 | **Date** | 02 August 2026 |
 | **Verdict** | **ALL TEN GATES PASS** — with three declared deviations and five stated limitations |
 
@@ -231,6 +230,7 @@ union, not a removal of functionality.
 | `fd9009b` | G8 | Rollback drill, backup and verified deletion |
 | `b9b92f1` | G8 | Security review, SBOM, CVE assessment |
 | `aaeaaaa` | G9 | File manifest with content digests |
+| `57f6420` | G9 | STEP 2 Final Report |
 
 ---
 
@@ -383,7 +383,7 @@ this sandbox:
 It verifies against the canonical baseline and contains exactly one ref:
 
 ```
-aaeaaaa7f50e826fe3fb2c8f26b4ff30d650df55  refs/heads/mip-014/r-knowledge
+57f6420f37908ca30e2d4fc97a2462705ed4cf90  refs/heads/mip-014/r-knowledge
 requires: d058544d1c579611cce99cdf2b87a78d7534e75b
 ```
 
@@ -440,4 +440,4 @@ evidenced, reversible, and not yet a retrieval system anyone should rely on.
 ---
 
 *Prepared by AMB, COO, Mayleven Ecosystem, under MIP-014-EO-STEP2-VAL-001.*
-*Report reflects branch state `aaeaaaa7f50e826fe3fb2c8f26b4ff30d650df55` as at 02 August 2026.*
+*Report reflects branch state `57f6420f37908ca30e2d4fc97a2462705ed4cf90` as at 02 August 2026.*

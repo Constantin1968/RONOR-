@@ -1,0 +1,142 @@
+================================================================================
+MOCKED-TRANSPORT NEGATIVE ATTESTATION
+MIP-014 STEP 2 · Phase 6 · Gate G6
+================================================================================
+
+Authority : MIP-014-EO-STEP2 Rev 2, validated by MIP-014-EO-STEP2-VAL-001
+Repository: Constantin1968/RONOR-
+Baseline  : d058544d1c579611cce99cdf2b87a78d7534e75b
+Branch    : mip-014/r-knowledge
+Attested  : 02 August 2026
+Attested by: AMB, COO, Mayleven Ecosystem
+
+--------------------------------------------------------------------------------
+1. THE ATTESTATION
+--------------------------------------------------------------------------------
+
+I attest that during the whole of MIP-014 STEP 2 implementation, in the sandbox
+in which the work was performed:
+
+  MT-1  NO Qdrant service was CONFIGURED.
+  MT-2  NO Qdrant service was PROVISIONED.
+  MT-3  NO Qdrant service was STARTED.
+  MT-4  NO Qdrant service was CONTACTED.
+  MT-5  NO data was WRITTEN to any Qdrant service.
+  MT-6  NO Qdrant service was OPERATED.
+  MT-7  NO Qdrant container image was PULLED or RUN.
+  MT-8  NO network connection was OPENED to any Qdrant endpoint.
+
+Each prohibition held for the whole period, not merely at the point of
+verification.
+
+--------------------------------------------------------------------------------
+2. HOW THIS IS ESTABLISHED RATHER THAN MERELY DECLARED
+--------------------------------------------------------------------------------
+
+A declaration by the implementer is the weakest available form of evidence. The
+following are structural facts about the artefact, each independently checkable
+by a reviewer who does not take my word for anything.
+
+2.1  NO CLIENT EXISTS
+     package.json declares no package matching /qdrant/i. Production
+     dependencies remain 9, development dependencies remain 15, and
+     package-lock.json is unchanged from the baseline at 558 entries. There is
+     no library in the repository capable of issuing a Qdrant request.
+     Asserted by test: MTA-2b.
+
+2.2  THE DEFAULT TRANSPORT IS THE ABSENCE OF A TRANSPORT
+     QdrantVectorStore's constructor defaults its transport factory to
+     UNAVAILABLE_TRANSPORT_FACTORY. That factory returns an object whose every
+     one of eight methods rejects with 'unreachable'. It presents no network
+     surface, binds no port, resolves no hostname and opens no socket.
+     Asserted by test: MTA-1, MTA-1b.
+
+2.3  ZERO TRANSPORT CONSTRUCTIONS ON EVERY REFUSAL PATH
+     For each of the seven statically decidable conditions precedent, the suite
+     asserts the refusal reason code AND that the transport factory was invoked
+     zero times AND that the adapter's own construction counter reads zero. No
+     transport object came into existence, therefore no request could have been
+     issued. This is the operative evidence, and it is why the transport was
+     made an injected seam rather than an internal detail.
+     Asserted by test: CP-1 through CP-6.
+
+2.4  NO CAPABILITY TO START A SERVER
+     The repository contains four container manifests — Dockerfile,
+     docker-compose.yml, docker-compose.test.yml and .dockerignore. All four are
+     PRE-EXISTING in baseline d058544d, all four are byte-identical to it, and
+     none of them contains any reference to Qdrant. No testcontainer wiring
+     exists anywhere in the source tree.
+     Asserted by test: MTA-2, MTA-2c.
+
+2.5  NO SERVER IS RUNNING, AND NONE COULD HAVE BEEN
+     No process matching /qdrant/i exists. Nothing listens on port 6333 or 6334.
+     The docker binary is ABSENT from the sandbox, so no container image could
+     have been pulled or run even had a manifest declared one.
+     Asserted by test: MTA-3, and by direct inspection recorded below.
+
+2.6  THE MOCK IS IN-PROCESS
+     tests/knowledge/helpers/mock-qdrant-transport.ts implements the transport
+     interface as a plain JavaScript object holding a Map. It is not an
+     emulator, a simulator, a stub server, a testcontainer, a compose service or
+     a proxy. It performs no I/O of any kind.
+
+--------------------------------------------------------------------------------
+3. DIRECT ENVIRONMENT INSPECTION, 02 AUGUST 2026
+--------------------------------------------------------------------------------
+
+  Processes matching /qdrant/i        : NONE
+  Listening on 6333 or 6334           : not listening
+  docker binary                       : ABSENT
+  Listening sockets in the sandbox    : 22, 5900, 5901, 8330, 8333, 8340,
+                                        8350, 9222, 9330, 19780, 49983
+                                        (none is a Qdrant port; all are
+                                        sandbox infrastructure)
+
+--------------------------------------------------------------------------------
+4. WHAT THIS ATTESTATION DOES NOT CLAIM
+--------------------------------------------------------------------------------
+
+This is the part that matters most, and it is stated here rather than buried.
+
+The mock is NOT a stand-in for a server that exists elsewhere. It is the ABSENCE
+of a server, expressed as a module boundary.
+
+Consequently the G6 verification establishes:
+
+  - the adapter's REFUSAL LOGIC, exhaustively; and
+  - its CONFORMANCE to a pinned protocol surface.
+
+It establishes NOTHING about how any real Qdrant server behaves. In particular
+it does not establish that:
+
+  - a real server accepts the request shapes the adapter emits;
+  - a real server's error responses map onto the reason codes as assumed;
+  - the pinned version behaves as the double does;
+  - latency, throughput or availability characteristics are as modelled;
+  - a collection provisioned by an operator has the assumed configuration.
+
+A green G6 result MUST NOT be read as readiness to operate a Qdrant deployment.
+Live integration verification is a separate obligation of whatever instrument
+authorises live operation, at the date of that authorisation. Stage D-F of the
+STEP 2 package is EXCLUDED from this Order for exactly this reason.
+
+--------------------------------------------------------------------------------
+5. RELATED DECLARED DEVIATION
+--------------------------------------------------------------------------------
+
+The Execution Plan anticipated installing @qdrant/js-client-rest@1.18.0, moving
+dependencies 9 -> 10 and the lockfile 558 -> 561. The client has NOT been
+installed, and that is a deliberate, disclosed deviation. Reasoning, pins,
+licences and CVE position are recorded in:
+
+    evidence/knowledge/qdrant-dependency-assessment.md
+
+Installing a live HTTP client whose only function is to open connections, under
+an Order whose whole premise is that no connection may be opened, would place in
+the repository a capability the Order withholds — and would confer no
+verification benefit, since every G6 assertion is satisfied by the in-process
+double.
+
+================================================================================
+END OF ATTESTATION
+================================================================================

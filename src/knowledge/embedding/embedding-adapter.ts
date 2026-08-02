@@ -27,6 +27,8 @@ import type {
   KnowledgeReasonCode,
 } from '../../planes/r-knowledge/types';
 import { DeterministicEmbeddingAdapter } from './deterministic-adapter';
+import { OpenAIEmbeddingAdapter, type EmbeddingTransportFactory } from './openai-adapter';
+import { liveEmbeddingTransportFactory } from './openai-transport';
 
 export interface EmbeddingFactoryResult {
   ok: boolean;
@@ -120,7 +122,15 @@ class RefusingEmbeddingAdapter implements EmbeddingAdapter {
  * to level 1 without a null check at every call site — which is how a missing
  * null check becomes an outage.
  */
-export function createEmbeddingAdapter(config: KnowledgeConfig): EmbeddingFactoryResult {
+export function createEmbeddingAdapter(
+  config: KnowledgeConfig,
+  /**
+   * Transport factory override. Supplied by tests so that the learned provider
+   * can be exercised with no possibility of egress; omitted in production, in
+   * which case the live factory is used.
+   */
+  transportFactory?: EmbeddingTransportFactory
+): EmbeddingFactoryResult {
   switch (config.embeddingProvider) {
     case 'deterministic':
       return {
@@ -148,6 +158,78 @@ export function createEmbeddingAdapter(config: KnowledgeConfig): EmbeddingFactor
         reason: 'EMBEDDING_MODEL_ABSENT',
         detail: 'no local embedding model is authorised under MIP-014',
       };
+
+    case 'openai': {
+      // The learned provider. Egress is REQUIRED, so the gate is the same hard
+      // gate the 'external' provider faces — authorisation is checked before any
+      // client object can exist, and a refusal is therefore never accompanied by
+      // a constructed client.
+      if (!config.externalEgressAuthorised) {
+        return {
+          ok: false,
+          adapter: new RefusingEmbeddingAdapter(
+            'openai',
+            config.embeddingDimensions,
+            'EMBEDDING_EGRESS_UNAUTHORISED',
+            'The learned embedding provider requires KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED=true. ' +
+              'No endpoint was resolved, no client was constructed and no request was made.',
+            true,
+            true
+          ),
+          reason: 'EMBEDDING_EGRESS_UNAUTHORISED',
+          detail: 'external egress is not authorised',
+        };
+      }
+      if (config.openai.model === null) {
+        return {
+          ok: false,
+          adapter: new RefusingEmbeddingAdapter(
+            'openai',
+            config.embeddingDimensions,
+            'EMBEDDING_MODEL_ABSENT',
+            'The learned embedding provider requires an explicit model. No vendor model is ever a default.',
+            true,
+            true
+          ),
+          reason: 'EMBEDDING_MODEL_ABSENT',
+          detail: 'no explicit embedding model configured',
+        };
+      }
+      if (!config.openai.apiKeyPresent) {
+        return {
+          ok: false,
+          adapter: new RefusingEmbeddingAdapter(
+            'openai',
+            config.openai.dimensions,
+            'EMBEDDING_CREDENTIALS_ABSENT',
+            'The learned embedding provider requires a credential in KNOWLEDGE_OPENAI_API_KEY ' +
+              'or OPENAI_API_KEY. No client was constructed and no request was made.',
+            true,
+            true
+          ),
+          reason: 'EMBEDDING_CREDENTIALS_ABSENT',
+          detail: 'no credential present',
+        };
+      }
+
+      // Every precondition holds. The adapter is constructed WITH the live
+      // transport factory, which is the one place in the plane where a network
+      // client for embedding can come into existence.
+      return {
+        ok: true,
+        adapter: new OpenAIEmbeddingAdapter({
+          config: config.openai,
+          egressAuthorised: config.externalEgressAuthorised,
+          transportFactory: transportFactory ?? liveEmbeddingTransportFactory,
+          // The deterministic fallback runs at the LEARNED model's width, so that
+          // a fallback vector is storable in the same collection. A fallback at a
+          // different width could not be written at all, which would turn a
+          // quality degradation into an outage.
+          fallbackDimensions: config.openai.dimensions,
+        }),
+        reason: null,
+      };
+    }
 
     case 'external': {
       // Hard gate, evaluated before any client object can exist.

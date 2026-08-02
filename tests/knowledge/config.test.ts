@@ -189,17 +189,72 @@ describe('R-Knowledge · configuration admissibility (RK-016a, RK-016b)', () => 
     expect(verdict.reason).toBe('SQLITE_PROHIBITED_IN_PRODUCTION');
   });
 
-  test('production without an authorised store is refused with NO_AUTHORISED_PRODUCTION_STORE', () => {
-    for (const store of ['qdrant', 'none']) {
-      const config = resolveKnowledgeConfig({
-        KNOWLEDGE_ENABLED: 'true',
-        KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
-        KNOWLEDGE_VECTOR_STORE: store,
-      });
-      const verdict = assessConfigAdmissibility(config);
-      expect(verdict.admissible).toBe(false);
-      expect(verdict.reason).toBe('NO_AUTHORISED_PRODUCTION_STORE');
-    }
+  /**
+   * SUPERSESSION NOTICE — MIP-015 STEP 3.
+   *
+   * Under MIP-014 no vector store held written production authorisation, and this
+   * suite asserted that BOTH `qdrant` and `none` were refused in production with
+   * NO_AUTHORISED_PRODUCTION_STORE (ADR-K02 Revision 3 recorded Qdrant as a
+   * validation candidate expressly NOT production-certified).
+   *
+   * Chairman Executive Order MIP-015 authorises Qdrant as the production store.
+   * The assertions below therefore state the NEW policy. The previous assertion is
+   * not deleted silently: it is recorded here as superseded, together with the
+   * authority that superseded it, so that a reader can see the policy changed by
+   * decision rather than by drift.
+   *
+   * What did NOT change, and is asserted immediately below:
+   *   - SQLite remains prohibited in production.
+   *   - An authorised store still requires a configured endpoint; authorisation is
+   *     not the same thing as configuration.
+   */
+  test('production with qdrant and a configured endpoint is admissible (MIP-015 supersession)', () => {
+    const config = resolveKnowledgeConfig({
+      KNOWLEDGE_ENABLED: 'true',
+      KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
+      KNOWLEDGE_VECTOR_STORE: 'qdrant',
+      QDRANT_URL: 'https://qdrant.internal.example:6333',
+    });
+    const verdict = assessConfigAdmissibility(config);
+    expect(verdict.admissible).toBe(true);
+    expect(verdict.reason).toBeNull();
+  });
+
+  test('production with qdrant but NO endpoint is refused — authorisation is not configuration', () => {
+    const config = resolveKnowledgeConfig({
+      KNOWLEDGE_ENABLED: 'true',
+      KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
+      KNOWLEDGE_VECTOR_STORE: 'qdrant',
+    });
+    const verdict = assessConfigAdmissibility(config);
+    expect(verdict.admissible).toBe(false);
+    expect(verdict.reason).toBe('CONFIG_INVALID');
+    expect(verdict.detail).toMatch(/endpoint/i);
+  });
+
+  test('production with the null store is admissible as an explicit choice', () => {
+    const config = resolveKnowledgeConfig({
+      KNOWLEDGE_ENABLED: 'true',
+      KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
+      KNOWLEDGE_VECTOR_STORE: 'none',
+    });
+    const verdict = assessConfigAdmissibility(config);
+    expect(verdict.admissible).toBe(true);
+  });
+
+  test('SQLite remains prohibited in production after the MIP-015 supersession', () => {
+    // The supersession authorised ONE store. It did not relax the SQLite
+    // prohibition, and this assertion exists so that a future edit widening the
+    // production policy cannot take SQLite with it unnoticed.
+    const config = resolveKnowledgeConfig({
+      KNOWLEDGE_ENABLED: 'true',
+      KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
+      KNOWLEDGE_VECTOR_STORE: 'sqlite',
+      QDRANT_URL: 'https://qdrant.internal.example:6333',
+    });
+    const verdict = assessConfigAdmissibility(config);
+    expect(verdict.admissible).toBe(false);
+    expect(verdict.reason).toBe('SQLITE_PROHIBITED_IN_PRODUCTION');
   });
 
   test('sqlite is admissible in ci, test and development', () => {

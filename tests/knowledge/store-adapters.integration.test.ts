@@ -363,8 +363,46 @@ describe('R-Knowledge · store selection policy', () => {
     expect(existsSync(join(dir, 'knowledge.db'))).toBe(false);
   });
 
-  test('production without an authorised store degrades to level 3, not to a local database (RK-016b)', async () => {
+  /**
+   * SUPERSESSION NOTICE — MIP-015 STEP 3.
+   *
+   * This test previously asserted that production + qdrant was refused with
+   * NO_AUTHORISED_PRODUCTION_STORE, because under MIP-014 no store held written
+   * production authorisation. MIP-015 authorises Qdrant for production.
+   *
+   * The property that MUST survive the supersession is the one this test was
+   * really protecting: RK-016b, that a production configuration NEVER results in a
+   * local database file. That property is asserted below in BOTH the authorised
+   * and the unconfigured case, because it is the one an operator's data
+   * sovereignty actually depends on.
+   */
+  test('production + qdrant selects qdrant and creates no local database (RK-016b, MIP-015)', async () => {
     const dir = join(scratch, 'prod-qdrant');
+    const selection = selectVectorStore(
+      resolveKnowledgeConfig({
+        KNOWLEDGE_ENABLED: 'true',
+        KNOWLEDGE_ENVIRONMENT_CLASS: 'production',
+        KNOWLEDGE_VECTOR_STORE: 'qdrant',
+        QDRANT_URL: 'https://qdrant.internal.example:6333',
+        KNOWLEDGE_SQLITE_PATH: join(dir, 'knowledge.db'),
+      })
+    );
+
+    // The authorised production store is selected by identity, not substituted.
+    expect(selection.ok).toBe(true);
+    expect(selection.selectedId).toBe('qdrant');
+    expect(selection.store.id).toBe('qdrant');
+
+    // RK-016b survives the supersession: no local database, in either outcome of
+    // open(). open() will refuse here because the adapter's conditions precedent
+    // are unmet in this environment, and that refusal must also leave no file.
+    const opened = await selection.store.open();
+    expect(existsSync(join(dir, 'knowledge.db'))).toBe(false);
+    expect(typeof opened.ok).toBe('boolean');
+  });
+
+  test('production + qdrant with NO endpoint degrades to level 3 and creates no local database', async () => {
+    const dir = join(scratch, 'prod-qdrant-noendpoint');
     const selection = selectVectorStore(
       resolveKnowledgeConfig({
         KNOWLEDGE_ENABLED: 'true',
@@ -374,8 +412,10 @@ describe('R-Knowledge · store selection policy', () => {
       })
     );
 
+    // Authorisation is not configuration. An authorised store with no endpoint is
+    // inadmissible, and the plane degrades rather than reaching for SQLite.
     expect(selection.ok).toBe(false);
-    expect(selection.reason).toBe('NO_AUTHORISED_PRODUCTION_STORE');
+    expect(selection.reason).toBe('CONFIG_INVALID');
     expect(selection.selectedId).toBe('null');
     const opened = await selection.store.open();
     expect(opened.degradationLevel).toBe(3);

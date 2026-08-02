@@ -341,7 +341,52 @@ export interface StoreOpenResult {
 // Embedding abstraction — STEP 1 § 11.2
 // ============================================================
 
-export type EmbeddingProviderId = 'deterministic' | 'local' | 'external';
+/**
+ * Embedding provider identifiers.
+ *
+ * `openai` is added by MIP-015 (STEP 3) as a LEARNED provider requiring network
+ * egress and a credential. It is an ADDITION to the union, not a replacement:
+ * `deterministic` remains the offline provider and remains the value actually
+ * used whenever egress is unauthorised, no credential is present, or the learned
+ * provider is unreachable. A learned provider that cannot be reached must never
+ * become a silent outage, so the plane falls back rather than failing closed on
+ * retrieval.
+ */
+export type EmbeddingProviderId = 'deterministic' | 'local' | 'external' | 'openai';
+
+/**
+ * Resolved configuration for the OpenAI-compatible embedding provider.
+ *
+ * The credential itself never appears in this structure — only whether one is
+ * present. This mirrors the Qdrant configuration discipline: configuration is a
+ * diagnostic surface, and a diagnostic surface that can disclose a credential is
+ * a defect regardless of who is expected to read it.
+ */
+export interface OpenAIEmbeddingConfig {
+  /** Absolute base URL of the OpenAI-compatible API. */
+  readonly baseUrl: string;
+  /** Whether a credential is available. Never the credential itself. */
+  readonly apiKeyPresent: boolean;
+  /**
+   * Explicit model identifier. Null unless configured: the plane never supplies
+   * a vendor model string as a default (STEP 1 § 11.1).
+   */
+  readonly model: string | null;
+  /** Declared output dimensionality expected from the model. */
+  readonly dimensions: number;
+  /** Per-request timeout in milliseconds. */
+  readonly timeoutMs: number;
+  /** Maximum retry attempts on a retryable failure. */
+  readonly maxRetries: number;
+  /** Maximum number of texts submitted in a single request. */
+  readonly batchSize: number;
+  /**
+   * Whether the plane may fall back to the deterministic adapter when the
+   * learned provider is unavailable. True by default: an unreachable third party
+   * should degrade retrieval quality, not remove retrieval.
+   */
+  readonly fallbackToDeterministic: boolean;
+}
 
 export interface EmbedResult {
   ok: boolean;
@@ -465,6 +510,8 @@ export interface KnowledgeConfig {
   readonly quarantinePath: string;
   /** Qdrant adapter reference values — inert unless the adapter is selected. */
   readonly qdrant: QdrantAdapterConfig;
+  /** OpenAI embedding configuration — inert unless the provider is selected. */
+  readonly openai: OpenAIEmbeddingConfig;
 }
 
 /**

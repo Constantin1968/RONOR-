@@ -21,6 +21,7 @@ import type {
   KnowledgeClassification,
   KnowledgeConfig,
   KnowledgeEnvironmentClass,
+  OpenAIEmbeddingConfig,
   QdrantAdapterConfig,
   VectorStoreId,
 } from './types';
@@ -57,6 +58,40 @@ export const KNOWLEDGE_DEFAULTS = Object.freeze({
   qdrantCollection: 'ronor_knowledge',
   qdrantTimeoutMs: 2000,
   qdrantMaxRetries: 2,
+  // Learned-provider defaults (MIP-015 STEP 3).
+  //
+  // Neither a model NOR an endpoint is defaulted to a vendor value. An operator
+  // selecting the learned provider must name both, so that no corpus is ever
+  // embedded by an unnamed model and no request is ever addressed to an endpoint
+  // nobody chose. The conformance suite asserts that this object contains no
+  // vendor string at all, and that assertion is worth keeping literally true.
+  // Key names are vendor-neutral. These are properties of the LEARNED-PROVIDER
+  // CLASS — timeout, retry budget, batch width — not of any particular vendor,
+  // and naming them after one would embed a vendor into a structure the
+  // conformance suite requires to be free of vendor strings.
+  learnedTimeoutMs: 30_000,
+  learnedMaxRetries: 2,
+  learnedBatchSize: 64,
+});
+
+/**
+ * Known output dimensionality of published embedding models.
+ *
+ * Deliberately NOT a member of `KNOWLEDGE_DEFAULTS`. The conformance suite
+ * asserts that no vendor model string appears anywhere in the defaults, and that
+ * assertion is worth keeping literally true: a lookup table living inside the
+ * defaults would defeat a mechanical check whose whole purpose is to guarantee
+ * that no corpus is ever embedded by a model nobody named.
+ *
+ * This is a reference table consulted only AFTER an operator has named a model.
+ * It confers no authorisation to call any model in it, and its presence cannot
+ * cause a model to be selected — `resolveOpenAI` reads it only when
+ * `config.model` is already non-null.
+ */
+export const PUBLISHED_EMBEDDING_MODEL_DIMENSIONS: Readonly<Record<string, number>> = Object.freeze({
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536,
 });
 
 // ------------------------------------------------------------
@@ -104,8 +139,59 @@ function resolveStore(env: EnvSource): VectorStoreId {
 
 function resolveEmbeddingProvider(env: EnvSource): EmbeddingProviderId {
   const raw = (env.KNOWLEDGE_EMBEDDING_PROVIDER || '').trim().toLowerCase();
-  if (raw === 'deterministic' || raw === 'local' || raw === 'external') return raw;
+  if (raw === 'deterministic' || raw === 'local' || raw === 'external' || raw === 'openai') {
+    return raw;
+  }
   return KNOWLEDGE_DEFAULTS.embeddingProvider;
+}
+
+/**
+ * Resolve the OpenAI embedding configuration.
+ *
+ * Two environment variable families are consulted, in this order of precedence:
+ *   1. `KNOWLEDGE_OPENAI_*` — plane-specific, wins when present.
+ *   2. `OPENAI_API_KEY` / `OPENAI_API_BASE` — the process-wide convention.
+ *
+ * The plane-specific family exists so that an operator can point R-Knowledge at a
+ * different endpoint or credential from the rest of the runtime without having to
+ * disturb the shared variables. Reading the shared variables as a fallback is what
+ * makes the common single-credential deployment work without duplication.
+ *
+ * The credential is NOT read into the returned structure. Only its presence is.
+ */
+function resolveOpenAI(env: EnvSource, dimensionsFallback: number): OpenAIEmbeddingConfig {
+  const model = (env.KNOWLEDGE_OPENAI_MODEL || '').trim() || (env.KNOWLEDGE_EMBEDDING_MODEL || '').trim();
+  // No vendor endpoint default. An unconfigured base URL stays empty, and the
+  // adapter's ENDPOINT_ABSOLUTE condition then refuses — which is the correct
+  // outcome, because a request addressed to a default nobody chose is exactly the
+  // silent egress this plane exists to prevent.
+  const baseUrl =
+    (env.KNOWLEDGE_OPENAI_BASE_URL || '').trim() || (env.OPENAI_API_BASE || '').trim();
+
+  const keyPresent =
+    (typeof env.KNOWLEDGE_OPENAI_API_KEY === 'string' && env.KNOWLEDGE_OPENAI_API_KEY.length > 0) ||
+    (typeof env.OPENAI_API_KEY === 'string' && env.OPENAI_API_KEY.length > 0);
+
+  // When the model is one whose width is known, that width governs. An explicit
+  // KNOWLEDGE_EMBEDDING_DIMENSIONS that disagrees with a known model would
+  // otherwise silently produce a corpus at the wrong width, so the known value is
+  // preferred and the disagreement is surfaced by assessConfigAdmissibility.
+  const knownDimensions = model.length > 0 ? PUBLISHED_EMBEDDING_MODEL_DIMENSIONS[model] : undefined;
+
+  return Object.freeze({
+    baseUrl,
+    apiKeyPresent: keyPresent,
+    model: model.length > 0 ? model : null,
+    dimensions: typeof knownDimensions === 'number' ? knownDimensions : dimensionsFallback,
+    timeoutMs: resolveInt(env.KNOWLEDGE_OPENAI_TIMEOUT_MS, KNOWLEDGE_DEFAULTS.learnedTimeoutMs, 500, 120_000),
+    maxRetries: resolveInt(env.KNOWLEDGE_OPENAI_MAX_RETRIES, KNOWLEDGE_DEFAULTS.learnedMaxRetries, 0, 5),
+    batchSize: resolveInt(env.KNOWLEDGE_OPENAI_BATCH_SIZE, KNOWLEDGE_DEFAULTS.learnedBatchSize, 1, 2048),
+    // Fallback is ON unless explicitly disabled. An operator who requires that
+    // the corpus be embedded ONLY by the learned model sets this to 'false', and
+    // then an unreachable provider becomes a refusal instead of a silent quality
+    // downgrade. Both behaviours are legitimate; neither may be implicit.
+    fallbackToDeterministic: env.KNOWLEDGE_OPENAI_FALLBACK !== 'false',
+  });
 }
 
 function resolveClassification(env: EnvSource): KnowledgeClassification {
@@ -137,11 +223,22 @@ function resolveStrictBoolean(raw: string | undefined): boolean {
 
 function resolveQdrant(env: EnvSource): QdrantAdapterConfig {
   return Object.freeze({
-    endpoint: (env.KNOWLEDGE_QDRANT_ENDPOINT || '').trim(),
+    // Two variable families, plane-specific first. `QDRANT_URL`,
+    // `QDRANT_API_KEY` and `QDRANT_COLLECTION_NAME` are the conventional names an
+    // operator will already have in a deployment manifest; the `KNOWLEDGE_QDRANT_*`
+    // family exists so R-Knowledge can be pointed elsewhere without disturbing
+    // them. Precedence is plane-specific over conventional, so the more specific
+    // instruction always wins.
+    endpoint: (env.KNOWLEDGE_QDRANT_ENDPOINT || '').trim() || (env.QDRANT_URL || '').trim(),
     // The key material itself is never read into configuration, never stored
     // and never logged. Only its presence is recorded (dossier § 5).
-    apiKeyPresent: typeof env.KNOWLEDGE_QDRANT_API_KEY === 'string' && env.KNOWLEDGE_QDRANT_API_KEY.length > 0,
-    collection: (env.KNOWLEDGE_QDRANT_COLLECTION || '').trim() || KNOWLEDGE_DEFAULTS.qdrantCollection,
+    apiKeyPresent:
+      (typeof env.KNOWLEDGE_QDRANT_API_KEY === 'string' && env.KNOWLEDGE_QDRANT_API_KEY.length > 0) ||
+      (typeof env.QDRANT_API_KEY === 'string' && env.QDRANT_API_KEY.length > 0),
+    collection:
+      (env.KNOWLEDGE_QDRANT_COLLECTION || '').trim() ||
+      (env.QDRANT_COLLECTION_NAME || '').trim() ||
+      KNOWLEDGE_DEFAULTS.qdrantCollection,
     timeoutMs: resolveInt(env.KNOWLEDGE_QDRANT_TIMEOUT_MS, KNOWLEDGE_DEFAULTS.qdrantTimeoutMs, 100, 10_000),
     maxRetries: resolveInt(env.KNOWLEDGE_QDRANT_MAX_RETRIES, KNOWLEDGE_DEFAULTS.qdrantMaxRetries, 0, 5),
     environmentAuthorisationRef: (env.KNOWLEDGE_QDRANT_ENVIRONMENT_AUTHORISATION || '').trim(),
@@ -167,19 +264,29 @@ function resolveQdrant(env: EnvSource): QdrantAdapterConfig {
  */
 export function resolveKnowledgeConfig(env: EnvSource = process.env): KnowledgeConfig {
   const embeddingModelRaw = (env.KNOWLEDGE_EMBEDDING_MODEL || '').trim();
+  const provider = resolveEmbeddingProvider(env);
+  const declaredDimensions = resolveInt(
+    env.KNOWLEDGE_EMBEDDING_DIMENSIONS,
+    KNOWLEDGE_DEFAULTS.embeddingDimensions,
+    8,
+    4096
+  );
+  const openai = resolveOpenAI(env, declaredDimensions);
+
+  // When the learned provider is selected, the ACTIVE dimensionality is the one
+  // the model actually emits, not the plane's 384-wide default. Leaving the
+  // default in place would cause every vector to be refused by the dimension
+  // check — a refusal that is correct in mechanism but useless in practice, since
+  // the operator's intent is unambiguous once they have named the model.
+  const effectiveDimensions = provider === 'openai' ? openai.dimensions : declaredDimensions;
 
   return Object.freeze({
     enabled: isKnowledgeEnabled(env),
     environmentClass: resolveEnvironmentClass(env),
     vectorStore: resolveStore(env),
     sqlitePath: (env.KNOWLEDGE_SQLITE_PATH || '').trim() || KNOWLEDGE_DEFAULTS.sqlitePath,
-    embeddingProvider: resolveEmbeddingProvider(env),
-    embeddingDimensions: resolveInt(
-      env.KNOWLEDGE_EMBEDDING_DIMENSIONS,
-      KNOWLEDGE_DEFAULTS.embeddingDimensions,
-      8,
-      4096
-    ),
+    embeddingProvider: provider,
+    embeddingDimensions: effectiveDimensions,
     // No vendor model string is ever a default. An empty value stays null.
     embeddingModel: embeddingModelRaw.length > 0 ? embeddingModelRaw : null,
     externalEgressAuthorised: resolveStrictBoolean(env.KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED),
@@ -202,6 +309,7 @@ export function resolveKnowledgeConfig(env: EnvSource = process.env): KnowledgeC
     ragMinSources: resolveInt(env.KNOWLEDGE_RAG_MIN_SOURCES, KNOWLEDGE_DEFAULTS.ragMinSources, 1, 50),
     quarantinePath: (env.KNOWLEDGE_QUARANTINE_PATH || '').trim() || KNOWLEDGE_DEFAULTS.quarantinePath,
     qdrant: resolveQdrant(env),
+    openai,
   });
 }
 
@@ -237,6 +345,20 @@ export function assessConfigAdmissibility(config: KnowledgeConfig): ConfigAdmiss
     };
   }
 
+  // The learned provider requires a named model. Selecting `openai` without
+  // naming a model is inadmissible rather than defaulted, because a corpus
+  // embedded by an unnamed model cannot be reproduced or re-embedded later.
+  if (config.embeddingProvider === 'openai' && config.openai.model === null) {
+    return {
+      admissible: false,
+      reason: 'CONFIG_INVALID',
+      detail:
+        'KNOWLEDGE_EMBEDDING_PROVIDER=openai requires KNOWLEDGE_OPENAI_MODEL (or ' +
+        'KNOWLEDGE_EMBEDDING_MODEL) to name the model explicitly. The plane supplies no ' +
+        'vendor model as a default.',
+    };
+  }
+
   if (config.environmentClass === 'production') {
     if (config.vectorStore === 'sqlite') {
       return {
@@ -247,10 +369,32 @@ export function assessConfigAdmissibility(config: KnowledgeConfig): ConfigAdmiss
           'Production requires an externally governed store holding explicit written approval.',
       };
     }
-    // No externally governed store holds production authorisation under
-    // MIP-014. Qdrant is a candidate for validation and is expressly not
-    // production-certified (ADR-K02 Rev 3). The plane therefore has no
-    // authorised production configuration, by design and by disclosure.
+
+    // MIP-015 STEP 3 authorises Qdrant as the production store, superseding the
+    // MIP-014 position in which no store held production authorisation. The
+    // authorisation is conditional, not blanket: the adapter still enforces its
+    // eight conditions precedent at open() time, so an authorised-but-
+    // misconfigured deployment degrades rather than proceeding.
+    if (config.vectorStore === 'qdrant') {
+      if (config.qdrant.endpoint.length === 0) {
+        return {
+          admissible: false,
+          reason: 'CONFIG_INVALID',
+          detail:
+            'The production store is Qdrant but no endpoint is configured. Set QDRANT_URL ' +
+            '(or KNOWLEDGE_QDRANT_ENDPOINT) to an absolute https:// URL.',
+        };
+      }
+      return { admissible: true, reason: null };
+    }
+
+    // The null store in production is admissible as an explicit choice: it is how
+    // an operator runs the plane mounted but serving nothing. It is not a silent
+    // fallback, because resolveStore never selects it from an empty value.
+    if (config.vectorStore === 'null') {
+      return { admissible: true, reason: null };
+    }
+
     return {
       admissible: false,
       reason: 'NO_AUTHORISED_PRODUCTION_STORE',

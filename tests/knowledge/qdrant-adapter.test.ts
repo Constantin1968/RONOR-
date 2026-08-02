@@ -390,12 +390,41 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     }
   });
 
-  test('MTA-2b · package.json declares no Qdrant client dependency', () => {
+  /**
+   * SUPERSESSION NOTICE — MIP-015 STEP 3.
+   *
+   * Under MIP-014 the client library was deliberately NOT installed: the adapter was
+   * developed against a mocked transport, and installing a package that opens
+   * sockets would have widened the attack surface for no verification benefit. This
+   * test asserted its absence.
+   *
+   * MIP-015 directs installation of the real client. The assertion is INVERTED
+   * rather than deleted, and it now enforces the properties that actually matter
+   * once a network-capable dependency is present:
+   *
+   *   1. The version is PINNED EXACTLY. A floating range on a dependency that
+   *      opens sockets means the audited artefact and the deployed artefact can
+   *      differ with no commit recording the change.
+   *   2. Exactly ONE Qdrant package is declared. A second copy at another version
+   *      would make the pin decorative.
+   *   3. It is a PRODUCTION dependency. Declared as a devDependency it would
+   *      resolve in CI and fail only after deployment.
+   */
+  test('MTA-2b · the Qdrant client is present, pinned exactly, singular and production-scoped (MIP-015)', () => {
     const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
     const all = { ...pkg.dependencies, ...pkg.devDependencies };
-    expect(Object.keys(all).filter((name) => /qdrant/i.test(name))).toEqual([]);
-    // The dependency surface is unchanged from the baseline.
-    expect(Object.keys(pkg.dependencies)).toHaveLength(9);
+
+    expect(Object.keys(all).filter((name) => /qdrant/i.test(name))).toEqual([
+      '@qdrant/js-client-rest',
+    ]);
+
+    const pin = pkg.dependencies['@qdrant/js-client-rest'];
+    expect(pin).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pin).not.toMatch(/[\^~><*]/);
+    expect(pkg.devDependencies?.['@qdrant/js-client-rest']).toBeUndefined();
+
+    // The authorised surface after MIP-015: ten production, fifteen development.
+    expect(Object.keys(pkg.dependencies)).toHaveLength(10);
     expect(Object.keys(pkg.devDependencies)).toHaveLength(15);
   });
 

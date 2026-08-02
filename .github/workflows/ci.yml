@@ -71,3 +71,91 @@ jobs:
             --only-verified \
             --fail
         continue-on-error: true
+
+  # ============================================================
+  # ADDITIVE JOBS — MIP-014 STEP 2, R-Knowledge plane
+  #
+  # Added, not modified. The three pre-existing jobs above (build, test, security)
+  # are byte-identical to baseline d058544d in name, trigger, steps and semantics,
+  # so a failure in either job below cannot be confused with a regression in the
+  # pre-existing pipeline.
+  # ============================================================
+
+  baseline-equivalence:
+    name: Baseline Equivalence (R-Knowledge disabled)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      # The ABSOLUTE gate. With KNOWLEDGE_ENABLED absent, the runtime must be
+      # observationally indistinguishable from the baseline commit. This job is
+      # deliberately separate from `test` so that a failure here is unambiguous: it
+      # means the disabled-mode guarantee has been broken, which is a different and
+      # more serious condition than a failing unit test.
+      #
+      # KNOWLEDGE_ENABLED is deliberately NOT set anywhere in this job. Its absence
+      # is the test condition.
+      - name: Disabled-mode equivalence assertions
+        run: npx jest tests/knowledge/equivalence.test.ts
+
+      - name: Runtime equivalence harness (boots both modes)
+        run: |
+          npm run build
+          bash scripts/knowledge-equivalence.sh
+
+      - name: Pre-existing corpus intact in isolation
+        run: npx jest --testPathIgnorePatterns="tests/knowledge"
+
+      - name: Upload equivalence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equivalence-evidence
+          path: evidence/knowledge/
+          if-no-files-found: warn
+
+  knowledge-conformance:
+    name: R-Knowledge Conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: R-Knowledge test suites
+        run: npx jest tests/knowledge
+
+      # The benchmark's exit code is governed by the RELEASE GATE only (citation
+      # accuracy and provenance completeness, both contractual, neither waivable).
+      # Operational-retrieval qualification is recorded as a verdict and does NOT
+      # fail the build: conflating the two would either block a permitted release or
+      # silently pass an unqualified one.
+      - name: Retrieval benchmark (release gate determines exit code)
+        run: npx ts-node scripts/benchmark-retrieval.ts
+
+      - name: Conformance verification
+        run: npx ts-node scripts/verify-knowledge-conformance.ts
+
+      - name: Upload conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-evidence
+          path: evidence/knowledge/
+          if-no-files-found: warn

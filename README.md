@@ -220,6 +220,69 @@ Mayleven ecosystem: **Mayleven → Ma11AI → Ronor → QMa11 → OSaaS**.
 
 ---
 
+## R-Knowledge plane (MIP-014 STEP 2)
+
+A ninth plane providing governed knowledge ingestion, retrieval and
+retrieval-augmented composition. It is **disabled by default**, and when disabled the
+runtime is observationally indistinguishable from the pre-MIP-014 baseline.
+
+### Enabling it
+
+```bash
+KNOWLEDGE_ENABLED=true                    # must be EXACTLY "true"
+KNOWLEDGE_VECTOR_STORE=sqlite             # sqlite | qdrant | null
+KNOWLEDGE_SQLITE_PATH=./data/knowledge.db # non-production only
+KNOWLEDGE_ENVIRONMENT_CLASS=test          # test | development | production
+KNOWLEDGE_EMBEDDING_DIMENSIONS=384
+```
+
+The activation predicate is `process.env.KNOWLEDGE_ENABLED === 'true'`, written once
+in the codebase. `1`, `yes`, `TRUE`, `on` and `' true '` are all **rejected** — a typo
+leaves the plane off rather than half-on, which is the correct failure direction for a
+governed component. See `.env.example` for the full configuration block.
+
+### Endpoints (present only when enabled)
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| `POST` | `/api/v1/knowledge/ingest` | Admit a document |
+| `POST` | `/api/v1/knowledge/query` | Retrieve with citations |
+| `POST` | `/api/v1/knowledge/compose` | Retrieval-augmented composition |
+| `GET`  | `/api/v1/knowledge/status` | Plane diagnostics |
+| `GET`  | `/api/v1/knowledge/quarantine` | Quarantine records (digests only) |
+
+### Verification
+
+```bash
+npx jest tests/knowledge                            # 10 suites
+npx jest tests/knowledge/equivalence.test.ts        # the absolute gate
+bash scripts/knowledge-equivalence.sh               # runtime harness, both modes
+npx ts-node scripts/benchmark-retrieval.ts          # retrieval benchmark
+npx ts-node scripts/verify-knowledge-conformance.ts # aggregate conformance
+```
+
+Evidence artefacts are written to `evidence/knowledge/`.
+
+### Operating limits to know before relying on it
+
+- **SQLite is prohibited in production.** Selecting it with
+  `KNOWLEDGE_ENVIRONMENT_CLASS=production` refuses with
+  `SQLITE_PROHIBITED_IN_PRODUCTION` and creates no file.
+- **The Qdrant path does not support content retrieval.** Its payload excludes content
+  by design, so `getById` and `getByHash` return `null`. Vector search and duplicate
+  detection work; reconstituting an object does not. A deployment needing content
+  retrieval requires a content store inside the sovereignty boundary.
+- **No Qdrant client is installed.** The adapter is verified against a fully mocked
+  in-process transport and has never contacted a server.
+- **The default embedder is not production retrieval.** It is a deterministic hashed
+  projection — reproducible and dependency-free, but it captures lexical overlap
+  rather than meaning. Mean reciprocal rank falls from 0.938 to 0.692 as query wording
+  diverges from document wording.
+- **`CONFIDENTIAL` and `RESTRICTED` objects are refused by external stores.** The
+  refusal is a successful governance outcome, not an error to work around.
+
+---
+
 ## License
 
 MIT.

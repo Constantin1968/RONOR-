@@ -1,0 +1,452 @@
+{
+  "gate": "G7",
+  "benchmark": "R-Knowledge retrieval",
+  "corpusVersion": "1.0",
+  "documents": 12,
+  "chunksIngested": 12,
+  "queries": 20,
+  "k": 8,
+  "embeddingProvider": "deterministic",
+  "storeId": "sqlite",
+  "releaseGate": {
+    "verdict": "PASS",
+    "note": "Contractual. No waiver is available for either metric.",
+    "metrics": [
+      {
+        "metric": "citation_accuracy",
+        "value": 1,
+        "threshold": 1,
+        "comparator": "=",
+        "result": "PASS",
+        "waivable": false
+      },
+      {
+        "metric": "provenance_completeness",
+        "value": 1,
+        "threshold": 1,
+        "comparator": "=",
+        "result": "PASS",
+        "waivable": false
+      }
+    ]
+  },
+  "operationalQualification": {
+    "verdict": "QUALIFIED",
+    "note": "Determines qualification for OPERATIONAL RETRIEVAL. A shortfall refuses that qualification and does NOT block release as experimental infrastructure (STEP 1 § 17.6).",
+    "metrics": [
+      {
+        "metric": "recall_at_8",
+        "value": 1,
+        "threshold": 0.6,
+        "comparator": ">=",
+        "result": "PASS"
+      },
+      {
+        "metric": "mrr",
+        "value": 0.865,
+        "threshold": 0.5,
+        "comparator": ">=",
+        "result": "PASS"
+      }
+    ]
+  },
+  "qualificationCaveat": {
+    "recallAt1": 0.8,
+    "corpusFractionReturnedAtK": 0.667,
+    "note": "Recall@8 over a 12-document corpus returns 66.7% of the corpus, so the >= 0.60 threshold is weak here: a query need only avoid ranking the relevant document in the bottom third. Recall@1 cannot be satisfied by breadth and is the discriminating number. The PASS verdict above should be read as conditional on corpus scale, and re-measured on a corpus at least an order of magnitude larger before it is relied upon for an operational decision."
+  },
+  "observational": {
+    "note": "No verdict. Host-dependent, recorded with the host specification.",
+    "p50LatencyMs": 4.41,
+    "p95LatencyMs": 8.12,
+    "maxLatencyMs": 8.21,
+    "p95IngestionMs": 11.81,
+    "zeroResultRate": 0,
+    "host": {
+      "platform": "linux 6.1.102",
+      "cpuModel": "Intel(R) Xeon(R) Processor @ 2.50GHz",
+      "cpuCount": 6,
+      "totalMemoryGb": 3.8,
+      "nodeVersion": "v22.13.0"
+    }
+  },
+  "diagnosticByLexicalOverlap": {
+    "high": {
+      "queries": 8,
+      "recall": 1,
+      "mrr": 0.938
+    },
+    "medium": {
+      "queries": 7,
+      "recall": 1,
+      "mrr": 0.905
+    },
+    "low": {
+      "queries": 5,
+      "recall": 1,
+      "mrr": 0.692
+    }
+  },
+  "perQuery": [
+    {
+      "queryId": "Q01",
+      "query": "how quickly must primary frequency response be delivered",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D01"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D01",
+        "D11",
+        "D03"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 8.12
+    },
+    {
+      "queryId": "Q02",
+      "query": "what makes a battery lose capacity over time",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D02"
+      ],
+      "hit": true,
+      "reciprocalRank": 0.333,
+      "topParents": [
+        "D12",
+        "D06",
+        "D02"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 7.31
+    },
+    {
+      "queryId": "Q03",
+      "query": "contract for difference strike price settlement",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D03"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D03",
+        "D01",
+        "D11"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 5.91
+    },
+    {
+      "queryId": "Q04",
+      "query": "is it cheaper to run a heat pump than a gas boiler",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D04"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D04",
+        "D07",
+        "D08"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 8.21
+    },
+    {
+      "queryId": "Q05",
+      "query": "where may tier one data be processed",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D05"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D05",
+        "D03",
+        "D11"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 5.39
+    },
+    {
+      "queryId": "Q06",
+      "query": "why do prices diverge between coupled markets",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D06"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D06",
+        "D09",
+        "D10"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.8
+    },
+    {
+      "queryId": "Q07",
+      "query": "how does tamper evidence work in an append only log",
+      "lexicalOverlap": "low",
+      "relevant": [
+        "D07"
+      ],
+      "hit": true,
+      "reciprocalRank": 0.333,
+      "topParents": [
+        "D01",
+        "D05",
+        "D07"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.66
+    },
+    {
+      "queryId": "Q08",
+      "query": "who pays when a wind farm is told to switch off",
+      "lexicalOverlap": "low",
+      "relevant": [
+        "D08"
+      ],
+      "hit": true,
+      "reciprocalRank": 0.125,
+      "topParents": [
+        "D01",
+        "D05",
+        "D06"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.78
+    },
+    {
+      "queryId": "Q09",
+      "query": "stopping retrieved text from acting as instructions",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D09"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D09",
+        "D11",
+        "D06"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.5
+    },
+    {
+      "queryId": "Q10",
+      "query": "minimum bid size flexible load portfolio",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D10"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D10",
+        "D01",
+        "D05"
+      ],
+      "resultCount": 5,
+      "reason": null,
+      "latencyMs": 3.77
+    },
+    {
+      "queryId": "Q11",
+      "query": "does a bigger vector always retrieve better",
+      "lexicalOverlap": "low",
+      "relevant": [
+        "D11"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D11",
+        "D12",
+        "D06"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.11
+    },
+    {
+      "queryId": "Q12",
+      "query": "derating factor duration limited storage capacity market",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D12"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D12",
+        "D06",
+        "D02"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 5.72
+    },
+    {
+      "queryId": "Q13",
+      "query": "penalty for failing to deliver contracted balancing reserve",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D01"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D01",
+        "D12",
+        "D08"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.99
+    },
+    {
+      "queryId": "Q14",
+      "query": "shape risk and basis risk in offtake agreements",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D03"
+      ],
+      "hit": true,
+      "reciprocalRank": 0.5,
+      "topParents": [
+        "D10",
+        "D03",
+        "D02"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.78
+    },
+    {
+      "queryId": "Q15",
+      "query": "classification and residency are independent properties",
+      "lexicalOverlap": "low",
+      "relevant": [
+        "D05"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D05",
+        "D01",
+        "D02"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.83
+    },
+    {
+      "queryId": "Q16",
+      "query": "baseline gaming in response settlement disputes",
+      "lexicalOverlap": "medium",
+      "relevant": [
+        "D10"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D10",
+        "D01",
+        "D03"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.41
+    },
+    {
+      "queryId": "Q17",
+      "query": "why pattern matching alone cannot stop adversarial source text",
+      "lexicalOverlap": "low",
+      "relevant": [
+        "D09"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D09",
+        "D02",
+        "D03"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.74
+    },
+    {
+      "queryId": "Q18",
+      "query": "non firm connection curtailment risk earlier connection",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D08"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D08",
+        "D06",
+        "D09"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.61
+    },
+    {
+      "queryId": "Q19",
+      "query": "coefficient of performance seasonal heat delivery",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D04"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D04",
+        "D02",
+        "D11"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 4.01
+    },
+    {
+      "queryId": "Q20",
+      "query": "thermal limits and loop flows reduce available transfer",
+      "lexicalOverlap": "high",
+      "relevant": [
+        "D06"
+      ],
+      "hit": true,
+      "reciprocalRank": 1,
+      "topParents": [
+        "D06",
+        "D10",
+        "D01"
+      ],
+      "resultCount": 8,
+      "reason": null,
+      "latencyMs": 3.5
+    }
+  ]
+}

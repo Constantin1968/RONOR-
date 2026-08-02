@@ -1,0 +1,195 @@
+{
+  "gate": "G7",
+  "name": "R-Knowledge conformance",
+  "baselineCommit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
+  "branch": "mip-014/r-knowledge",
+  "head": "f68f4e7e2732bcc2234031c3656cfa41b75d0b7d",
+  "verdict": "PASS",
+  "determinativeChecks": 13,
+  "informationalChecks": 1,
+  "checks": [
+    {
+      "id": "CONF-1",
+      "description": "Governance and audit spine byte-identical to baseline",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "src/orchestrator.ts": {
+          "baseline": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "current": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "identical": true
+        },
+        "src/audit/hash-chain.ts": {
+          "baseline": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "current": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "identical": true
+        },
+        "src/governance/mi9-gate.ts": {
+          "baseline": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "current": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "identical": true
+        }
+      }
+    },
+    {
+      "id": "CONF-2",
+      "description": "Dependency surface unchanged: 9 production, 15 development",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "production": 9,
+        "development": 15
+      }
+    },
+    {
+      "id": "CONF-3",
+      "description": "package-lock.json unchanged from baseline",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "changed": false
+      }
+    },
+    {
+      "id": "CONF-4",
+      "description": "Pre-existing corpus intact: 8 suites, 137 tests, isolated from knowledge tests",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "suites": 8,
+        "tests": 137,
+        "failures": 0
+      }
+    },
+    {
+      "id": "CONF-5",
+      "description": "Whole suite green",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "suites": 18,
+        "tests": 455,
+        "failures": 0
+      }
+    },
+    {
+      "id": "CONF-6",
+      "description": "tsc --noEmit clean under strict mode",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "clean": true
+      }
+    },
+    {
+      "id": "CONF-7",
+      "description": "npm run build succeeds",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "ok": true
+      }
+    },
+    {
+      "id": "CONF-8",
+      "description": "npm audit --audit-level=critical clean",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "ok": true
+      }
+    },
+    {
+      "id": "CONF-9",
+      "description": "G5 disabled-mode equivalence (ABSOLUTE gate)",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "verdict": "PASS",
+        "checks": 10
+      }
+    },
+    {
+      "id": "CONF-10",
+      "description": "Benchmark RELEASE GATE: citation accuracy and provenance completeness both 1.000",
+      "determinative": true,
+      "result": "PASS",
+      "observed": [
+        {
+          "metric": "citation_accuracy",
+          "value": 1,
+          "threshold": 1,
+          "comparator": "=",
+          "result": "PASS",
+          "waivable": false
+        },
+        {
+          "metric": "provenance_completeness",
+          "value": 1,
+          "threshold": 1,
+          "comparator": "=",
+          "result": "PASS",
+          "waivable": false
+        }
+      ]
+    },
+    {
+      "id": "CONF-11",
+      "description": "Benchmark OPERATIONAL QUALIFICATION (recorded, not determinative)",
+      "determinative": false,
+      "result": "INFO",
+      "observed": {
+        "verdict": "QUALIFIED",
+        "metrics": [
+          {
+            "metric": "recall_at_8",
+            "value": 1,
+            "threshold": 0.6,
+            "comparator": ">=",
+            "result": "PASS"
+          },
+          {
+            "metric": "mrr",
+            "value": 0.865,
+            "threshold": 0.5,
+            "comparator": ">=",
+            "result": "PASS"
+          }
+        ],
+        "caveat": {
+          "recallAt1": 0.8,
+          "corpusFractionReturnedAtK": 0.667,
+          "note": "Recall@8 over a 12-document corpus returns 66.7% of the corpus, so the >= 0.60 threshold is weak here: a query need only avoid ranking the relevant document in the bottom third. Recall@1 cannot be satisfied by breadth and is the discriminating number. The PASS verdict above should be read as conditional on corpus scale, and re-measured on a corpus at least an order of magnitude larger before it is relied upon for an operational decision."
+        }
+      }
+    },
+    {
+      "id": "CONF-12",
+      "description": "No Qdrant client dependency installed; MT-1..MT-8 held",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "qdrantPackages": []
+      }
+    },
+    {
+      "id": "CONF-13",
+      "description": "No Qdrant process running",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "processes": 0
+      }
+    },
+    {
+      "id": "CONF-14",
+      "description": "All required evidence artefacts present",
+      "determinative": true,
+      "result": "PASS",
+      "observed": {
+        "required": 12,
+        "missing": []
+      }
+    }
+  ]
+}

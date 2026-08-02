@@ -42,7 +42,13 @@ export type PlaneId =
   | 'r-execution'
   | 'r-assurance'
   | 'r-economics'
-  | 'r-sentinel';
+  | 'r-sentinel'
+  // R-Knowledge — ninth operational plane (MIP-014). The addition is a
+  // type-level admission to the enumeration and emits no runtime value. It does
+  // NOT imply presence in the `/health` planes array: that array is composed at
+  // the composition root and contains a knowledge entry only when the plane
+  // handle is non-null (STEP 1 § 6.2, § 4.3).
+  | 'r-knowledge';
 
 export interface PlaneHealth {
   planeId: PlaneId;

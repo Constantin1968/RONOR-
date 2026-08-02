@@ -11,6 +11,16 @@ coverage/
 # Data (runtime-generated)
 data/
 
+# R-Knowledge runtime artefacts (MIP-014) — eliminated on rollback per
+# STEP 1 § 19.4. Listed explicitly as well as covered by data/, because the
+# elimination policy names each file and an ignore rule that depends on a
+# directory being used is weaker than one that names the artefact.
+knowledge.db
+knowledge.db-wal
+knowledge.db-shm
+knowledge-quarantine.jsonl
+benchmarks/knowledge/output/
+
 # Release artifacts
 release-artifacts/
 

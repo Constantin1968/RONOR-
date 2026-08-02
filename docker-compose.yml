@@ -23,6 +23,31 @@ services:
       - REDIS_ENABLED=${REDIS_ENABLED:-false}
       - DATABASE_URL=postgresql://ronor:ronor_dev@postgres:5432/ronor
       - DATABASE_ENABLED=${DATABASE_ENABLED:-false}
+      # ---- R-Knowledge (MIP-014 / MIP-015) ----
+      # Every variable defaults to the DISABLED or ABSENT value. A deployment that
+      # sets none of them gets exactly the pre-MIP-014 runtime: no plane, no routes,
+      # no store connection, no egress.
+      - KNOWLEDGE_ENABLED=${KNOWLEDGE_ENABLED:-false}
+      - KNOWLEDGE_ENVIRONMENT_CLASS=${KNOWLEDGE_ENVIRONMENT_CLASS:-development}
+      - KNOWLEDGE_VECTOR_STORE=${KNOWLEDGE_VECTOR_STORE:-}
+      - KNOWLEDGE_EMBEDDING_PROVIDER=${KNOWLEDGE_EMBEDDING_PROVIDER:-deterministic}
+      - KNOWLEDGE_EMBEDDING_DIMENSIONS=${KNOWLEDGE_EMBEDDING_DIMENSIONS:-384}
+      - KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED=${KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED:-false}
+      - KNOWLEDGE_RAG_ENABLED=${KNOWLEDGE_RAG_ENABLED:-false}
+      - KNOWLEDGE_SQLITE_PATH=/app/data/knowledge.db
+      # Learned embedding provider. NO endpoint default: an unset endpoint refuses,
+      # which is the point — a default endpoint would mean egress to a destination
+      # nobody chose.
+      - KNOWLEDGE_OPENAI_BASE_URL=${KNOWLEDGE_OPENAI_BASE_URL:-}
+      - KNOWLEDGE_OPENAI_API_KEY=${KNOWLEDGE_OPENAI_API_KEY:-}
+      - KNOWLEDGE_OPENAI_MODEL=${KNOWLEDGE_OPENAI_MODEL:-}
+      # Qdrant. With the compose profile below active the in-network endpoint is
+      # http://qdrant:6333; otherwise this is whatever external endpoint is supplied.
+      - QDRANT_URL=${QDRANT_URL:-}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-ronor_knowledge}
+      - KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION=${KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION:-false}
+      - KNOWLEDGE_QDRANT_ENVIRONMENT_AUTHORISATION=${KNOWLEDGE_QDRANT_ENVIRONMENT_AUTHORISATION:-}
     volumes:
       - ronor-data:/app/data
     depends_on:
@@ -70,7 +95,56 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # ------------------------------------------------------------------
+  # Qdrant — R-Knowledge production vector store (MIP-015 requirement 4)
+  # ------------------------------------------------------------------
+  #
+  # Behind an OPT-IN profile, so a plain `docker compose up` starts exactly the three
+  # services it started before MIP-015. A vector database appearing unbidden in every
+  # developer's stack is a resource cost and an attack surface nobody asked for, and
+  # since the plane is disabled by default a running Qdrant would sit idle in most
+  # deployments.
+  #
+  #   docker compose --profile knowledge up
+  #
+  # NOT VERIFIED AGAINST A RUNNING CONTAINER. docker was unavailable in the authoring
+  # environment, so this manifest is reviewed but unexercised. It is declared as such
+  # in the MIP-015 report rather than presented as tested.
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: ronor-qdrant
+    profiles:
+      - knowledge
+    ports:
+      # 6333 REST, 6334 gRPC. Bound to LOOPBACK deliberately: a store holding
+      # INTERNAL-classified material should not be reachable from the host network by
+      # default, and an operator who needs that can widen it knowingly.
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    environment:
+      # Telemetry OFF. This is a SERVER-side setting, which is exactly why it belongs
+      # here: the application cannot assert it on a server it does not operate, and a
+      # test that claimed otherwise would be attesting to a configuration nobody had
+      # verified.
+      - QDRANT__TELEMETRY_DISABLED=true
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+      - QDRANT__LOG_LEVEL=${QDRANT_LOG_LEVEL:-INFO}
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      # A TCP probe rather than an HTTP one: the image has no curl, and with an API
+      # key set an unauthenticated HTTP probe would return 401 and be read as
+      # unhealthy — a health check that fails precisely when the server is correctly
+      # secured is worse than none.
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   ronor-data:
   redis-data:
   postgres-data:
+  qdrant-data:

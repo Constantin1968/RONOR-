@@ -49,6 +49,8 @@ import type {
   CorpusIngestionOptions,
   CorpusIngestionReport,
 } from '../../knowledge/corpus';
+import { buildDeploymentReport } from '../../knowledge/deployment-health';
+import type { KnowledgeDeploymentReport } from '../../knowledge/deployment-health';
 import { retrieve } from '../../knowledge/retrieval';
 import { selectVectorStore } from '../../knowledge/stores/vector-store';
 import { isKnowledgeEnabled, resolveKnowledgeConfig } from './config';
@@ -325,6 +327,27 @@ export class RKnowledgePlane {
       errorsTotal: this.errorsTotal,
       lastChecked: new Date(),
     };
+  }
+
+  /**
+   * Deployment readiness (MIP-015 requirement 4).
+   *
+   * Distinct from `health()`, which answers "is this plane serving?" for a dashboard.
+   * This answers "what is wrong and what should I do about it?" for an operator, and
+   * in particular it separates a dependency that is BROKEN from one that was never
+   * CONFIGURED — two states a status colour collapses into one.
+   */
+  async deploymentReadiness(): Promise<KnowledgeDeploymentReport> {
+    await this.refreshDegradation();
+    const embedderHealth = await this.embedder.health();
+    return buildDeploymentReport({
+      config: this.config,
+      degradation: this.degradation,
+      storeHealth: this.lastStoreHealth,
+      embedderAvailable: embedderHealth.available,
+      embedderProvider: this.embedder.provider,
+      embedderLastError: embedderHealth.lastErrorCode,
+    });
   }
 
   getDiagnostics(): KnowledgeDiagnostics {

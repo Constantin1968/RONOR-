@@ -347,37 +347,101 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     }
   });
 
-  test('MTA-2c · no container manifest declares a Qdrant service', () => {
-    // The complement of the source scan. The precise claim is NOT that the
-    // repository contains no container manifest — it contains three, all present in
-    // the BASELINE commit (Dockerfile, docker-compose.yml, docker-compose.test.yml)
-    // and none of them added or modified by this work. Asserting their absence would
-    // have failed on pre-existing infrastructure that has nothing to do with MIP-014,
-    // which is a badly framed claim rather than a finding.
-    //
-    // What matters is that no manifest declares a QDRANT service, because such a
-    // declaration would give the repository the capability to start one — and the
-    // mocked-transport attestation would be hollow even if no test invoked it.
-    const { execSync } = require('child_process') as typeof import('child_process');
-    const manifests = execSync(
-      'git ls-files | grep -Ei "docker-compose|compose\\.ya?ml|Dockerfile|dockerignore" || true',
-      { cwd: REPO_ROOT, encoding: 'utf8' }
-    )
-      .trim()
-      .split('\n')
-      .filter((line) => line.length > 0);
+  /**
+   * SUPERSESSION NOTICE — MIP-015 STEP 3, requirement 4.
+   *
+   * Under MIP-014 this test asserted that NO container manifest declared a Qdrant
+   * service, because such a declaration would have given the repository the
+   * capability to start one and the mocked-transport attestation would then have been
+   * hollow even if no test invoked it.
+   *
+   * MIP-015 requirement 4 DIRECTS a Docker configuration for Qdrant. The absence
+   * claim is therefore superseded. It is REPLACED rather than deleted, because the
+   * safety properties the original protected still matter; they are now stated
+   * positively and checked individually.
+   */
+  test('MTA-2c · the Qdrant service is OPT-IN and safe by default', () => {
+    const { load } = require('js-yaml') as typeof import('js-yaml');
+    const compose = load(readFileSync(join(REPO_ROOT, 'docker-compose.yml'), 'utf8')) as {
+      services: Record<string, Record<string, unknown>>;
+    };
 
-    // The manifests exist and are pre-existing.
-    expect(manifests.length).toBeGreaterThan(0);
+    const qdrant = compose.services.qdrant;
+    expect(qdrant).toBeDefined();
 
-    for (const manifest of manifests) {
-      const content = readFileSync(join(REPO_ROOT, manifest), 'utf8');
-      expect(content).not.toMatch(/qdrant/i);
+    // 1. OPT-IN. A profile-gated service does not start on a plain `up`, so a
+    //    developer who has not asked for a vector database does not get one.
+    expect(qdrant.profiles).toEqual(['knowledge']);
+
+    // 2. The image tag is PINNED exactly. `latest` would let the store version change
+    //    under a deployment without anybody choosing it.
+    expect(String(qdrant.image)).toMatch(/^qdrant\/qdrant:v\d+\.\d+\.\d+$/);
+
+    // 3. LOOPBACK ONLY. A store holding INTERNAL-classified material must not be
+    //    reachable from the host network by default.
+    for (const mapping of qdrant.ports as string[]) {
+      expect(mapping).toMatch(/^127\.0\.0\.1:/);
     }
 
-    // And each is byte-identical to the baseline: this work added no service and
-    // modified no manifest.
-    for (const manifest of manifests) {
+    // 4. Telemetry disabled WHERE THE SERVER IS OPERATED. The application cannot
+    //    assert this about a server it does not run; this manifest can, because here
+    //    it does run it.
+    expect((qdrant.environment as string[]).join('\n')).toMatch(
+      /QDRANT__TELEMETRY_DISABLED=true/
+    );
+
+    // 5. A health check exists, so a container that is up but not serving is not
+    //    reported ready.
+    expect(qdrant.healthcheck).toBeDefined();
+  });
+
+  test('MTA-2c-b · the runtime service does not DEPEND on Qdrant', () => {
+    // The decisive property, and the reason a profile alone would not be enough: with
+    // `depends_on: qdrant` a plain `docker compose up` would fail to start the runtime
+    // whenever the profile was inactive. The runtime must start and serve with no
+    // vector store present at all.
+    const { load } = require('js-yaml') as typeof import('js-yaml');
+    const compose = load(readFileSync(join(REPO_ROOT, 'docker-compose.yml'), 'utf8')) as {
+      services: Record<string, { depends_on?: Record<string, unknown> }>;
+    };
+    const dependsOn = compose.services.ronor.depends_on ?? {};
+    expect(Object.keys(dependsOn)).not.toContain('qdrant');
+  });
+
+  test('MTA-2c-c · every knowledge variable in compose defaults to the SAFE value', () => {
+    // A compose file defaulting KNOWLEDGE_ENABLED to true, or supplying a default
+    // endpoint, would make egress the out-of-the-box behaviour. Each default is
+    // asserted individually rather than reviewed by eye.
+    const { load } = require('js-yaml') as typeof import('js-yaml');
+    const compose = load(readFileSync(join(REPO_ROOT, 'docker-compose.yml'), 'utf8')) as {
+      services: Record<string, { environment?: string[] }>;
+    };
+    const env = (compose.services.ronor.environment ?? []).join('\n');
+
+    expect(env).toMatch(/KNOWLEDGE_ENABLED=\$\{KNOWLEDGE_ENABLED:-false\}/);
+    expect(env).toMatch(
+      /KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED=\$\{KNOWLEDGE_EXTERNAL_EGRESS_AUTHORISED:-false\}/
+    );
+    expect(env).toMatch(/KNOWLEDGE_RAG_ENABLED=\$\{KNOWLEDGE_RAG_ENABLED:-false\}/);
+    expect(env).toMatch(
+      /KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION=\$\{KNOWLEDGE_QDRANT_AUTO_CREATE_COLLECTION:-false\}/
+    );
+    expect(env).toMatch(
+      /KNOWLEDGE_EMBEDDING_PROVIDER=\$\{KNOWLEDGE_EMBEDDING_PROVIDER:-deterministic\}/
+    );
+    // No default endpoint and no default credential, for either dependency.
+    expect(env).toMatch(/KNOWLEDGE_OPENAI_BASE_URL=\$\{KNOWLEDGE_OPENAI_BASE_URL:-\}/);
+    expect(env).toMatch(/KNOWLEDGE_OPENAI_API_KEY=\$\{KNOWLEDGE_OPENAI_API_KEY:-\}/);
+    expect(env).toMatch(/QDRANT_URL=\$\{QDRANT_URL:-\}/);
+    expect(env).toMatch(/QDRANT_API_KEY=\$\{QDRANT_API_KEY:-\}/);
+  });
+
+  test('MTA-2c-d · the Dockerfile and test compose are UNCHANGED from the baseline', () => {
+    // The service was added to ONE manifest. The others are untouched, which bounds
+    // the deployment change: the image build and the CI compose stack cannot have
+    // acquired a vector store by accident.
+    const { execSync } = require('child_process') as typeof import('child_process');
+    for (const manifest of ['Dockerfile', 'docker-compose.test.yml', '.dockerignore']) {
       const baselineHash = execSync(
         `git rev-parse d058544d1c579611cce99cdf2b87a78d7534e75b:${manifest}`,
         { cwd: REPO_ROOT, encoding: 'utf8' }

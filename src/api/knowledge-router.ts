@@ -145,10 +145,19 @@ export function createKnowledgeRouter(plane: RKnowledgePlane): Router {
     }
   });
 
-  /** GET /status — plane diagnostics. */
+  /**
+   * GET /status — plane diagnostics and deployment readiness.
+   *
+   * The readiness report is added to this EXISTING route rather than given one of its
+   * own. The disabled-mode equivalence gate enumerates the plane's route set exactly,
+   * so every new route is a change to an invariant the programme depends on — and
+   * readiness is a qualification of status, which is where a reader would look for it
+   * anyway.
+   */
   router.get('/status', async (_req: Request, res: Response) => {
     const health = await plane.health();
-    res.json({ health, diagnostics: plane.getDiagnostics() });
+    const readiness = await plane.deploymentReadiness();
+    res.json({ health, diagnostics: plane.getDiagnostics(), readiness });
   });
 
   /**

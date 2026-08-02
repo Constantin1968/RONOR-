@@ -104,27 +104,55 @@ export class RContextPlane {
     let systemPrompt = request.context?.systemPrompt || this.buildSystemPrompt();
 
     if (this.knowledgeProvider !== null) {
-      const contribution = await this.knowledgeProvider.provide({
-        query: request.prompt,
-        // No ceiling is asserted here. The provider's own default applies, and
-        // R-Context has no basis for widening it: it does not know the requester's
-        // clearance, and inventing one would be an authorisation decision taken
-        // without the information needed to take it.
-      });
+      // CONTAINED. The provider contract states that it returns a value on every path
+      // and raises nothing, and the supplied implementation honours that — but a
+      // contract is not an enforcement mechanism, and this boundary is the one place
+      // where a violation costs the whole request.
+      //
+      // Found by the end-to-end suite, not by the unit suites: they exercised a
+      // well-behaved provider, so nothing failed. A DEFECTIVE provider — a different
+      // embedding backend, a client with an unhandled rejection path — previously
+      // propagated straight out of the inference pipeline, and the symptom would have
+      // been total inference failure attributed to R-Context rather than to knowledge.
+      //
+      // Grounding is an ENRICHMENT: the model could have answered without it. Denying
+      // an answer because an optional input failed is the wrong trade at any price.
+      try {
+        const contribution = await this.knowledgeProvider.provide({
+          query: request.prompt,
+          // No ceiling is asserted here. The provider's own default applies, and
+          // R-Context has no basis for widening it: it does not know the requester's
+          // clearance, and inventing one would be an authorisation decision taken
+          // without the information needed to take it.
+        });
 
-      if (contribution.grounded && contribution.dataRegion !== null) {
-        this.groundedRequests += 1;
-        systemPrompt = `${systemPrompt}\n\n${contribution.dataRegion}`;
-        logger.info(
-          `R-Context: grounded with ${contribution.sourceCount} source(s), ` +
-            `complete=${contribution.complete}`
-        );
-      } else {
+        if (contribution.grounded && contribution.dataRegion !== null) {
+          this.groundedRequests += 1;
+          systemPrompt = `${systemPrompt}\n\n${contribution.dataRegion}`;
+          logger.info(
+            `R-Context: grounded with ${contribution.sourceCount} source(s), ` +
+              `complete=${contribution.complete}`
+          );
+        } else {
+          this.ungroundedRequests += 1;
+          // Recorded, not raised. An ungrounded request is a normal outcome — an empty
+          // corpus produces one on every request — and it must not read as an error.
+          logger.debug(
+            `R-Context: proceeding ungrounded (${contribution.reason ?? 'unknown'})`
+          );
+        }
+      } catch (error) {
         this.ungroundedRequests += 1;
-        // Recorded, not raised. An ungrounded request is a normal outcome — an empty
-        // corpus produces one on every request — and it must not read as an error.
-        logger.debug(
-          `R-Context: proceeding ungrounded (${contribution.reason ?? 'unknown'})`
+        // Logged at ERROR, because a raising provider is a DEFECT and not a normal
+        // degradation — the two must be distinguishable in a log or the defect will
+        // never be noticed. The request continues regardless.
+        //
+        // The message is recorded but is NOT placed in the system prompt: an exception
+        // string is attacker-influenceable in the general case, and a prompt is the
+        // last place it belongs.
+        logger.error(
+          'R-Context: knowledge provider RAISED, which its contract forbids; ' +
+            `proceeding ungrounded (${error instanceof Error ? error.message : 'unknown'})`
         );
       }
     }

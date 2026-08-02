@@ -82,17 +82,21 @@ function main(): number {
   const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
   const depCount = Object.keys(pkg.dependencies).length;
   const devCount = Object.keys(pkg.devDependencies).length;
+  // MIP-015 requirement 2 directs the installation of @qdrant/js-client-rest.
   record(
     'CONF-2',
-    'Dependency surface unchanged: 9 production, 15 development',
+    'Dependency surface (MIP-015): 10 production, 15 development',
     true,
-    depCount === 9 && devCount === 15,
+    depCount === 10 && devCount === 15,
     { production: depCount, development: devCount }
   );
 
   const lockUnchanged =
     sh(`git diff --name-only ${BASELINE} -- package-lock.json`).length === 0;
-  record('CONF-3', 'package-lock.json unchanged from baseline', true, lockUnchanged, {
+  // A dependency addition inherently changes the lockfile. The assertion is
+  // inverted to confirm it HAS changed, while CONF-8 (npm audit) remains the
+  // safety gate on its contents.
+  record('CONF-3', 'package-lock.json modified (MIP-015 dependency addition)', true, !lockUnchanged, {
     changed: !lockUnchanged,
   });
 
@@ -219,16 +223,16 @@ function main(): number {
     });
   }
 
-  // ── Qdrant negative attestation (G6) ────────────────────────────────
+  // ── Qdrant attestation (G6 / MIP-015 requirement 2) ─────────────────
   const qdrantPackages = Object.keys({
     ...pkg.dependencies,
     ...pkg.devDependencies,
   }).filter((name) => /qdrant/i.test(name));
   record(
     'CONF-12',
-    'No Qdrant client dependency installed; MT-1..MT-8 held',
+    'Qdrant client dependency installed (MIP-015 requirement 2)',
     true,
-    qdrantPackages.length === 0,
+    qdrantPackages.includes('@qdrant/js-client-rest'),
     { qdrantPackages }
   );
 
@@ -240,7 +244,9 @@ function main(): number {
   } catch {
     qdrantProcesses = [];
   }
-  record('CONF-13', 'No Qdrant process running', true, qdrantProcesses.length === 0, {
+  // The service is authorised in compose, but the CI runner does not start it.
+  // The assertion that no process is running therefore still holds for this environment.
+  record('CONF-13', 'No Qdrant process running during verification', true, qdrantProcesses.length === 0, {
     processes: qdrantProcesses.length,
   });
 

@@ -2,8 +2,8 @@
   "gate": "G7",
   "name": "R-Knowledge conformance",
   "baselineCommit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
-  "branch": "mip-014/r-knowledge",
-  "head": "fd9009be37dbab3bf905ca6018bd2f132136a95d",
+  "branch": "main",
+  "head": "22c5e0e48126cb246ab781dc527c741e4584355d",
   "verdict": "PASS",
   "determinativeChecks": 13,
   "informationalChecks": 1,
@@ -33,21 +33,21 @@
     },
     {
       "id": "CONF-2",
-      "description": "Dependency surface unchanged: 9 production, 15 development",
+      "description": "Dependency surface (MIP-015): 10 production, 15 development",
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "production": 9,
+        "production": 10,
         "development": 15
       }
     },
     {
       "id": "CONF-3",
-      "description": "package-lock.json unchanged from baseline",
+      "description": "package-lock.json modified (MIP-015 dependency addition)",
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "changed": false
+        "changed": true
       }
     },
     {
@@ -67,8 +67,8 @@
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "suites": 18,
-        "tests": 455,
+        "suites": 23,
+        "tests": 594,
         "failures": 0
       }
     },
@@ -165,16 +165,18 @@
     },
     {
       "id": "CONF-12",
-      "description": "No Qdrant client dependency installed; MT-1..MT-8 held",
+      "description": "Qdrant client dependency installed (MIP-015 requirement 2)",
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "qdrantPackages": []
+        "qdrantPackages": [
+          "@qdrant/js-client-rest"
+        ]
       }
     },
     {
       "id": "CONF-13",
-      "description": "No Qdrant process running",
+      "description": "No Qdrant process running during verification",
       "determinative": true,
       "result": "PASS",
       "observed": {

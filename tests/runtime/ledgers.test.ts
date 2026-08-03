@@ -301,26 +301,28 @@ describe('L7 · cost-of-intelligence ledger', () => {
   });
 
   it('breaks cost down by model from the ATTEMPTS table, not the work table', () => {
+    // A model id unique to this run: the ledger is a persistent file shared with
+    // every other test in the process, so a fixed id would make this assertion
+    // depend on execution order.
+    const modelId = `breakdown/${crypto.randomBytes(5).toString('hex')}`;
     const requestId = uid('req');
     recordWork(
       baseWork({
         request_id: requestId,
-        chosen_model_id: 'breakdown/model-a',
+        chosen_model_id: modelId,
         chosen_provider: 'breakdown',
         cost_usd: 0.05,
       }),
     );
-    const summary = getCostSummary();
     // A work row alone must NOT appear in the per-model breakdown. The breakdown
     // is derived from attempts, because a request that succeeded on its second
     // engine spent money on two models and only the attempts table records both.
     // Attributing the whole cost to the winning model would make a failing
     // provider look free.
-    expect(summary.by_model.some((m) => m.model_id === 'breakdown/model-a')).toBe(false);
+    expect(getCostSummary().by_model.some((m) => m.model_id === modelId)).toBe(false);
 
-    recordAttempts([attempt(requestId, 1, 'breakdown/model-a', true, 700)]);
-    const after = getCostSummary();
-    expect(after.by_model.some((m) => m.model_id === 'breakdown/model-a')).toBe(true);
+    recordAttempts([attempt(requestId, 1, modelId, true, 700)]);
+    expect(getCostSummary().by_model.some((m) => m.model_id === modelId)).toBe(true);
   });
 
   it('attributes spend to every model in a fallback chain', () => {

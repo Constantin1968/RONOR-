@@ -46,6 +46,17 @@ import { RSentinelPlane } from './planes/r-sentinel';
 import { RKnowledgePlane } from './planes/r-knowledge';
 import { createKnowledgeRouter } from './api/knowledge-router';
 import { RONOROrchestrator } from './orchestrator';
+// ── Runtime Active (L0–L7) ──────────────────────────────────────────────────
+import { createRuntimeRouter } from './runtime/api/routes';
+import {
+  errorHandler as runtimeErrorHandler,
+  provenanceMiddleware,
+} from './runtime/api/middleware';
+import { bootstrapApiKeys } from './runtime/api/auth';
+import { providerStatuses } from './runtime/providers/registry';
+import { seedFromLedger } from './runtime/router/calibrator';
+import { recentAttemptSamples } from './runtime/ledgers/work-ledger';
+import { ensureRuntimeLedgerSchema } from './runtime/ledgers/schema';
 
 const logger = createLogger('RONOR:Main');
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -69,6 +80,67 @@ async function bootstrap(): Promise<void> {
   getDb();
   initModelExchange();
   logger.info('Governance policy loaded + audit chain DB ready + Model Exchange work-ledger initialised ✓');
+
+  // ── Runtime Active boot (L0/L1/L7) ────────────────────────────────────────
+  //
+  // Three steps, in this order, before the first request can land.
+  ensureRuntimeLedgerSchema();
+
+  // 1. Credentials. The result is LOGGED rather than swallowed: a deployment
+  //    running on the shipped demo key must be visible in the boot log as well as
+  //    on /health, because an operator reading one is not necessarily reading the
+  //    other.
+  const keyBootstrap = bootstrapApiKeys(process.env);
+  if (keyBootstrap.keysSeeded === 0) {
+    logger.warn(
+      'No runtime API keys configured (RONOR_API_KEYS / RONOR_ADMIN_API_KEY) — ' +
+        'the runtime API will refuse every request. Set at least one key.',
+    );
+  } else {
+    logger.info(`Runtime API keys loaded: ${keyBootstrap.keysSeeded} ✓`);
+  }
+  if (keyBootstrap.insecureDefaultActive) {
+    logger.error(
+      'SECURITY: a shipped default API key is active. Rotate RONOR_API_KEYS before ' +
+        'exposing this instance to any network.',
+    );
+  }
+
+  // 2. Router telemetry. Seeding from persisted attempts means a restart does not
+  //    discard what the router learned about provider latency and reliability. An
+  //    unseeded router silently reverts to catalogue estimates and re-learns the
+  //    same degradation from scratch, sending real traffic to a known-bad engine
+  //    in the process.
+  const samples = recentAttemptSamples(50);
+  const seeded = seedFromLedger(samples);
+  logger.info(
+    `Router calibrator seeded from ledger: ${seeded} sample(s) across persisted attempts ✓`,
+  );
+
+  // 3. Provider inventory. Reported honestly, including which providers are
+  //    present in code but lack a credential, so nobody mistakes an adapter for a
+  //    connection.
+  const providers = providerStatuses();
+  const live = providers.filter((p) => p.invocable);
+  const generative = live.filter((p) => p.provider !== 'deterministic');
+  logger.info(
+    `Providers: ${live.length}/${providers.length} invocable (${generative.length} generative) — ` +
+      live.map((p) => `${p.provider}:${p.transport}`).join(', '),
+  );
+  const absent = providers.filter((p) => !p.invocable);
+  if (absent.length) {
+    logger.warn(
+      `Providers present but not invocable (no credential): ${absent
+        .map((p) => p.provider)
+        .join(', ')} — adapters are implemented and will activate when a key is set.`,
+    );
+  }
+  if (generative.length === 0) {
+    logger.warn(
+      'No generative provider is invocable. The runtime will serve only the ' +
+        'deterministic core and /api/runtime/health will report status=degraded.',
+    );
+  }
 
   // Initialise all 8 operational planes
   logger.info('Initialising 8 operational planes...');
@@ -162,6 +234,16 @@ async function bootstrap(): Promise<void> {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // ── Runtime Active surface ────────────────────────────────────────────────
+  //
+  // Mounted on its own prefix with its OWN middleware chain, ahead of the Core
+  // Active routers. The isolation is deliberate: provenance capture, per-key rate
+  // limiting and the runtime error handler apply to /api/runtime only, so the
+  // existing /api/v1 contracts and their 594 tests are untouched. A shared
+  // middleware stack would have coupled the two surfaces and made every future
+  // runtime change a regression risk for Core Active.
+  app.use('/api/runtime', provenanceMiddleware, createRuntimeRouter(), runtimeErrorHandler);
+
   // Mount API routes
   app.use('/api/v1', createRouter(orchestrator));
   app.use('/api/v1', createDecisionsRouter());
@@ -173,7 +255,10 @@ async function bootstrap(): Promise<void> {
     app.use('/api/v1/knowledge', createKnowledgeRouter(knowledge));
   }
 
-  // Static web UI (decision timeline + audit verifier)
+  // Operator Console (Runtime Active) and the existing static web UI.
+  // The console is mounted on an explicit path so the baseline root-served UI
+  // keeps its exact behaviour.
+  app.use('/console', express.static('web/console'));
   app.use('/', express.static('web'));
 
   // Health endpoint
@@ -203,14 +288,39 @@ async function bootstrap(): Promise<void> {
     logger.info(`Knowledge: http://localhost:${PORT}/api/v1/knowledge/status`);
   }
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`RONOR Runtime listening on http://localhost:${PORT}`);
     logger.info(`API: http://localhost:${PORT}/api/v1`);
     logger.info(`Health: http://localhost:${PORT}/health`);
     logger.info(`Models active: ${modelFabric.getAvailableModels().length}`);
     logger.info(`Sentinel: http://localhost:${PORT}/api/v1/sentinel/status`);
+    logger.info('──────────────────────────────────────────────');
+    logger.info(`Runtime API:      http://localhost:${PORT}/api/runtime`);
+    logger.info(`Runtime health:   http://localhost:${PORT}/api/runtime/health`);
+    logger.info(`Operator Console: http://localhost:${PORT}/console`);
+    logger.info('──────────────────────────────────────────────');
     logger.info('Ready to process requests ✓');
   });
+
+  // Graceful shutdown. Without this, a container stop severs in-flight requests
+  // after their provider spend has been committed but before their ledger row is
+  // written — producing exactly the silent gap between money spent and work
+  // recorded that the ledger exists to prevent.
+  const shutdown = (signal: string) => {
+    logger.info(`${signal} received — draining connections before exit.`);
+    server.close(() => {
+      logger.info('HTTP server closed. Exiting.');
+      process.exit(0);
+    });
+    // A bounded wait: a connection that will not drain must not hold the process
+    // open indefinitely.
+    setTimeout(() => {
+      logger.warn('Drain timeout reached — forcing exit.');
+      process.exit(0);
+    }, 10_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 bootstrap().catch((err) => {

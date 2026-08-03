@@ -10,7 +10,7 @@
  * (MI9 Gate pass required) added in the merged architecture.
  */
 
-import type { ModelRegistryEntry, ModelCapability } from "./registry.js";
+import type { ModelRegistryEntry, ModelCapability } from "./registry";
 
 export type ConfidentialityLevel = "public" | "internal" | "restricted" | "sovereign";
 export type TaskType = ModelCapability;

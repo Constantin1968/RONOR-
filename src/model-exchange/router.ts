@@ -19,8 +19,8 @@
  * Ported from RONOR Model Exchange v0.1 router.js.
  */
 
-import type { ModelRegistryEntry } from "./registry.js";
-import { estimateCost, type UnifiedRequest } from "./policy.js";
+import type { ModelRegistryEntry } from "./registry";
+import { estimateCost, type UnifiedRequest } from "./policy";
 
 // Term weights — visible, tunable governance parameters.
 export const WEIGHTS = {

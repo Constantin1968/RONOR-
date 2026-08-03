@@ -18,9 +18,9 @@
  * process restarts and can be exported for DNV / regulatory review.
  */
 
-import type { ModelRegistryEntry } from "./registry.js";
-import type { ExecutionResult, EngineSource } from "./engines.js";
-import { getDb } from "../audit/hash-chain.js";
+import type { ModelRegistryEntry } from "./registry";
+import type { ExecutionResult, EngineSource } from "./engines";
+import { getDb } from "../audit/hash-chain";
 
 // ---------------------------------------------------------------------------
 // Schema bootstrap

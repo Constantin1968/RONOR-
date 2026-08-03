@@ -10,11 +10,11 @@
  */
 
 import { Router } from "express";
-import { listModels } from "../model-exchange/registry.js";
-import type { UnifiedRequest } from "../model-exchange/policy.js";
-import { runUnifiedQuery } from "../model-exchange/orchestrator.js";
-import { getCostLedger } from "../model-exchange/work-ledger.js";
-import { createLogger } from "../utils/logger.js";
+import { listModels } from "../model-exchange/registry";
+import type { UnifiedRequest } from "../model-exchange/policy";
+import { runUnifiedQuery } from "../model-exchange/orchestrator";
+import { getCostLedger } from "../model-exchange/work-ledger";
+import { createLogger } from "../utils/logger";
 
 const logger = createLogger("API:ModelExchange");
 

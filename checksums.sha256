@@ -1,10 +1,10 @@
 # RONOR — SHA-256 Source Checksums
 # Release:     v0.4.0-core-active
-# Commit:      bbed8343c4341541e747942bf69c155818cbf258
-# Generated:   2026-08-03T00:56:00Z
+# Commit:      53e230d34e996dd41dda9c0d9ae37fe2c036e8f3
+# Generated:   2026-08-03T01:00:28Z
 # Files:       191
 # Algorithm:   SHA-256 (coreutils sha256sum)
-# Rollup:      8464ac73fe87d563cc954a7b4af1ead3523a3349f742cbddbe580e275b6fb7e9
+# Rollup:      a1526d3d89fb01ac25ecd3b81438bf9151b72e7b9e1166e0dcc2e9c2aed7c6bd
 #              (SHA-256 of the concatenated per-file digest column)
 # Verify:      grep -v '^#' checksums.sha256 | sha256sum -c -
 # Prepared by AMB
@@ -17,7 +17,7 @@ a8efcac358a3ae627676a3e14683c29322ffc4c7212f8cca77c41cccbe481ef0  .github/ISSUE_
 5309cdcd4b82691b437335a7d3b210d5ecb4daa18aa929c7740f30a2d6f9e4a4  .github/ISSUE_TEMPLATE/step0_assessment.md
 a286fb5e1370088b006bc976e718c55e103f542d33c4c011bd0ab7cd4be3a072  .github/PULL_REQUEST_TEMPLATE.md
 6e2e7e6a7d586bf83f8a8d443b50d72dd8839aadf591a76af20b6e23e0a09b0a  .github/workflows/ci.yml
-a71a720a1d794810701eac26aa4d3a4e3c1bd498f5e9eaadae3d608907a846b0  .github/workflows/release.yml
+4fbe98ec68411e697de02b31bbe4e461ee6b5359bea25741305ad7cc802a1302  .github/workflows/release.yml
 a29d27283ed564c9c51229b859935582d6feb0afe007fa3cad447160432cfd1c  .gitignore
 8f9f302d5945d2423f1d189302faba92b48a81f4e50dfcd060dbb8fa4ecf5b7b  CHANGELOG.md
 d490d70db25aacbf7ac54a773b690145bfc882f41653d8dde4858e589079c51b  DEVPOST_SUBMISSION.md

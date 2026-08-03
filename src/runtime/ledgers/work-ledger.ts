@@ -180,6 +180,12 @@ export function recordAttempts(attempts: AttemptRecord[]): number {
 export interface WorkRow {
   id: number;
   request_id: string;
+  /**
+   * SHA-256 of the prompt, never the prompt. Exposed so an operator can prove two
+   * requests were identical, detect replay, and correlate a complaint with a row,
+   * without the ledger holding the text.
+   */
+  prompt_digest: string | null;
   mission_id: string | null;
   operator_id: string | null;
   task_type: string;
@@ -204,11 +210,23 @@ export interface WorkRow {
   created_at: string;
 }
 
+/**
+ * Total rows in the work ledger.
+ *
+ * A paginated console without a total leaves an operator unable to tell whether
+ * they are looking at all of the evidence or at the first page of it.
+ */
+export function countWork(): number {
+  ensureRuntimeLedgerSchema();
+  const row = getDb().prepare('SELECT COUNT(*) AS n FROM runtime_work').get() as { n: number };
+  return row.n;
+}
+
 export function listWork(limit = 50, offset = 0): WorkRow[] {
   ensureRuntimeLedgerSchema();
   return getDb()
     .prepare(
-      `SELECT id, request_id, mission_id, operator_id, task_type, confidentiality,
+      `SELECT id, request_id, prompt_digest, mission_id, operator_id, task_type, confidentiality,
               surface, agent_id, status, chosen_model_id, chosen_provider, transport,
               input_tokens, output_tokens, usage_estimated, cost_usd, latency_ms,
               attempts, fallback_used, verified_confidence, citations_count,

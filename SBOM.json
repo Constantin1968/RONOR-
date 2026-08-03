@@ -1,0 +1,1034 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:46ccbfce-d67c-5e99-9a79-f4a79f2c00a5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-03T00:54:04Z",
+    "tools": [
+      {
+        "vendor": "Mayleven / RONOR Engineering",
+        "name": "ronor-sbom-generator",
+        "version": "1.0.0"
+      }
+    ],
+    "authors": [
+      {
+        "name": "AMB (Archeon Master the Best)"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "pkg:npm/ronor-model-exchange-governance-spine@0.4.0-core-active",
+      "name": "ronor-model-exchange-governance-spine",
+      "version": "0.4.0-core-active",
+      "description": "RONOR — Model Exchange & Governance Spine for Energy Operations. A 6D model router, MI9 governance gate, R-Assurance evidence layer, SHA-256 audit chain, and Work + Cost of Intelligence ledgers — wired end-to-end for a 20 MWh BESS Romania scenario.",
+      "purl": "pkg:npm/ronor-model-exchange-governance-spine@0.4.0-core-active",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "author": "Constantin Liviu NITA (Merlin) · Ma11AI · Mayleven Ecosystem (Mayleven Ltd, Company No. 17000500, England & Wales)",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/Constantin1968/RONOR-"
+        }
+      ],
+      "properties": [
+        {
+          "name": "ronor:gitCommit",
+          "value": "bbed8343c4341541e747942bf69c155818cbf258"
+        },
+        {
+          "name": "ronor:releaseTag",
+          "value": "v0.4.0-core-active"
+        },
+        {
+          "name": "ronor:nodeEngine",
+          "value": ">=20.0.0"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "ronor:directProductionDependencies",
+        "value": "10"
+      },
+      {
+        "name": "ronor:directDevelopmentDependencies",
+        "value": "15"
+      },
+      {
+        "name": "ronor:transitivePackagesInLockfile",
+        "value": "535"
+      },
+      {
+        "name": "ronor:lockfileVersion",
+        "value": "3"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@qdrant%2Fjs-client-rest@1.18.0",
+      "name": "@qdrant/js-client-rest",
+      "version": "1.18.0",
+      "purl": "pkg:npm/@qdrant%2Fjs-client-rest@1.18.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "1.18.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "ff476a5f9b95f5c842d439d84a753880d32b0eab1efe9b7a84783746aaa99798ac1fbc65d7148dbdf7e3cc1a31c9c0c3efd96e5a7ec7a3a461ffad6c3ace4337"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@qdrant/js-client-rest/-/js-client-rest-1.18.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/better-sqlite3@11.10.0",
+      "name": "better-sqlite3",
+      "version": "11.10.0",
+      "purl": "pkg:npm/better-sqlite3@11.10.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^11.1.2"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "13084ea725e23842ff94acc7cfd016d66b1614dcc673fcfe2f3781dff8e7149a71bbeb61db2aafcec4966acd6ff6382cf7ec625c9703e40f02271006d936a085"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-11.10.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/cors@2.8.6",
+      "name": "cors",
+      "version": "2.8.6",
+      "purl": "pkg:npm/cors@2.8.6",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^2.8.5"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "b49b590411c0eaf8c801a17a12721aaba95a0413fd6aafd8de8b9526311fa076d105c1c100761c321ff0f0b0eb9363ef20c32af209a8a5ae43e15f1199baf11b"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/cors/-/cors-2.8.6.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/dotenv@16.6.1",
+      "name": "dotenv",
+      "version": "16.6.1",
+      "purl": "pkg:npm/dotenv@16.6.1",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^16.4.5"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "b81ab87a05874dc4eddf76bbdafa521b4cf71e73ee225e8da98713aca120d9ace81329768695b4cea971cacab6a4af47943207c87c9a91e61a627480c1df1ba3"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/express@4.22.2",
+      "name": "express",
+      "version": "4.22.2",
+      "purl": "pkg:npm/express@4.22.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^4.19.2"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "22e2fe125ae8bb666f0851ecd7cfc2233cb6373be8db99d9d7f0f6788665cfb73e4146b201c62888cd81b610a3b3e1011d5a6362372e2c302209681e217dd7d5"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/express/-/express-4.22.2.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/js-yaml@4.3.0",
+      "name": "js-yaml",
+      "version": "4.3.0",
+      "purl": "pkg:npm/js-yaml@4.3.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^4.1.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "d6d77bf3c6809e7679aaced5d90211975a308ed6296cab7be3d637c5abaa420c0820617fc575b3d70313101c793b72cade55cb56ea973dd3f18f6068147696f5"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/openai@4.104.0",
+      "name": "openai",
+      "version": "4.104.0",
+      "purl": "pkg:npm/openai@4.104.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^4.55.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "a7df4414db00ff25fa52154ef777f9909b0344b020f824c0d9106a7472b846d2bcbb9209c37d87c9bd9d4c629b9e71669eea01bf9afb676094448f6c199a52b8"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/openai/-/openai-4.104.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/uuid@10.0.0",
+      "name": "uuid",
+      "version": "10.0.0",
+      "purl": "pkg:npm/uuid@10.0.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^10.0.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "f17900a6110bb039c41ab0f150e1c1dd11af5f3e937ae6121846413a3b53b4f9b69708460632e03b32c707adc85167c1a4db9c423343e9ddc03ae74ef87dd159"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/uuid/-/uuid-10.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/winston@3.19.0",
+      "name": "winston",
+      "version": "3.19.0",
+      "purl": "pkg:npm/winston@3.19.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^3.13.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "2d934980fcdf291fbf2777079317291caa4a2af19f0d954f4b885f2427387021b40a0633be50fac84fd2dc220bfd8b7dd5a937dbb602a6217fd0cc9e64710728"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/winston/-/winston-3.19.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/zod@3.25.76",
+      "name": "zod",
+      "version": "3.25.76",
+      "purl": "pkg:npm/zod@3.25.76",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^3.23.8"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "production"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "83352dfeab7cd675ec14628815c0b76277c4031e4d92e9c27e70e5bee0524854b4d9b717bb82e679ad001485306cb5b158fc7777da7c4b94286ae8ca70d43171"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/zod/-/zod-3.25.76.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fbetter-sqlite3@7.6.13",
+      "name": "@types/better-sqlite3",
+      "version": "7.6.13",
+      "purl": "pkg:npm/@types%2Fbetter-sqlite3@7.6.13",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^7.6.11"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "34cbfd0123404682a4b16b6cabf4876a4a580189e106b420183f3390b624fe368af235069f4f027c4753460621332a544007f348ff16ea034b7b4ab5f7fb7854"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/better-sqlite3/-/better-sqlite3-7.6.13.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fcors@2.8.19",
+      "name": "@types/cors",
+      "version": "2.8.19",
+      "purl": "pkg:npm/@types%2Fcors@2.8.19",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^2.8.17"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "9853729727b2a8df7795f7bff424b1386444cfc729cc0847f84f77c49e315907fad95f2c43fdb8ade5769f2cd458ce87e978e2f86187a646cb7bba55a1412c92"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/cors/-/cors-2.8.19.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fexpress@4.17.25",
+      "name": "@types/express",
+      "version": "4.17.25",
+      "purl": "pkg:npm/@types%2Fexpress@4.17.25",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^4.17.21"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "755774e142ac7e920d5272b4c81a181c3177c6eef1547e01b83a2d0bfc46bb2731e0281b3f8f17fca17fe7ce9b70e6f14f41c43475c453c36ab6ee8d47e78a87"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/express/-/express-4.17.25.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fjest@29.5.14",
+      "name": "@types/jest",
+      "version": "29.5.14",
+      "purl": "pkg:npm/@types%2Fjest@29.5.14",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^29.5.12"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "64dfb8b1d9cb51ba3c115bd57366a8d06156ea856b4113e7e0ada5825c928fb00fbd2ae0cf11e234d2bdf6eb38583322e7bc71036ca081b94800c3615cea2d2d"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/jest/-/jest-29.5.14.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fjs-yaml@4.0.9",
+      "name": "@types/js-yaml",
+      "version": "4.0.9",
+      "purl": "pkg:npm/@types%2Fjs-yaml@4.0.9",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^4.0.9"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "9383066909794c6a3f8a2a6a6f65031b65308d7ce2496921d2ecac41e953949a57d6a1a5a546589bc3e73b80f11b5a81a26b4951d609eaa47ac5d21a875d092e"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/js-yaml/-/js-yaml-4.0.9.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fnode@20.19.43",
+      "name": "@types/node",
+      "version": "20.19.43",
+      "purl": "pkg:npm/@types%2Fnode@20.19.43",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^20.14.11"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "ea8601022e62920e0f97e906b2862d6b050c053db364c0af3cd17ba552e71d97ddd737f7f034625a7fe04f4d51602754aa4bfb161afe0bda2de3fb5bfb6b15bc"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/node/-/node-20.19.43.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fsupertest@6.0.3",
+      "name": "@types/supertest",
+      "version": "6.0.3",
+      "purl": "pkg:npm/@types%2Fsupertest@6.0.3",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^6.0.2"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "f16cd7abad845c5849ed0b07dce71bfe2290fd3cbd6555a7573a1329cf6dcb2151445ddaef84e4dbe4cb160685170dfae04adefa7a731ca109ea06b62f320bef"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/supertest/-/supertest-6.0.3.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@types%2Fuuid@10.0.0",
+      "name": "@types/uuid",
+      "version": "10.0.0",
+      "purl": "pkg:npm/@types%2Fuuid@10.0.0",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^10.0.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "ee0a86dfc1321e0c8fd52fbbfb1a2616d2fe64d1dc2afe83c0d682666266a35be032e8321774c29d7560e2dd6e93cf662cdc272ed9d8dd3a4ea423b2a75ff11d"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@types/uuid/-/uuid-10.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/eslint@9.39.5",
+      "name": "eslint",
+      "version": "9.39.5",
+      "purl": "pkg:npm/eslint@9.39.5",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^9.7.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "0e0652eb668f2d72a59f120b4bf0180a846f1da65e5dc788ce55cf924186cc9592a30d5a124d256d39715129728c2f2371a2b101d3a74c3cfea35245481b328f"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/eslint/-/eslint-9.39.5.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/jest@29.7.0",
+      "name": "jest",
+      "version": "29.7.0",
+      "purl": "pkg:npm/jest@29.7.0",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^29.7.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "348cb7a00169f6c85d6b5f61cb81cad0745358ab4f26619d9efcb0bb4d673aa342daf660f99f9fbc90f1a4c400f3c79bd88f4471a7dc763620b03b619d84ef1b"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/jest/-/jest-29.7.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/supertest@7.2.2",
+      "name": "supertest",
+      "version": "7.2.2",
+      "purl": "pkg:npm/supertest@7.2.2",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^7.0.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "a0af161bd7624b70e585d5247059f8b643488886c1c7d948d82945f0af9bdbf9bc132bf8ecb49ac3153365048d294ad56f62aca9e4c309c8c00153d86922d54c"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/supertest/-/supertest-7.2.2.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/ts-jest@29.4.11",
+      "name": "ts-jest",
+      "version": "29.4.11",
+      "purl": "pkg:npm/ts-jest@29.4.11",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^29.2.2"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "22b165ee5f40b81feaacdc39aaeaaf02ffe198a31bf1d856387e2340e1a8d0eabcb427a8d4ef3afe24c51b515a4629a0524175de5e0f71ea4ef004c54fa36ce2"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/ts-jest/-/ts-jest-29.4.11.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/ts-node@10.9.2",
+      "name": "ts-node",
+      "version": "10.9.2",
+      "purl": "pkg:npm/ts-node@10.9.2",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^10.9.2"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "7f4145a4875c1e09fccdc3d26dfd5d45ebf0b74e3b60c9da889337bb6c3645ec2b07e7e86ffcde3d972b3b24282cc30eeda04875d2dc40810ae5d62390b9c6ad"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/ts-node/-/ts-node-10.9.2.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/ts-node-dev@2.0.0",
+      "name": "ts-node-dev",
+      "version": "2.0.0",
+      "purl": "pkg:npm/ts-node-dev@2.0.0",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^2.0.0"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "cb032b8427c7e8cef9c9fb58bebbcd6ab2c463e4945ed52f53cff467a965ac7415071d761a2164e6c4ad17c51d7c4ff27f393d200abb3b91046d342cc65048f3"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/ts-node-dev/-/ts-node-dev-2.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/typescript@5.9.3",
+      "name": "typescript",
+      "version": "5.9.3",
+      "purl": "pkg:npm/typescript@5.9.3",
+      "scope": "optional",
+      "properties": [
+        {
+          "name": "ronor:declaredRange",
+          "value": "^5.5.3"
+        },
+        {
+          "name": "ronor:dependencyScope",
+          "value": "development"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "8e5d6f6733c38a72ebf5e52ddc9feded5e8580d130f508ef04f772b33f4a7d00c3e357d0ac2d98e2f290762694a454f86d795bd511e12e9a7cc2d9ba3394e04b"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:npm/ronor-model-exchange-governance-spine@0.4.0-core-active",
+      "dependsOn": [
+        "pkg:npm/@qdrant%2Fjs-client-rest@1.18.0",
+        "pkg:npm/better-sqlite3@11.10.0",
+        "pkg:npm/cors@2.8.6",
+        "pkg:npm/dotenv@16.6.1",
+        "pkg:npm/express@4.22.2",
+        "pkg:npm/js-yaml@4.3.0",
+        "pkg:npm/openai@4.104.0",
+        "pkg:npm/uuid@10.0.0",
+        "pkg:npm/winston@3.19.0",
+        "pkg:npm/zod@3.25.76",
+        "pkg:npm/@types%2Fbetter-sqlite3@7.6.13",
+        "pkg:npm/@types%2Fcors@2.8.19",
+        "pkg:npm/@types%2Fexpress@4.17.25",
+        "pkg:npm/@types%2Fjest@29.5.14",
+        "pkg:npm/@types%2Fjs-yaml@4.0.9",
+        "pkg:npm/@types%2Fnode@20.19.43",
+        "pkg:npm/@types%2Fsupertest@6.0.3",
+        "pkg:npm/@types%2Fuuid@10.0.0",
+        "pkg:npm/eslint@9.39.5",
+        "pkg:npm/jest@29.7.0",
+        "pkg:npm/supertest@7.2.2",
+        "pkg:npm/ts-jest@29.4.11",
+        "pkg:npm/ts-node@10.9.2",
+        "pkg:npm/ts-node-dev@2.0.0",
+        "pkg:npm/typescript@5.9.3"
+      ]
+    }
+  ]
+}

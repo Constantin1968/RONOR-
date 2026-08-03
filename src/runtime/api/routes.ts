@@ -60,7 +60,17 @@ import { ingestDocuments, knowledgeStatus } from '../knowledge/bridge';
 import { dispatchMission, type MissionDispatchRequest } from '../agents/coordinator';
 import { agentPassports } from '../agents/registry';
 
-export function createRuntimeRouter(): Router {
+/**
+ * Build the runtime router.
+ *
+ * `env` exists so that a caller can state the credential and gateway
+ * environment explicitly rather than inheriting whatever the host process
+ * happens to export. Routing decisions are a function of live credential state
+ * (P0_CREDENTIAL_PRESENT), so a surface that reads ambient `process.env` is a
+ * surface whose behaviour changes between a developer machine and CI. It
+ * defaults to `process.env`, so production wiring is unchanged.
+ */
+export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Router {
   const router = Router();
 
   // -------------------------------------------------------------------------
@@ -151,7 +161,7 @@ export function createRuntimeRouter(): Router {
         dry_run: body.dry_run === true,
       };
 
-      const result = await runQueryPipeline(request, provenance);
+      const result = await runQueryPipeline(request, provenance, env);
       // 200 for an answer; 422 for a refusal that the caller can fix by changing
       // the request; 502 when every provider failed, because that is an upstream
       // fault and not the caller's error to correct.

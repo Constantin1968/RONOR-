@@ -102,10 +102,37 @@ function main(): number {
 
   // ── Test corpus ─────────────────────────────────────────────────────
   // Run BOTH the baseline corpus in isolation and the whole suite. The isolated run
-  // is the one that discharges BE-4: a combined count of 455 could conceal a
-  // pre-existing test that was quietly deleted while new tests raised the total.
+  // is the one that discharges BE-4: a combined total could conceal a pre-existing
+  // test that was quietly deleted while new tests raised the count.
+  //
+  // The baseline corpus is enumerated FROM THE BASELINE COMMIT rather than by
+  // subtracting known-new directories. Asserting a fixed total for "everything
+  // except tests/knowledge" made this check fail on every legitimate additive
+  // commit — it went red when the L0–L7 runtime suites were added, which is a
+  // gate reporting growth as regression. Pinning the specific baseline files is
+  // both stricter (a deletion or rename is caught by name, not by count) and
+  // stable under addition.
   let baselineTests = { suites: 0, tests: 0, failures: 0 };
   let allTests = { suites: 0, tests: 0, failures: 0 };
+
+  // The test files that existed at the baseline commit. These, and only these,
+  // constitute the corpus whose integrity BE-4 protects.
+  let baselineSuitePaths: string[] = [];
+  try {
+    baselineSuitePaths = sh(`git ls-tree -r --name-only ${BASELINE} -- tests/`)
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.endsWith('.test.ts'))
+      .sort();
+  } catch {
+    baselineSuitePaths = [];
+  }
+
+  // A baseline suite that no longer exists in the working tree is precisely the
+  // silent deletion this check exists to catch, so it is reported by name.
+  const missingBaselineSuites = baselineSuitePaths.filter(
+    (p) => !existsSync(join(REPO_ROOT, p))
+  );
 
   const parseJest = (output: string): { suites: number; tests: number; failures: number } => {
     const suiteMatch = output.match(/Test Suites:.*?(\d+) passed, (\d+) total/);
@@ -118,22 +145,50 @@ function main(): number {
     };
   };
 
+  // Run exactly the baseline suites, named individually, in isolation.
+  if (baselineSuitePaths.length > 0 && missingBaselineSuites.length === 0) {
+    try {
+      const output = execSync(
+        `npx jest --runTestsByPath ${baselineSuitePaths.join(' ')} 2>&1 || true`,
+        { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+      );
+      baselineTests = parseJest(output);
+    } catch {
+      baselineTests = { suites: 0, tests: 0, failures: -1 };
+    }
+  } else {
+    baselineTests = { suites: 0, tests: 0, failures: -1 };
+  }
+
+  // Totals for the whole non-knowledge tree are recorded as context, not as an
+  // assertion: they grow with every added suite and so cannot be a gate.
+  let nonKnowledgeTotals = { suites: 0, tests: 0, failures: 0 };
   try {
     const output = execSync(
       'npx jest --testPathIgnorePatterns="tests/knowledge" 2>&1 || true',
       { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
     );
-    baselineTests = parseJest(output);
+    nonKnowledgeTotals = parseJest(output);
   } catch {
-    baselineTests = { suites: 0, tests: 0, failures: -1 };
+    nonKnowledgeTotals = { suites: 0, tests: 0, failures: -1 };
   }
 
   record(
     'CONF-4',
-    'Pre-existing corpus intact: 8 suites, 137 tests, isolated from knowledge tests',
+    `Pre-existing corpus intact: all ${baselineSuitePaths.length} baseline suites present and green`,
     true,
-    baselineTests.suites === 8 && baselineTests.tests === 137 && baselineTests.failures === 0,
-    baselineTests
+    missingBaselineSuites.length === 0 &&
+      baselineSuitePaths.length > 0 &&
+      baselineTests.suites === baselineSuitePaths.length &&
+      baselineTests.failures === 0,
+    {
+      baselineCommit: BASELINE,
+      baselineSuitesExpected: baselineSuitePaths.length,
+      baselineSuitePaths,
+      missingBaselineSuites,
+      baselineRun: baselineTests,
+      nonKnowledgeTotals,
+    }
   );
 
   try {

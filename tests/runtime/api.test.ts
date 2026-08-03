@@ -89,11 +89,29 @@ function baseGovernanceInput(
   };
 }
 
-function makeApp() {
+/**
+ * An environment in which the gateway-served cloud engines are credentialed.
+ *
+ * Routing is a function of live credential state (P0_CREDENTIAL_PRESENT), so any
+ * assertion about a multi-engine routing table has to state its credential
+ * environment rather than inherit the host's. Without this, the same test passes
+ * on a developer machine that exports OPENAI_API_KEY and fails in CI, which is a
+ * test that reports the machine instead of the code. The same fixtures are used
+ * in tests/runtime/router.test.ts.
+ */
+const GATEWAY_ENV: NodeJS.ProcessEnv = {
+  OPENAI_API_BASE: 'https://gw.invalid/v1',
+  OPENAI_API_KEY: 'test-gateway-key',
+};
+
+/** An environment with no provider credentials at all. */
+const OFFLINE_ENV: NodeJS.ProcessEnv = {};
+
+function makeApp(env: NodeJS.ProcessEnv = OFFLINE_ENV) {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
   app.use(provenanceMiddleware);
-  app.use('/api/runtime', createRuntimeRouter());
+  app.use('/api/runtime', createRuntimeRouter(env));
   app.use(errorHandler);
   return app;
 }
@@ -666,16 +684,37 @@ describe('L0 · query validation', () => {
   });
 
   it('returns the routing table on a dry run without spending', async () => {
-    const res = await request(makeApp())
+    // Credentialed explicitly: an `analysis` task needs an engine that declares
+    // the capability, and the deterministic core does not. With no credentials
+    // the correct answer is a policy refusal, which the test below asserts.
+    const res = await request(makeApp(GATEWAY_ENV))
       .post('/api/runtime/query')
       .set('Authorization', `Bearer ${TEST_SECRET}`)
       .send({ query: 'analyse the EU balancing market structure', dry_run: true, use_knowledge: false });
+
     expect(res.status).toBe(200);
     expect(res.body.economics.cost_usd).toBe(0);
-    expect(res.body.routing.table.length).toBeGreaterThan(0);
+    // More than one engine, so the assertion below is about a genuine ranking
+    // rather than a single-candidate table.
+    expect(res.body.routing.table.length).toBeGreaterThan(1);
     // The full 6D breakdown must be present so a decision is auditable.
     expect(res.body.routing.table[0]).toHaveProperty('terms.quality');
     expect(res.body.routing.table[0]).toHaveProperty('weighted.cost');
+  });
+
+  it('refuses a dry run when no engine is credentialed, rather than inventing one', async () => {
+    // The companion to the test above. P0_CREDENTIAL_PRESENT must exclude engines
+    // that cannot execute instead of ranking a certain failure, so an uncredentialed
+    // runtime refuses on policy and spends nothing.
+    const res = await request(makeApp(OFFLINE_ENV))
+      .post('/api/runtime/query')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ query: 'analyse the EU balancing market structure', dry_run: true, use_knowledge: false });
+
+    expect(res.status).toBe(422);
+    expect(res.body.status).toBe('rejected-policy');
+    expect(res.body.economics.cost_usd).toBe(0);
+    expect(res.body.rejection_reason).toMatch(/P[0-9]/);
   });
 
   it('rejects on policy when constraints admit no engine', async () => {

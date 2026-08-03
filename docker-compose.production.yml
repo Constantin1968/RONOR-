@@ -67,7 +67,11 @@ services:
       # host's 127.0.0.1.
       KNOWLEDGE_QDRANT_ENDPOINT: http://qdrant:6333
       QDRANT_URL: http://qdrant:6333
-      REDIS_URL: redis://redis:6379
+      # Password is interpolated from REDIS_PASSWORD so the runtime can
+      # authenticate. The URL form redis://:password@host is the standard
+      # Redis URI scheme; the colon before the password is required when
+      # there is no username.
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
     ports:
       # Bound to loopback. Public exposure is nginx's job (profile `edge`).
       # If you deliberately run without the edge, change this to "3000:3000"
@@ -133,6 +137,10 @@ services:
   # specific version — silently, on a routine `docker compose pull`. The pinned
   # tag is the same software, minus that failure mode.
   qdrant:
+    # v1.18.3 is the real latest stable release as of 2026-08-03
+    # (verified against Docker Hub; no v1.19+ exists yet).
+    # The @qdrant/js-client-rest 1.18.0 package in package.json was
+    # written against this server version; they must stay in sync.
     image: qdrant/qdrant:v1.18.3
     container_name: ronor-qdrant
     environment:

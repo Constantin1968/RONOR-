@@ -421,7 +421,61 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 11 · Log rotation for the app directory
+# 11 · Certbot TLS certificate renewal
+# ---------------------------------------------------------------------------
+#
+# The certbot container inside the compose stack handles renewal via an
+# internal sleep loop. This systemd timer is a HOST-LEVEL belt-and-suspenders
+# backup: it runs `docker compose exec certbot certbot renew` on a schedule,
+# so a certificate does not expire because the container was stopped for
+# maintenance or because the compose stack was not running with the `edge`
+# profile.
+#
+# The timer fires twice daily (04:17 and 16:17). The staggered minutes reduce
+# the load on Let's Encrypt's validation servers, which see a spike at the
+# top of every hour.
+head1 "11 · Certbot renewal timer"
+
+cat > /etc/systemd/system/ronor-certbot-renew.service <<'SVC'
+[Unit]
+Description=RONOR — Certbot TLS certificate renewal
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ronor
+WorkingDirectory=/opt/ronor/app
+ExecStart=/usr/bin/docker compose -f docker-compose.production.yml --profile edge exec -T certbot certbot renew --quiet --deploy-hook "docker compose -f /opt/ronor/app/docker-compose.production.yml --profile edge exec -T nginx nginx -s reload"
+StandardOutput=journal
+StandardError=journal
+SVC
+
+cat > /etc/systemd/system/ronor-certbot-renew.timer <<'TMR'
+[Unit]
+Description=RONOR — Certbot renewal (twice daily)
+
+[Timer]
+# 04:17 and 16:17 UTC — staggered to avoid the top-of-hour spike on
+# Let's Encrypt's ACME servers.
+OnCalendar=*-*-* 04:17:00
+OnCalendar=*-*-* 16:17:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+TMR
+
+systemctl daemon-reload
+systemctl enable ronor-certbot-renew.timer
+# Do NOT start the timer now: the compose stack and the `edge` profile
+# must be running for the renewal command to succeed, and neither exists
+# yet on a freshly prepared host.
+ok "certbot renewal timer enabled (fires at 04:17 and 16:17 UTC; starts on next boot or: systemctl start ronor-certbot-renew.timer)"
+
+# ---------------------------------------------------------------------------
+# 12 · Log rotation for the app directory
 # ---------------------------------------------------------------------------
 cat > /etc/logrotate.d/ronor <<ROT
 ${APP_DIR}/logs/*.log {

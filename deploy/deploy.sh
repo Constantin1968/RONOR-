@@ -174,10 +174,14 @@ verify_health() {
   head1 "Verification"
 
   local url="http://127.0.0.1:3000/api/runtime/health"
-  local deadline=$((SECONDS + 180))
+  # 120s hard ceiling. Cold start is ~12s; provider probes add ~10s more.
+  # A container that has not answered in 120s has a problem that logs will
+  # explain better than continued polling.
+  local max_wait=120
+  local deadline=$((SECONDS + max_wait))
   local body="" code=""
 
-  log "polling $url (up to 180s; cold start is ~12s plus provider probes)"
+  log "polling $url (max ${max_wait}s; cold start is ~12s plus provider probes)"
   while (( SECONDS < deadline )); do
     code="$(curl -s -o /tmp/ronor-health.json -w '%{http_code}' --max-time 10 "$url" || echo 000)"
     if [[ "$code" == "200" || "$code" == "503" ]]; then
@@ -190,7 +194,7 @@ verify_health() {
   printf '\n'
 
   if [[ -z "$body" ]]; then
-    warn "the runtime did not answer within 180s. Last 60 log lines:"
+    warn "the runtime did not answer within ${max_wait}s. Last 60 log lines:"
     compose logs --tail 60 ronor || true
     fail "health endpoint unreachable — deployment NOT verified"
   fi

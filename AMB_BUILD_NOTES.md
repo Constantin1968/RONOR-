@@ -130,6 +130,45 @@ scripts/                probe-providers.ts
   PERPLEXITY_BASE_URL.
 - INSECURE_DEFAULT_KEY = 'ronor-dev-key-change-in-production' — flagged in /health.
 
+## VERIFIED STATE AS OF PHASE 8 (Docker + docs remaining)
+**Commits on `build/runtime-active`** (pushed through ef7461a; 70fac16 local):
+- ef8452a L1 providers/router · c12b846 L0/L2/L3/L7 · b70b71d tests+3 fixes
+- 268f996 L7 tests · ef7461a flake fix · 70fac16 console + boot fix + researcher fix
+
+**869 tests passing, 28 suites. Typecheck clean. Server BOOTS.**
+
+### Live verification results (scripts/verify-live.py — 89/91, 2 script bugs fixed after)
+Run with: server up, then `python3 scripts/verify-live.py`
+- Providers live via gateway: openai (gpt-5.5/5/mini/nano), anthropic
+  (claude-opus-4-7/4-6, sonnet-4-6, haiku-4-5), google (gemini-3.1-pro-preview,
+  gemini-3-flash-preview), deterministic (local). key-absent: deepseek, perplexity.
+- Real inference verified: anthropic/claude-sonnet-4-6, p50 4523ms over 15 samples,
+  vendor-reported tokens, non-zero cost, usage_estimated=false.
+- Sovereign arithmetic → ronor/deterministic-core, $0, 8ms, answer 4625 correct.
+- Mission: GPT-5 planner → 3 tasks, 3704-char synthesis, 6 findings, 18 gaps,
+  $0.0708 of $0.60 ceiling, 83s, audit-chained, status=partial when a task fails.
+- Audit chain intact, 34+ records. Console served, no innerHTML, no oklch.
+
+### Test env used (\.env is gitignored)
+RONOR_ADMIN_API_KEY=amb-verify-admin-8f2a91c4d7e6b053
+RONOR_API_KEYS=operator:amb-verify-operator-3d5e8a1f9c2b7460
+KNOWLEDGE_ENABLED=true KNOWLEDGE_STORE=sqlite AUDIT_DB_PATH=./data/audit.db
+NOTE: operator role scopes = query,agent,read (NOT admin). admin role = all five.
+NOTE: after running the live server with KNOWLEDGE_ENABLED=true, `rm -f
+data/knowledge.db*` before `npm test` — tests/knowledge/equivalence.test.ts G5
+correctly asserts that file must not exist (proves the plane is inert when disabled).
+
+### Defects found and fixed (all documented in commit messages)
+1. BASELINE UNBOOTABLE (pre-existing): .js import extensions vs commonjs in
+   src/api/model-exchange-router.ts + src/model-exchange/{engines,orchestrator,
+   policy,router,work-ledger}.ts. 594 tests passed on a server that could not start.
+2. Passport array aliasing (shallow spread shared allowed_tools with frozen registry).
+3. ANSI strip order (C0 pass removed 0x1B before ANSI regex could match).
+4. Residency 'any' blocked every query at MI9 Gate 1 → fixed bridge, not policy.
+5. Researcher router_task_type 'search' → 'extraction' (only Perplexity declares
+   `search`; P2 correctly emptied the set). Fixed passport, NOT P2.
+6. Per-model cost must derive from runtime_attempts, not runtime_work.
+
 ## STATE AS OF PHASE 7 (Operator Console)
 - Commits pushed: `ef8452a` L1, `c12b846` L0/L2/L3/L7, `b70b71d` tests+fixes,
   `268f996` L7 tests, `ef7461a` flake fix. All on `build/runtime-active`, pushed to origin.

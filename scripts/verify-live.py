@@ -14,14 +14,23 @@ Prepared by AMB.
 """
 
 import json
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
 
+# The admin key is a THIRD argument, not a hardcoded constant.
+#
+# It was hardcoded in the first version, so running this script against a second
+# deployment (the container, on a different port, with different credentials)
+# produced twelve failures that all looked like real defects: 401 on the admin
+# surface, no ingestion, no mission. Every one was the script presenting the wrong
+# credential. A verification script that reports a false outage is worse than no
+# script, because the next real outage is assumed to be another false alarm.
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:3000"
 KEY = sys.argv[2] if len(sys.argv) > 2 else "amb-verify-operator-3d5e8a1f9c2b7460"
-ADMIN = "amb-verify-admin-8f2a91c4d7e6b053"
+ADMIN = sys.argv[3] if len(sys.argv) > 3 else "amb-verify-admin-8f2a91c4d7e6b053"
 
 results = []
 
@@ -478,10 +487,14 @@ for path, label in [("/console/", "console index"),
                 # documents why oklch is avoided, and a naive substring search
                 # flagged that explanation as a violation. A check that fails on
                 # its own documentation trains people to ignore it.
-                declarations = [
-                    ln for ln in body.splitlines()
-                    if "oklch(" in ln and not ln.lstrip().startswith(("*", "/*", "//"))
-                ]
+                # Strip comments FIRST, then look for the function. The previous
+                # attempt filtered lines starting with a comment marker, which missed
+                # this stylesheet's header where the explanatory lines are indented
+                # inside a block comment and begin with prose. Matching prose about a
+                # rule as a violation of that rule is a check nobody will trust twice.
+                stripped = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+                stripped = re.sub(r"^\s*//.*$", "", stripped, flags=re.M)
+                declarations = [ln for ln in stripped.splitlines() if "oklch(" in ln]
                 check(f"{label} declares no oklch() colour values",
                       len(declarations) == 0, "; ".join(declarations[:2]))
             if path.endswith(".js"):

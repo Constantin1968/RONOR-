@@ -143,13 +143,31 @@ const PASSPORTS: readonly AgentPassport[] = Object.freeze([
   },
 ]);
 
+/**
+ * Deep-copy a passport.
+ *
+ * A shallow spread shares the `allowed_tools`, `capabilities` and
+ * `preferred_models` ARRAYS with the frozen registry entry. Freezing the outer
+ * object does not freeze them, so a caller that pushed onto `allowed_tools` would
+ * silently grant that tool to every subsequent request in the process. This is
+ * the difference between a permission model and a suggestion.
+ */
+function clonePassport(p: AgentPassport): AgentPassport {
+  return {
+    ...p,
+    capabilities: [...p.capabilities],
+    allowed_tools: [...p.allowed_tools],
+    preferred_models: [...p.preferred_models],
+  };
+}
+
 export function agentPassports(): AgentPassport[] {
-  return PASSPORTS.map((p) => ({ ...p }));
+  return PASSPORTS.map(clonePassport);
 }
 
 export function getPassport(agentId: string): AgentPassport | null {
   const found = PASSPORTS.find((p) => p.agent_id === agentId);
-  return found ? { ...found } : null;
+  return found ? clonePassport(found) : null;
 }
 
 /**

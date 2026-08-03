@@ -95,14 +95,48 @@ Script: `scripts/probe-providers.ts` (live probe, works).
     NOT claim to prevent injection (documented in the module header).
 11. Classifier is deterministic/local (no LLM call), caller's declared task_type always wins.
 
+## Commits so far
+- `ef8452a` L1 Model Exchange (pushed)
+- `c12b846` L0 + L2 + L3 + L7 (committed, NOT yet pushed)
+
+## Files written (all typecheck clean, 699 tests pass)
+```
+src/runtime/providers/  types.ts openai-compatible.ts gateway.ts openai.ts anthropic.ts
+                        google.ts deepseek.ts perplexity.ts deterministic.ts registry.ts
+src/runtime/router/     catalogue.ts calibrator.ts policy.ts scoring.ts exchange.ts
+src/runtime/ledgers/    schema.ts work-ledger.ts cost-ledger.ts
+src/runtime/api/        auth.ts sanitize.ts classify.ts governance-bridge.ts
+                        middleware.ts pipeline.ts routes.ts
+src/runtime/mission/    store.ts
+src/runtime/knowledge/  bridge.ts
+src/runtime/agents/     registry.ts tools.ts decompose.ts workers.ts coordinator.ts
+tests/runtime/          providers.test.ts (53) router.test.ts (52) api.test.ts (NEW, unrun)
+scripts/                probe-providers.ts
+```
+
+## Key API facts for remaining work
+- Router factory: `createRuntimeRouter()` from `src/runtime/api/routes.ts`, mount at `/api/runtime`.
+- `runQueryPipeline(request, provenance, env?)` from `api/pipeline.ts`.
+- `dispatchMission(request, provenance, env?)` from `agents/coordinator.ts`.
+- `bootstrapApiKeys(env)` from `api/auth.ts` — call at boot in src/index.ts.
+- `seedFromLedger(rows)` from `router/calibrator.ts` + `recentAttemptSamples()` from
+  `ledgers/work-ledger.ts` — wire at boot so a restart keeps learned telemetry.
+- Middleware order: `provenanceMiddleware` → router → `errorHandler`.
+- `supertest` is available as a devDependency (used by existing tests).
+- Env vars introduced: RONOR_API_KEYS, RONOR_ADMIN_API_KEY, RONOR_RATE_LIMIT_RPM,
+  RONOR_ADMIN_RATE_LIMIT_RPM, RONOR_GATEWAY_BASE_URL, RONOR_GATEWAY_API_KEY,
+  RONOR_GATEWAY_MODELS, OPENAI_NATIVE_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY /
+  GOOGLE_API_KEY, DEEPSEEK_API_KEY, PERPLEXITY_API_KEY, DEEPSEEK_BASE_URL,
+  PERPLEXITY_BASE_URL.
+- INSECURE_DEFAULT_KEY = 'ronor-dev-key-change-in-production' — flagged in /health.
+
 ## Remaining phases
-- L0 server (`api/server.ts`, middleware, routes) ← IN PROGRESS
-- L2 mission state + knowledge bridge
-- L3 agents: registry, passports, Researcher/Analyst/Evidence Curator, tools, synthesis
-- L7 wire-up + audit integration
-- Operator console (`web/console/`)
+- Run + fix `tests/runtime/api.test.ts`, add agents test suite ← IN PROGRESS
+- Wire runtime router into `src/index.ts` (mount + bootstrapApiKeys + calibrator seed)
+- Operator console (`web/console/`) — static HTML/CSS/JS, no build step, hex colours only
 - docker-compose + Dockerfile + .env.example updates
+- Live end-to-end validation against real providers
 - README + docs signed "Prepared by AMB"
-- PR
+- Push + PR
 
 Prepared by AMB.

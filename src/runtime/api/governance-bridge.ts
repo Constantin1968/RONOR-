@@ -36,6 +36,9 @@ import { append, type AuditRecord } from '../../audit/hash-chain';
 import { evaluate, type DecisionContext, type MI9Result } from '../../governance/mi9-gate';
 import type { ConfidentialityLevel } from '../router/policy';
 
+/** The gate's residency vocabulary, reused rather than restated. */
+type DataResidency = DecisionContext['sovereignty']['dataResidency'];
+
 export type RuntimeSurface = 'query' | 'agent' | 'worker' | 'tool' | 'ingest';
 
 export interface GovernanceInput {
@@ -75,11 +78,32 @@ export interface GovernanceInput {
  */
 export const PARAMETRIC_EVIDENCE_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Declared data residency for a request.
+ *
+ * Always `eu`, and never the wildcard `any`.
+ *
+ * The first version of this function returned `'any'` for public and internal
+ * material, which caused Gate 1 to block every ordinary query. The gate was
+ * right and this function was wrong: `any` is not a residency, it is the REFUSAL
+ * to state one, and a sovereignty gate should decline a request that will not say
+ * where the data will live. The correct fix was to make an accurate declaration
+ * rather than to widen the policy's allow-list.
+ *
+ * `eu` is accurate for this deployment: the default gateway egress and the vector
+ * store are both EU-resident. A deployment on non-EU infrastructure MUST derive
+ * this from real deployment topology. Note what it must not be derived from: the
+ * sensitivity of the request. Where data lives is a property of the
+ * infrastructure, and letting a caller's confidentiality label imply a residency
+ * would allow a mislabelled request to assert a location it has no power to
+ * change.
+ */
+export function residencyFor(_confidentiality: ConfidentialityLevel): DataResidency {
+  return 'eu';
+}
+
 export function buildDecisionContext(input: GovernanceInput): DecisionContext {
-  const residency =
-    input.confidentiality === 'sovereign' || input.confidentiality === 'restricted'
-      ? 'eu'
-      : 'any';
+  const residency = residencyFor(input.confidentiality);
 
   return {
     decisionId: input.requestId,

@@ -97,12 +97,24 @@ const SUSPICIOUS_RULES: Array<{ rule: string; pattern: RegExp }> = [
 export function stripDangerousChars(input: string): { text: string; removed: number } {
   const before = input.length;
   const text = input
-    // NUL and other C0 controls except tab, newline, carriage return.
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-    // ANSI escape sequences: they corrupt terminal-rendered audit output.
+    // ANSI sequences are removed FIRST, and the order is load-bearing. The C0
+    // pass below strips 0x1B; running it first would remove the escape byte and
+    // leave the visible remainder ('[31m') behind as literal text in the audit
+    // record. A sequence can only be matched while its anchor still exists.
+    // CSI form.
     // eslint-disable-next-line no-control-regex
     .replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '')
+    // OSC form, terminated by BEL or ST. Left unhandled, an OSC string can
+    // retitle a reviewer's terminal window.
+    // eslint-disable-next-line no-control-regex
+    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+    // Two-character escapes.
+    // eslint-disable-next-line no-control-regex
+    .replace(/\u001B[@-Z\\-_]/g, '')
+    // NUL and other C0 controls except tab, newline, carriage return. Any
+    // orphaned escape byte is caught here.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     // Bidirectional overrides and isolates (Trojan Source).
     .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, '')
     // Zero-width characters used to smuggle tokens past visual review.

@@ -16,8 +16,8 @@
  * additional sovereign engine adapters (Mistral, Qwen).
  */
 
-import type { ModelRegistryEntry } from "./registry.js";
-import type { UnifiedRequest } from "./policy.js";
+import type { ModelRegistryEntry } from "./registry";
+import type { UnifiedRequest } from "./policy";
 
 const RONOR_SYSTEM_PROMPT = `You are an intelligence engine operating inside RONOR, the sovereign Model Exchange and Governance Spine for Energy Operations. You do not chat. You return verifiable, structured output.
 

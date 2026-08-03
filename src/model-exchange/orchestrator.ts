@@ -20,19 +20,19 @@
  *    verifies, and signs the receipt — end to end."
  */
 
-import { MODEL_REGISTRY, getModel, type ModelRegistryEntry } from "./registry.js";
-import { applyPolicies, type UnifiedRequest, type PolicyEvaluation } from "./policy.js";
-import { rankModels, type ScoredModel } from "./router.js";
-import { executeEngine, type ExecutionResult } from "./engines.js";
+import { MODEL_REGISTRY, getModel, type ModelRegistryEntry } from "./registry";
+import { applyPolicies, type UnifiedRequest, type PolicyEvaluation } from "./policy";
+import { rankModels, type ScoredModel } from "./router";
+import { executeEngine, type ExecutionResult } from "./engines";
 import {
   assure,
   computeCost,
   recordWork,
   ensureWorkLedgerSchema,
   type AssuranceReport,
-} from "./work-ledger.js";
-import { evaluate as evaluateMI9, type MI9Result, type DecisionContext } from "../governance/mi9-gate.js";
-import { append as appendAudit, type AuditRecord } from "../audit/hash-chain.js";
+} from "./work-ledger";
+import { evaluate as evaluateMI9, type MI9Result, type DecisionContext } from "../governance/mi9-gate";
+import { append as appendAudit, type AuditRecord } from "../audit/hash-chain";
 import { randomUUID } from "crypto";
 
 export interface QueryOptions {

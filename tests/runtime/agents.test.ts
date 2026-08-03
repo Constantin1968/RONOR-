@@ -18,6 +18,7 @@ import {
   getPassport,
   passportPermits,
 } from '../../src/runtime/agents/registry';
+import { RUNTIME_CATALOGUE } from '../../src/runtime/router/catalogue';
 import {
   getTool,
   invokeTool,
@@ -105,6 +106,51 @@ describe('L3 · agent passports', () => {
 
   it('returns null for an unregistered agent rather than a default', () => {
     expect(getPassport('rogue-agent')).toBeNull();
+  });
+
+  it('gives every worker a router_task_type that SOME catalogued engine can satisfy', () => {
+    // The defect this pins: the Researcher was declared with router_task_type
+    // 'search', and because only Perplexity declares the `search` capability, the
+    // policy filter correctly emptied its candidate set and the worker failed on
+    // every mission whenever no Perplexity key was present.
+    //
+    // A passport that names a capability no engine in the catalogue provides is a
+    // worker that cannot run. That is invisible in a unit test of the registry and
+    // invisible in a unit test of the router; it only appears when the two are
+    // checked against each other, which is what this test does.
+    for (const p of agentPassports()) {
+      const capable = RUNTIME_CATALOGUE.filter((c) =>
+        c.capabilities.includes(p.router_task_type),
+      );
+      expect(capable.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives every worker an engine that survives the credential filter', () => {
+    // Stronger than the previous test: not merely "some engine declares this
+    // capability" but "an engine that is actually invocable declares it". A
+    // passport satisfied only by a provider with no key is a worker that fails in
+    // deployment while passing every test.
+    //
+    // Asserted against the deterministic core plus the gateway providers, which
+    // are the engines a default deployment can genuinely reach.
+    const reachable = new Set(['openai', 'anthropic', 'google', 'deterministic']);
+    for (const p of agentPassports()) {
+      const capable = RUNTIME_CATALOGUE.filter(
+        (c) => c.capabilities.includes(p.router_task_type) && reachable.has(c.provider),
+      );
+      expect(capable.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('does not require the search capability for a worker whose tools do the searching', () => {
+    // The Researcher retrieves through knowledge.search and web.fetch BEFORE any
+    // engine is called. The engine's job is to pull attributable claims out of what
+    // the tools returned, which is extraction. Requiring a search-augmented model
+    // as well would make the worker depend on a credential it does not need.
+    const researcher = getPassport('researcher')!;
+    expect(researcher.allowed_tools).toContain('knowledge.search');
+    expect(researcher.router_task_type).not.toBe('search');
   });
 
   it('sets an evidence floor on the gathering and verifying workers', () => {

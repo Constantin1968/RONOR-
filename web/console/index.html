@@ -1,0 +1,461 @@
+<!doctype html>
+<!--
+  RONOR Operator Console — Runtime Active
+  ───────────────────────────────────────
+  A static console with no build step, no framework and no bundler. The reasoning:
+  this page's job is to tell an operator the truth about a running system, and a
+  toolchain between the source and the browser is one more thing that can be stale
+  or broken at the moment someone needs to read a cost figure.
+
+  Colours are hex throughout. oklch() does not render in several in-app browsers
+  and older Safari builds, where it produces invisible white-on-white text — an
+  unacceptable failure mode for a page whose purpose is legibility under pressure.
+
+  Prepared by AMB.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RONOR — Operator Console</title>
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/console/console.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span class="wordmark">RONOR</span>
+        <span class="tagline">Operator Console &middot; Runtime Active</span>
+      </div>
+      <nav class="status-strip">
+        <span id="badgeHealth" class="badge">runtime: &mdash;</span>
+        <span id="badgeProviders" class="badge">providers: &mdash;</span>
+        <span id="badgeChain" class="badge chain">chain: &mdash;</span>
+        <span id="badgePolicy" class="badge">policy: &mdash;</span>
+      </nav>
+    </header>
+
+    <!-- Security findings are rendered at the very top, above the tabs, because a
+         deployment running on the shipped default credential must not be
+         discoverable only by scrolling. -->
+    <div id="securityBanner" class="banner banner-error" hidden></div>
+    <div id="authBanner" class="banner banner-warn" hidden></div>
+
+    <div class="auth-bar">
+      <label for="apiKey">Operator API key</label>
+      <input
+        id="apiKey"
+        type="password"
+        placeholder="Bearer secret for /api/runtime"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="saveKeyBtn" class="primary">Connect</button>
+      <button id="clearKeyBtn" class="ghost">Forget</button>
+      <span class="hint">
+        Held in this tab's sessionStorage only &mdash; never written to
+        localStorage, so closing the tab discards it.
+      </span>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="query">Query</button>
+      <button class="tab" data-tab="missions">Missions</button>
+      <button class="tab" data-tab="agents">Agents</button>
+      <button class="tab" data-tab="providers">Providers &amp; Routing</button>
+      <button class="tab" data-tab="cost">Cost</button>
+      <button class="tab" data-tab="work">Work Ledger</button>
+      <button class="tab" data-tab="audit">Audit Chain</button>
+    </div>
+
+    <main>
+      <!-- ───────────── Overview ───────────── -->
+      <section class="panel" data-panel="overview">
+        <div class="kpi-grid">
+          <div class="kpi">
+            <span class="label">Runtime status</span>
+            <span class="value" id="kpiStatus">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Generative providers live</span>
+            <span class="value" id="kpiProviders">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Requests ledgered</span>
+            <span class="value" id="kpiRequests">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Total spend</span>
+            <span class="value" id="kpiSpend">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Wasted on failures</span>
+            <span class="value" id="kpiWaste">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Fallback rate</span>
+            <span class="value" id="kpiFallback">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Audit records</span>
+            <span class="value" id="kpiAudit">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Knowledge plane</span>
+            <span class="value" id="kpiKnowledge">&mdash;</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <h3>Agents</h3>
+            <div id="overviewAgents" class="stack"></div>
+          </div>
+          <div class="card">
+            <h3>Provider states</h3>
+            <div id="overviewProviders" class="stack"></div>
+            <p class="note">
+              A provider marked <b>key-absent</b> has a complete, tested adapter in
+              the codebase and no credential. It is reported as absent rather than
+              omitted, so the difference between "not built" and "not configured"
+              stays visible.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────────── Query ───────────── -->
+      <section class="panel" data-panel="query" hidden>
+        <div class="card">
+          <h3>Submit a governed query</h3>
+          <textarea
+            id="queryText"
+            rows="4"
+            placeholder="Ask something. Arithmetic routes to the zero-cost deterministic core; analysis routes to a frontier engine."
+          ></textarea>
+          <div class="controls">
+            <label>
+              Confidentiality
+              <select id="queryConfidentiality">
+                <option value="public">public</option>
+                <option value="internal" selected>internal</option>
+                <option value="restricted">restricted</option>
+                <option value="sovereign">sovereign (no egress)</option>
+              </select>
+            </label>
+            <label>
+              Jurisdiction
+              <select id="queryJurisdiction">
+                <option value="any" selected>any</option>
+                <option value="EU">EU</option>
+                <option value="US">US</option>
+                <option value="sovereign">sovereign</option>
+              </select>
+            </label>
+            <label>
+              Task type
+              <select id="queryTaskType">
+                <option value="">auto-classify</option>
+                <option value="calculation">calculation</option>
+                <option value="analysis">analysis</option>
+                <option value="reasoning">reasoning</option>
+                <option value="summarization">summarization</option>
+                <option value="extraction">extraction</option>
+                <option value="verification">verification</option>
+                <option value="synthesis">synthesis</option>
+                <option value="search">search</option>
+              </select>
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="queryDryRun" />
+              Dry run (route only, spend nothing)
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="queryKnowledge" checked />
+              Ground in knowledge corpus
+            </label>
+          </div>
+          <div class="row">
+            <button id="queryBtn" class="primary">Submit</button>
+            <span id="queryStatus" class="hint"></span>
+          </div>
+        </div>
+        <div id="queryResult" hidden></div>
+      </section>
+
+      <!-- ───────────── Missions ───────────── -->
+      <section class="panel" data-panel="missions" hidden>
+        <div class="card">
+          <h3>Dispatch a multi-agent mission</h3>
+          <textarea
+            id="missionObjective"
+            rows="3"
+            placeholder="State an objective. It will be decomposed across the Researcher, Analyst and Evidence Curator."
+          ></textarea>
+          <div class="controls">
+            <label>
+              Confidentiality
+              <select id="missionConfidentiality">
+                <option value="public">public</option>
+                <option value="internal" selected>internal</option>
+                <option value="restricted">restricted</option>
+                <option value="sovereign">sovereign (Analyst only)</option>
+              </select>
+            </label>
+            <label>
+              Max tasks
+              <input id="missionMaxTasks" type="number" min="2" max="8" value="3" />
+            </label>
+            <label>
+              Cost ceiling (USD)
+              <input id="missionBudget" type="number" min="0" step="0.01" value="0.50" />
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="missionEvidence" checked />
+              Require evidence verification
+            </label>
+          </div>
+          <div class="row">
+            <button id="missionBtn" class="primary">Dispatch mission</button>
+            <span id="missionStatus" class="hint"></span>
+          </div>
+          <p class="note">
+            The cost ceiling is checked <b>between tasks</b>. A mission that reaches
+            it halts and returns partial results marked as partial, rather than
+            completing silently over budget.
+          </p>
+        </div>
+        <div id="missionResult" hidden></div>
+        <div class="card">
+          <h3>Mission history</h3>
+          <div id="missionList" class="stack"></div>
+        </div>
+      </section>
+
+      <!-- ───────────── Agents ───────────── -->
+      <section class="panel" data-panel="agents" hidden>
+        <p class="lede">
+          Each worker carries an Agent Passport. The passport is enforced, not
+          documentation: the tool allow-list is checked at invocation and the
+          confidentiality ceiling is checked before any spend.
+        </p>
+        <div id="agentCards" class="stack"></div>
+      </section>
+
+      <!-- ───────────── Providers ───────────── -->
+      <section class="panel" data-panel="providers" hidden>
+        <div class="card">
+          <h3>Providers</h3>
+          <div class="table-wrap">
+            <table id="providerTable">
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>State</th>
+                  <th>Transport</th>
+                  <th>Models</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Model catalogue &middot; calibrated telemetry</h3>
+          <p class="note">
+            <b>Observed</b> latency is measured from this instance's own successful
+            calls. <b>Catalogue</b> latency is a published estimate. The distinction
+            is shown because a router scoring on an estimate cannot notice
+            degradation.
+          </p>
+          <div class="table-wrap">
+            <table id="catalogueTable">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Provider</th>
+                  <th>Quality</th>
+                  <th>Latency</th>
+                  <th>Basis</th>
+                  <th>Success</th>
+                  <th>Samples</th>
+                  <th>In / Out per 1M</th>
+                  <th>Invocable</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────────── Cost ───────────── -->
+      <section class="panel" data-panel="cost" hidden>
+        <div class="kpi-grid">
+          <div class="kpi">
+            <span class="label">Total spend</span>
+            <span class="value" id="costTotal">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Measured</span>
+            <span class="value" id="costMeasured">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Estimated</span>
+            <span class="value" id="costEstimated">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Wasted on failures</span>
+            <span class="value" id="costWasted">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Avg per request</span>
+            <span class="value" id="costAvg">&mdash;</span>
+          </div>
+          <div class="kpi">
+            <span class="label">Avg latency</span>
+            <span class="value" id="costLatency">&mdash;</span>
+          </div>
+        </div>
+        <p class="note">
+          <b>Measured</b> spend is backed by vendor-reported token counts.
+          <b>Estimated</b> spend was inferred from character length because the
+          provider returned no usage block. They are never pooled, because
+          presenting an inferred figure as a measured one is how a cost dashboard
+          becomes unusable for reconciliation.
+        </p>
+        <div class="two-col">
+          <div class="card">
+            <h3>By model</h3>
+            <div class="table-wrap">
+              <table id="costModelTable">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Attempts</th>
+                    <th>Cost</th>
+                    <th>Est. share</th>
+                    <th>Avg latency</th>
+                    <th>Success</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="note">
+              Derived from the <b>attempts</b> table, not the work table: a request
+              that succeeded on its second engine spent money on two models, and
+              attributing the total to the winner would make a failing provider
+              look free.
+            </p>
+          </div>
+          <div class="card">
+            <h3>By provider</h3>
+            <div class="table-wrap">
+              <table id="costProviderTable">
+                <thead>
+                  <tr>
+                    <th>Provider</th>
+                    <th>Attempts</th>
+                    <th>Cost</th>
+                    <th>Success</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Value tracking</h3>
+          <div id="valueSummary" class="stack"></div>
+        </div>
+      </section>
+
+      <!-- ───────────── Work ledger ───────────── -->
+      <section class="panel" data-panel="work" hidden>
+        <div class="card">
+          <div class="row spread">
+            <h3>Work ledger</h3>
+            <span class="hint" id="workTotal"></span>
+          </div>
+          <p class="note">
+            The ledger holds a SHA-256 <b>digest</b> of each prompt and never the
+            prompt itself. Two identical requests share a digest, so repeats can be
+            counted without the operational database becoming a copy of everything
+            anyone asked.
+          </p>
+          <div class="table-wrap">
+            <table id="workTable">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Request</th>
+                  <th>Surface</th>
+                  <th>Agent</th>
+                  <th>Status</th>
+                  <th>Model</th>
+                  <th>Tokens</th>
+                  <th>Cost</th>
+                  <th>Latency</th>
+                  <th>MI9</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row">
+            <button id="workPrevBtn" class="ghost">Previous</button>
+            <button id="workNextBtn" class="ghost">Next</button>
+          </div>
+        </div>
+        <div id="workDetail" hidden></div>
+      </section>
+
+      <!-- ───────────── Audit ───────────── -->
+      <section class="panel" data-panel="audit" hidden>
+        <div class="card">
+          <div class="row spread">
+            <h3>Audit chain</h3>
+            <div class="row">
+              <button id="verifyChainBtn" class="primary">Verify chain integrity</button>
+            </div>
+          </div>
+          <div id="chainVerdict" class="stack"></div>
+        </div>
+        <div class="card">
+          <h3>Records</h3>
+          <div class="table-wrap">
+            <table id="auditTable">
+              <thead>
+                <tr>
+                  <th>Seq</th>
+                  <th>When</th>
+                  <th>Decision</th>
+                  <th>Type</th>
+                  <th>Verdict</th>
+                  <th>Action</th>
+                  <th>Chain hash</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>RONOR Runtime Active &middot; L0 Request API, L1 Model Exchange, L2 Knowledge, L3 Agents, L7 Ledgers</span>
+      <span class="foot-right">Prepared by AMB</span>
+    </footer>
+
+    <script src="/console/console.js"></script>
+  </body>
+</html>

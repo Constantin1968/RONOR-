@@ -81,7 +81,25 @@ const PASSPORTS: readonly AgentPassport[] = Object.freeze([
       'openai/gpt-5-mini',
       'anthropic/claude-haiku-4-5',
     ],
-    router_task_type: 'search',
+    // `extraction`, NOT `search`, and the distinction is the whole point.
+    //
+    // This field selects the ENGINE that reasons over what the tools returned. It
+    // does not describe what the worker does. The first version set it to
+    // 'search', which conflated "this worker performs retrieval" with "this
+    // worker needs a model that performs retrieval" — and because only Perplexity
+    // declares the `search` capability, P2_CAPABILITY_MATCH correctly emptied the
+    // candidate set and the Researcher failed on EVERY mission whenever no
+    // Perplexity key was present.
+    //
+    // The retrieval is done by knowledge.search and web.fetch before the engine is
+    // ever called. What the engine must then do is pull attributable claims out of
+    // that returned material, which is extraction.
+    //
+    // The fix belongs here and not in P2. Widening the capability rule so that any
+    // model satisfies `search` would let a request that genuinely needs live
+    // retrieval route silently to a model that cannot retrieve — a wrong answer
+    // presented confidently, which is worse than the clean refusal P2 gave.
+    router_task_type: 'extraction',
     // A gathering worker is judged on attributability, not eloquence.
     required_evidence_level: 60,
     reasoning_effort: 'low',

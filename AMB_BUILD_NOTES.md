@@ -130,6 +130,47 @@ scripts/                probe-providers.ts
   PERPLEXITY_BASE_URL.
 - INSECURE_DEFAULT_KEY = 'ronor-dev-key-change-in-production' — flagged in /health.
 
+## STATE AS OF PHASE 7 (Operator Console)
+- Commits pushed: `ef8452a` L1, `c12b846` L0/L2/L3/L7, `b70b71d` tests+fixes,
+  `268f996` L7 tests, `ef7461a` flake fix. All on `build/runtime-active`, pushed to origin.
+- **866 tests passing, 28 suites, typecheck clean.** (594 pre-existing + 272 new)
+- `src/index.ts` IS WIRED: runtime router mounted at `/api/runtime` with its own
+  middleware chain (provenanceMiddleware -> createRuntimeRouter() -> runtimeErrorHandler),
+  `/console` static mount for `web/console`, bootstrapApiKeys + seedFromLedger +
+  providerStatuses logging at boot, SIGTERM/SIGINT graceful drain.
+- `web/console/index.html` DONE, `web/console/console.css` DONE.
+- NEXT FILE TO WRITE: `web/console/console.js`
+
+### Console JS contract (element ids already in index.html)
+Tabs: overview|query|missions|agents|providers|cost|work|audit (data-tab / data-panel).
+Auth: #apiKey #saveKeyBtn #clearKeyBtn -> sessionStorage key `ronor.console.key`.
+Badges: #badgeHealth #badgeProviders #badgeChain #badgePolicy.
+Banners: #securityBanner #authBanner.
+Overview KPIs: #kpiStatus #kpiProviders #kpiRequests #kpiSpend #kpiWaste #kpiFallback
+  #kpiAudit #kpiKnowledge; containers #overviewAgents #overviewProviders.
+Query: #queryText #queryConfidentiality #queryJurisdiction #queryTaskType #queryDryRun
+  #queryKnowledge #queryBtn #queryStatus #queryResult.
+Missions: #missionObjective #missionConfidentiality #missionMaxTasks #missionBudget
+  #missionEvidence #missionBtn #missionStatus #missionResult #missionList.
+Agents: #agentCards.
+Providers: #providerTable #catalogueTable (tbody).
+Cost: #costTotal #costMeasured #costEstimated #costWasted #costAvg #costLatency
+  #costModelTable #costProviderTable #valueSummary.
+Work: #workTable #workTotal #workPrevBtn #workNextBtn #workDetail.
+Audit: #verifyChainBtn #chainVerdict #auditTable.
+CSS classes available: .badge(.ok/.warn/.bad) .tag(.tag-ok/.tag-warn/.tag-bad/.tag-neutral)
+  .card .kpi .item .item-head .item-title .item-body .kv(dt/dd) .answer .empty .note
+  .mono .num .clickable .stack .row .two-col .table-wrap .hint .lede ul.plain
+
+### Endpoints the console consumes (all under /api/runtime)
+GET /health (no auth), /status, /agents, /providers, /catalogue, /telemetry,
+  /ledger/work?limit&offset, /ledger/work/:id, /ledger/cost, /ledger/value,
+  /audit?limit&offset, /audit/verify, /missions, /missions/:id, /knowledge/status
+POST /query, /missions, /agents/dispatch, /knowledge/ingest
+PATCH /missions/:id
+Scopes: query|read|agent|ingest|admin. 401 uniform, 403 names required_scope,
+  429 has retry_after_seconds. /audit/verify returns 409 when chain broken.
+
 ## Remaining phases
 - Run + fix `tests/runtime/api.test.ts`, add agents test suite ← IN PROGRESS
 - Wire runtime router into `src/index.ts` (mount + bootstrapApiKeys + calibrator seed)

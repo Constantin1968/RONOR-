@@ -83,6 +83,7 @@ export const NATIVE_KEY_VARS: Record<Exclude<ProviderId, 'deterministic'>, strin
   google: 'GEMINI_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
   perplexity: 'PERPLEXITY_API_KEY',
+  kimi: 'KIMI_API_KEY',
 };
 
 /**

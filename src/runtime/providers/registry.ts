@@ -23,6 +23,7 @@ import { DeterministicAdapter } from './deterministic';
 import { GoogleAdapter } from './google';
 import { OpenAIAdapter } from './openai';
 import { PerplexityAdapter } from './perplexity';
+import { KimiAdapter } from './kimi';
 import type { CredentialState, ProviderAdapter, ProviderId } from './types';
 
 const ADAPTERS: ReadonlyMap<ProviderId, ProviderAdapter> = new Map<ProviderId, ProviderAdapter>([
@@ -31,6 +32,7 @@ const ADAPTERS: ReadonlyMap<ProviderId, ProviderAdapter> = new Map<ProviderId, P
   ['google', new GoogleAdapter()],
   ['deepseek', new DeepSeekAdapter()],
   ['perplexity', new PerplexityAdapter()],
+  ['kimi', new KimiAdapter()],
   ['deterministic', new DeterministicAdapter()],
 ]);
 

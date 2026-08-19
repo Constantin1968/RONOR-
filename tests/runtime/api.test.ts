@@ -742,3 +742,78 @@ describe('L0 · query validation', () => {
     expect(res.body.knowledge.reason).toBeTruthy();
   });
 });
+
+
+describe('L0 · one-time approval settlement', () => {
+  it('defers a side-effecting mission, rejects it once, and blocks replay', async () => {
+    const app = makeApp();
+    const pending = await request(app)
+      .post('/api/runtime/agents/dispatch')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        objective: 'prepare an operational action without executing it',
+        confidentiality_level: 'internal',
+        max_tasks: 1,
+      });
+
+    expect(pending.status).toBe(422);
+    expect(pending.body.economics.tasks_executed).toBe(0);
+    expect(pending.body.governance.human_cosign_required).toBe(true);
+    expect(pending.body.governance.approval_id).toMatch(/^rapv_/);
+
+    const path = `/api/runtime/approvals/${pending.body.governance.approval_id}/settle`;
+    const rejected = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ decision: 'rejected' });
+    expect(rejected.status).toBe(200);
+    expect(rejected.body.settlement).toBe('rejected');
+
+    const replay = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ decision: 'approved' });
+    expect(replay.status).toBe(409);
+    expect(replay.body.error).toBe('approval_missing_or_already_settled');
+  });
+
+  it('consumes an approved mission once and never issues a replacement gate', async () => {
+    const app = makeApp();
+    const pending = await request(app)
+      .post('/api/runtime/agents/dispatch')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        objective: 'prepare a controlled operational action',
+        confidentiality_level: 'internal',
+        max_tasks: 1,
+      });
+
+    const path = `/api/runtime/approvals/${pending.body.governance.approval_id}/settle`;
+    const approved = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ decision: 'approved' });
+
+    // The offline test runtime may complete through a deterministic fallback or
+    // fail for lack of an invocable model. Either way, governance was released
+    // exactly once and did not mint a second approval.
+    expect([200, 422]).toContain(approved.status);
+    expect(approved.body.governance.approval_id).toBeNull();
+
+    const replay = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ decision: 'approved' });
+    expect(replay.status).toBe(409);
+    expect(replay.body.error).toBe('approval_missing_or_already_settled');
+  });
+
+  it('does not disclose whether a forged approval id ever existed', async () => {
+    const res = await request(makeApp())
+      .post('/api/runtime/approvals/rapv_forged_identifier_123456/settle')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ decision: 'approved' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('approval_missing_or_already_settled');
+  });
+});

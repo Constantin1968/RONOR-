@@ -59,6 +59,7 @@ import {
 import { ingestDocuments, knowledgeStatus } from '../knowledge/bridge';
 import { dispatchMission, type MissionDispatchRequest } from '../agents/coordinator';
 import { agentPassports } from '../agents/registry';
+import { consumePendingExecution } from './approval-settlement';
 
 /**
  * Build the runtime router.
@@ -171,6 +172,62 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
           ? 502
           : 422;
       res.status(status).json(result);
+    }),
+  );
+
+  // -------------------------------------------------------------------------
+  // Human co-sign settlement
+  // -------------------------------------------------------------------------
+  router.post(
+    '/approvals/:id/settle',
+    requireAuth('query'),
+    rateLimit,
+    asyncHandler(async (req: Request, res: Response) => {
+      const approvalId = sanitiseIdentifier(req.params.id);
+      const decision = (req.body as Record<string, unknown> | undefined)?.decision;
+      if (!approvalId || (decision !== 'approved' && decision !== 'rejected')) {
+        res.status(400).json({ ok: false, error: 'invalid_settlement' });
+        return;
+      }
+      const key = req.apiKey;
+      if (!key) {
+        res.status(401).json({ ok: false, error: 'unauthorised' });
+        return;
+      }
+      const consumed = consumePendingExecution(approvalId, key.key_id);
+      if (consumed.status !== 'ready') {
+        const response = consumed.status === 'key-mismatch'
+          ? { status: 403, error: 'approval_key_mismatch' }
+          : consumed.status === 'expired'
+            ? { status: 410, error: 'approval_expired' }
+            : { status: 409, error: 'approval_missing_or_already_settled' };
+        res.status(response.status).json({ ok: false, error: response.error });
+        return;
+      }
+      if (decision === 'rejected') {
+        res.json({ ok: true, settlement: 'rejected', request_id: consumed.record.decisionId });
+        return;
+      }
+
+      const priorApproval = {
+        decisionId: consumed.record.decisionId,
+        approvedBy: key.label,
+        approvedAtMs: Date.now(),
+      };
+      const result = consumed.record.execution.kind === 'query'
+        ? await runQueryPipeline(
+            consumed.record.execution.request,
+            consumed.record.provenance,
+            consumed.record.env,
+            priorApproval,
+          )
+        : await dispatchMission(
+            consumed.record.execution.request,
+            consumed.record.provenance,
+            consumed.record.env,
+            priorApproval,
+          );
+      res.status(result.ok ? 200 : 422).json(result);
     }),
   );
 

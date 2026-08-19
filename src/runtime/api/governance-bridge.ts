@@ -65,6 +65,7 @@ export interface GovernanceInput {
   /** Monetary or physical magnitude, when the request carries one. */
   impact?: { unit: 'EUR' | 'MWh' | 'MW' | 'other'; value: number };
   missionId?: string | null;
+  priorApproval?: DecisionContext['priorApproval'];
   metadata?: Record<string, unknown>;
 }
 
@@ -115,6 +116,7 @@ export function buildDecisionContext(input: GovernanceInput): DecisionContext {
         ? 'conversational'
         : 'analytical',
     proposedBy: input.proposedBy,
+    priorApproval: input.priorApproval,
     confidence: clamp01(input.confidence),
     // A request that only returns text is reversible: nothing in the world
     // changed. A request that invokes tools is not, and must not be waved
@@ -174,7 +176,8 @@ export function evaluateGovernance(input: GovernanceInput): GovernanceVerdict {
     // `escalate` does not stop the runtime from producing an answer; it stops the
     // answer from being treated as authoritative. Only `block` prevents work.
     allowed: mi9.verdict !== 'block',
-    requiresCoSign: mi9.humanCoSignRequired,
+    requiresCoSign:
+      mi9.humanCoSignRequired || (input.hasSideEffects && mi9.verdict === 'escalate'),
     blockReason: mi9.blockReason ?? null,
   };
 }

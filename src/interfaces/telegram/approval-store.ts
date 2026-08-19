@@ -40,6 +40,8 @@ function newApprovalId(): string {
 export function createApproval(params: {
   kind: 'query' | 'mission';
   requestId: string;
+  runtimeApprovalId: string | null;
+  heldResponse: PendingApproval['heldResponse'];
   payload: string;
   requestedByUserId: number;
   requestedByName: string;
@@ -56,6 +58,8 @@ export function createApproval(params: {
     approvalId: newApprovalId(),
     kind: params.kind,
     requestId: params.requestId,
+    runtimeApprovalId: params.runtimeApprovalId,
+    heldResponse: params.heldResponse,
     payload: params.payload,
     requestedByUserId: params.requestedByUserId,
     requestedByName: params.requestedByName,

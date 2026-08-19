@@ -20,15 +20,13 @@
  *   1. Stores the full original request in the approval store with a TTL.
  *   2. Sends a co-sign prompt to the operator (and to the control chat if set).
  *   3. Waits for /approve or /reject from an authorised approver.
- *   4. On approval: re-submits the original request to the runtime. The runtime
- *      re-runs governance; if it still requires a co-sign, a new prompt is sent.
+ *   4. On approval: releases the immutable result of a read-only query, or asks
+ *      the runtime to consume a one-time server-side mission settlement.
  *   5. On rejection: notifies the requester and records the decision.
  *   6. On expiry: the approval is refused and the requester is notified.
  *
- * The runtime is NOT told that a gate was settled via a side-channel. It re-runs
- * governance on every submission. This is correct: governance is not a one-time
- * check that can be bypassed by a stored token; it is a function of the request
- * and the current policy, and both may have changed.
+ * Mission settlements are bound to the runtime API key, expire quickly, and are
+ * consumed before execution so retries cannot replay an approved side effect.
  *
  * Security
  * ────────
@@ -694,6 +692,10 @@ export class RonorTelegramBot {
       return;
     }
 
+    // Keep the local gate pending until the runtime action succeeds. A
+    // transient failure can therefore be retried without issuing a new gate.
+    if (!(await this.completeApproved(approval))) return;
+
     const settled = settleApproval(approval.approvalId, 'approved', userId, note);
     if (!settled) {
       await this.tg.sendMessage({ chat_id: chatId, text: '⚠️ Could not settle the approval (already settled or expired).' });
@@ -702,7 +704,7 @@ export class RonorTelegramBot {
 
     await this.tg.sendMessage({
       chat_id: chatId,
-      text: `✅ Approval <code>${esc(approval.approvalId)}</code> granted. Re-submitting to RONOR…`,
+      text: `✅ Approval <code>${esc(approval.approvalId)}</code> granted. Executing through the one-time runtime settlement…`,
       parse_mode: 'HTML',
     });
 
@@ -710,13 +712,11 @@ export class RonorTelegramBot {
     if (approval.chatId !== chatId) {
       await this.tg.sendMessage({
         chat_id: approval.chatId,
-        text: `✅ Your ${esc(approval.kind)} request has been approved. Re-submitting…`,
+        text: `✅ Your ${esc(approval.kind)} request has been approved. Executing after settlement…`,
         parse_mode: 'HTML',
       }).catch((e) => logger.warn('could not notify requester:', e));
     }
 
-    // Re-submit the original request.
-    await this.resubmitApproved(approval);
   }
 
   // -------------------------------------------------------------------------
@@ -750,6 +750,19 @@ export class RonorTelegramBot {
           ? `❓ No pending approval found with id <code>${esc(approvalId)}</code>.`
           : '❓ No pending co-sign requests.',
         parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    try {
+      if (approval.runtimeApprovalId) {
+        await this.ronor.settleApproval(approval.runtimeApprovalId, 'rejected');
+      }
+    } catch (err) {
+      logger.error('runtime rejection settlement failed:', err);
+      await this.tg.sendMessage({
+        chat_id: chatId,
+        text: '⚠️ Runtime did not accept the rejection; the approval remains pending.',
       });
       return;
     }
@@ -795,9 +808,14 @@ export class RonorTelegramBot {
         ? (response as RuntimeQueryResponse).provenance.audit_record_id
         : (response as RuntimeMissionResponse).governance.audit_record_id;
 
+    if (kind === 'mission' && !gov.approval_id) {
+      throw new Error('runtime requested mission co-sign without issuing a settlement id');
+    }
     const approval = createApproval({
       kind,
       requestId: response.request_id,
+      runtimeApprovalId: gov.approval_id,
+      heldResponse: kind === 'query' ? (response as RuntimeQueryResponse) : null,
       payload,
       requestedByUserId: userId,
       requestedByName: userName,
@@ -853,23 +871,27 @@ export class RonorTelegramBot {
   }
 
   // -------------------------------------------------------------------------
-  // Re-submit after approval
+  // Complete after approval
   // -------------------------------------------------------------------------
 
-  private async resubmitApproved(approval: PendingApproval): Promise<void> {
+  private async completeApproved(approval: PendingApproval): Promise<boolean> {
     const chatId = approval.chatId;
     try {
       if (approval.kind === 'query') {
-        const { response } = await this.ronor.query({
-          query: approval.payload,
-          operator_id: `tg:${approval.requestedByUserId}`,
-          use_knowledge: true,
-        });
+        const response = approval.heldResponse;
+        if (!response) throw new Error('approved query has no held response');
+
+        {
+          const text = formatQueryResponse(response);
+          await this.tg.sendChunked(chatId, text, this.config.maxMessageChars);
+          return true;
+        }
+        /* Superseded re-prompt path retained only for reconciliation traceability.
 
         // If governance still requires a co-sign on the second attempt, the
         // policy has not changed and the approval did not satisfy it. Prompt
         // again rather than silently looping.
-        if (response.governance.human_cosign_required) {
+        if (response!.governance.human_cosign_required) {
           await this.tg.sendMessage({
             chat_id: chatId,
             text:
@@ -883,23 +905,27 @@ export class RonorTelegramBot {
             approval.requestedByUserId,
             approval.requestedByName,
             approval.payload,
-            response,
+            response!,
             (
               await this.tg.sendMessage({ chat_id: chatId, text: '⏳ Re-routing…' })
             ).message_id,
           );
-          return;
+          return true;
         }
 
-        const text = formatQueryResponse(response);
+        const text = formatQueryResponse(response!);
         await this.tg.sendChunked(chatId, text, this.config.maxMessageChars);
+        */
       } else {
-        const { response } = await this.ronor.dispatchMission({
-          objective: approval.payload,
-          operator_id: `tg:${approval.requestedByUserId}`,
-          use_knowledge: true,
-          require_evidence: true,
-        });
+        if (!approval.runtimeApprovalId) throw new Error('approved mission has no runtime settlement id');
+        const response = await this.ronor.settleApproval(approval.runtimeApprovalId, 'approved') as RuntimeMissionResponse;
+
+        {
+          const text = formatMissionResponse(response);
+          await this.tg.sendChunked(chatId, text, this.config.maxMessageChars);
+          return true;
+        }
+        /* Superseded re-prompt path retained only for reconciliation traceability.
 
         if (response.governance.human_cosign_required) {
           await this.tg.sendMessage({
@@ -917,11 +943,12 @@ export class RonorTelegramBot {
               await this.tg.sendMessage({ chat_id: chatId, text: '⏳ Re-routing…' })
             ).message_id,
           );
-          return;
+          return true;
         }
 
         const text = formatMissionResponse(response);
         await this.tg.sendChunked(chatId, text, this.config.maxMessageChars);
+        */
       }
     } catch (err) {
       logger.error('resubmit error:', err);
@@ -930,6 +957,7 @@ export class RonorTelegramBot {
         text: `❌ Error re-submitting approved request: ${esc(String(err))}`,
         parse_mode: 'HTML',
       }).catch(() => undefined);
+      return false;
     }
   }
 }

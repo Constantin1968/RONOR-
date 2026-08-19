@@ -123,6 +123,10 @@ export interface PendingApproval {
   kind: 'query' | 'mission';
   /** The runtime request id of the governed attempt that raised the gate. */
   requestId: string;
+  /** Opaque, one-time settlement id issued and stored by the runtime. */
+  runtimeApprovalId: string | null;
+  /** Held read-only result; side-effecting missions are never stored as results here. */
+  heldResponse: RuntimeQueryResponse | null;
   /** Verbatim text the operator submitted. */
   payload: string;
   /** Telegram user who submitted it. */
@@ -166,6 +170,7 @@ export interface RuntimeGovernanceBlock {
   human_cosign_required: boolean;
   block_reason: string | null;
   findings: Array<{ gate: number; name: string; verdict: string; reason: string }>;
+  approval_id: string | null;
 }
 
 export interface RuntimeQueryResponse {
@@ -204,6 +209,7 @@ export interface RuntimeMissionResponse {
     block_reason: string | null;
     audit_record_id: string | null;
     audit_chain_hash: string | null;
+    approval_id: string | null;
   };
   economics: { total_cost_usd: number; budget_exhausted: boolean; tasks_executed: number; tasks_planned: number };
   reason: string | null;

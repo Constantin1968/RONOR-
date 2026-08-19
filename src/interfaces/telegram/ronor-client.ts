@@ -154,6 +154,23 @@ export class RonorRuntimeClient {
     return { httpStatus: status, response: data };
   }
 
+  async settleApproval(
+    approvalId: string,
+    decision: 'approved' | 'rejected',
+  ): Promise<RuntimeQueryResponse | RuntimeMissionResponse | { ok: true; settlement: 'rejected'; request_id: string }> {
+    const { data } = await request<
+      RuntimeQueryResponse | RuntimeMissionResponse | { ok: true; settlement: 'rejected'; request_id: string }
+    >(
+      this.baseUrl,
+      '/api/runtime/approvals/' + encodeURIComponent(approvalId) + '/settle',
+      'POST',
+      this.apiKey,
+      { decision },
+      600_000,
+    );
+    return data;
+  }
+
   async dispatchMission(params: {
     objective: string;
     title?: string;

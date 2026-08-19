@@ -79,6 +79,8 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - ronor-data:/app/data
+      # Bind-mount: policy changes on the host take effect on next container restart
+      - ./src/governance/policies.yaml:/app/src/governance/policies.yaml:ro
     depends_on:
       qdrant:
         condition: service_healthy
@@ -299,6 +301,7 @@ services:
       sleep 12h & wait $${!}; done;"
     restart: unless-stopped
     logging: *default-logging
+
 
 volumes:
   ronor-data:

@@ -69,6 +69,12 @@ services:
       # runtime that silently drops a provider is indistinguishable from one that
       # never had it configured.
       - OPENAI_API_BASE=${OPENAI_API_BASE:-}
+      - RONOR_GATEWAY_BASE_URL=${RONOR_GATEWAY_BASE_URL:-}
+      - RONOR_GATEWAY_API_KEY=${RONOR_GATEWAY_API_KEY:-}
+      - RONOR_GATEWAY_MODELS=${RONOR_GATEWAY_MODELS:-}
+      - RONOR_GATEWAY_HEADERS=${RONOR_GATEWAY_HEADERS:-}
+      - OPENAI_NATIVE_API_KEY=${OPENAI_NATIVE_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
       - ANTHROPIC_VERSION=${ANTHROPIC_VERSION:-2023-06-01}
@@ -78,6 +84,9 @@ services:
       - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-}
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
       - PERPLEXITY_BASE_URL=${PERPLEXITY_BASE_URL:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - KIMI_API_BASE=${KIMI_API_BASE:-}
+      - KIMI_MODEL=${KIMI_MODEL:-kimi-k3}
       - RUNTIME_PROVIDER_TIMEOUT_MS=${RUNTIME_PROVIDER_TIMEOUT_MS:-120000}
       #
       # 6D router weights. Quality is discounted by each engine's MEASURED success

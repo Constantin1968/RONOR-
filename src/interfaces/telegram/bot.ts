@@ -304,8 +304,10 @@ export class RonorTelegramBot {
     const chatId = msg.chat.id;
     const text = msg.text ?? '';
 
-    if (!userId) return;
-    if (!text.startsWith('/')) return; // ignore non-commands silently
+    if (!userId || msg.text === undefined || text.trim().length === 0) return;
+    // Conversational mode: plain text (no / prefix) is treated as /query.
+    // Auth and rate-limit checks still run below before the query is forwarded.
+    const isPlainText = !text.startsWith('/');
 
     if (!this.config.allowedUserIds.has(userId)) {
       logger.warn(`rejected message from unauthorised user ${userId}`);
@@ -324,6 +326,12 @@ export class RonorTelegramBot {
       return;
     }
 
+    // Conversational passthrough: route plain text directly to query handler.
+    if (isPlainText) {
+      logger.info(`conversational query from user ${userId} in chat ${chatId}`);
+      await this.cmdQuery(chatId, msg.message_id, userId, msg.from?.first_name ?? 'Operator', text.trim());
+      return;
+    }
     const cmd = parseCommand(text);
     logger.info(`command /${cmd.name} from user ${userId} in chat ${chatId}`);
 

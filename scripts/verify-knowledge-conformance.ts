@@ -140,9 +140,13 @@ function main(): number {
   );
 
   const parseJest = (output: string): { suites: number; tests: number; failures: number } => {
+    // Read failures only from Jest's summary line. Searching the entire output
+    // produces false failures when a test name or diagnostic contains text such
+    // as "1 failed attempt" even though every suite passed.
+    const suiteSummary = output.match(/^Test Suites:.*$/m)?.[0] ?? '';
     const suiteMatch = output.match(/Test Suites:.*?(\d+) passed, (\d+) total/);
     const testMatch = output.match(/Tests:.*?(\d+) passed, (\d+) total/);
-    const failMatch = output.match(/(\d+) failed/);
+    const failMatch = suiteSummary.match(/(\d+) failed/);
     return {
       suites: suiteMatch ? Number(suiteMatch[2]) : 0,
       tests: testMatch ? Number(testMatch[2]) : 0,

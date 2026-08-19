@@ -515,12 +515,12 @@ describe('MIP-015 · vendor error containment (N-2)', () => {
       return /(from\s+['"]@qdrant\/js-client-rest['"]|require\(\s*['"]@qdrant\/js-client-rest['"])/.test(
         executable
       );
-    });
+    }).sort();
 
     expect(importers).toEqual([
+      'src/knowledge/stores/qdrant-live-transport.ts',
       // Deployment-only provisioning is outside the runtime plane.
       'src/scripts/provision-qdrant.ts',
-      'src/knowledge/stores/qdrant-live-transport.ts',
     ]);
   });
 });

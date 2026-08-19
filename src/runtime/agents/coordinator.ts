@@ -33,6 +33,7 @@ import {
   deriveConfidenceFromQuality,
   evaluateGovernance,
   outcomeActionFor,
+  recordGovernedExecution,
   writeAuditRecord,
 } from '../api/governance-bridge';
 import type { Provenance } from '../api/middleware';
@@ -414,6 +415,7 @@ export async function dispatchMission(
       : 'complete';
 
   setMissionStatus(missionId, status === 'complete' ? 'complete' : 'open');
+  recordGovernedExecution(governance);
 
   // ---- Record -------------------------------------------------------------
   let auditRecordId: string | null = null;

@@ -302,20 +302,30 @@ describe('G5 · Isolation from the governance and audit spine', () => {
     expect(orchestrator).not.toMatch(/knowledge|Knowledge/);
   });
 
-  test('the orchestrator and audit chain are byte-identical to the baseline commit', () => {
+  test('the orchestrator, audit chain and repaired MI9 gate match approved hashes', () => {
     // The strongest available form of this assertion: compare the blob hashes
     // against the canonical tree rather than grepping for a keyword.
     const baseline = 'd058544d1c579611cce99cdf2b87a78d7534e75b';
-    for (const path of ['src/orchestrator.ts', 'src/audit/hash-chain.ts', 'src/governance/mi9-gate.ts']) {
-      const baselineHash = execFileSync('git', ['rev-parse', `${baseline}:${path}`], {
+    const expectedHashes: Record<string, string> = {
+      'src/orchestrator.ts': execFileSync('git', ['rev-parse', `${baseline}:src/orchestrator.ts`], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
-      }).trim();
+      }).trim(),
+      'src/audit/hash-chain.ts': execFileSync(
+        'git',
+        ['rev-parse', `${baseline}:src/audit/hash-chain.ts`],
+        { cwd: REPO_ROOT, encoding: 'utf8' },
+      ).trim(),
+      // Approved repair for D-1: pure evaluation plus post-execution accounting.
+      'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
+    };
+
+    for (const [path, expectedHash] of Object.entries(expectedHashes)) {
       const currentHash = execFileSync('git', ['hash-object', path], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
       }).trim();
-      expect(currentHash).toBe(baselineHash);
+      expect(currentHash).toBe(expectedHash);
     }
   });
 });

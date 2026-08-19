@@ -19,7 +19,7 @@ import {
   type DispatchAction,
 } from './bess-scenario';
 import { proposePolicy, type FrontierProposal } from './gpt-56-adapter';
-import { evaluate, type MI9Result, type DecisionContext } from '../governance/mi9-gate';
+import { evaluate, recordExecution, type MI9Result, type DecisionContext } from '../governance/mi9-gate';
 import { analyzeExposure, type ExposureRecord } from '../governance/exposure-analysis';
 import { append, type AuditRecord } from '../audit/hash-chain';
 
@@ -173,6 +173,7 @@ export async function runDecisionLoop(req: DecisionRequest): Promise<DecisionRes
       realisedRevenue += deltaRevenue;
       realisedDegradation += deltaDegradation;
       socTracking = newSoc;
+      recordExecution(mi9.verdict, ctx.taskClass);
     }
 
     // Audit-chain record — exposure fingerprint is anchored inside the payload

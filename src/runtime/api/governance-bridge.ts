@@ -33,7 +33,7 @@
  */
 
 import { append, type AuditRecord } from '../../audit/hash-chain';
-import { evaluate, type DecisionContext, type MI9Result } from '../../governance/mi9-gate';
+import { evaluate, recordExecution, type DecisionContext, type MI9Result } from '../../governance/mi9-gate';
 import type { ConfidentialityLevel } from '../router/policy';
 
 /** The gate's residency vocabulary, reused rather than restated. */
@@ -109,6 +109,11 @@ export function buildDecisionContext(input: GovernanceInput): DecisionContext {
     decisionId: input.requestId,
     domain: `runtime.${input.surface}.${input.taskType}`,
     action: input.action.slice(0, 500),
+    taskClass: input.hasSideEffects
+      ? 'operational'
+      : input.surface === 'query'
+        ? 'conversational'
+        : 'analytical',
     proposedBy: input.proposedBy,
     confidence: clamp01(input.confidence),
     // A request that only returns text is reversible: nothing in the world
@@ -172,6 +177,14 @@ export function evaluateGovernance(input: GovernanceInput): GovernanceVerdict {
     requiresCoSign: mi9.humanCoSignRequired,
     blockReason: mi9.blockReason ?? null,
   };
+}
+
+/**
+ * Charge the operational budget only after the governed work actually ran.
+ * Evaluation and dry-run paths must never call this function.
+ */
+export function recordGovernedExecution(verdict: GovernanceVerdict): void {
+  recordExecution(verdict.mi9.verdict, verdict.context.taskClass);
 }
 
 export interface AuditOutcome {

@@ -26,6 +26,7 @@ import {
   deriveConfidenceFromQuality,
   evaluateGovernance,
   outcomeActionFor,
+  recordGovernedExecution,
   writeAuditRecord,
   type GovernanceVerdict,
   type RuntimeSurface,
@@ -324,6 +325,10 @@ function terminate(p: TerminateParams): QueryResponse {
 
   let auditRecordId: string | null = null;
   let auditChainHash: string | null = null;
+
+  if (ok && !p.dryRun && p.governance) {
+    recordGovernedExecution(p.governance);
+  }
 
   try {
     recordWork({

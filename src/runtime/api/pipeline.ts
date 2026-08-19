@@ -26,6 +26,7 @@ import {
   deriveConfidenceFromQuality,
   evaluateGovernance,
   outcomeActionFor,
+  recordGovernedExecution,
   writeAuditRecord,
   type GovernanceVerdict,
   type RuntimeSurface,
@@ -86,6 +87,7 @@ export interface QueryResponse {
     human_cosign_required: boolean;
     block_reason: string | null;
     findings: Array<{ gate: number; name: string; verdict: string; reason: string }>;
+    approval_id: string | null;
   };
   knowledge: {
     used: boolean;
@@ -116,6 +118,7 @@ export async function runQueryPipeline(
   request: QueryRequest,
   provenance: Provenance,
   env: NodeJS.ProcessEnv = process.env,
+  priorApproval?: { decisionId: string; approvedBy: string; approvedAtMs: number },
 ): Promise<QueryResponse> {
   const started = Date.now();
   const requestId = provenance.request_id;
@@ -207,6 +210,7 @@ export async function runQueryPipeline(
     operatorId: request.operator_id ?? provenance.api_key_label ?? null,
     hasSideEffects: false,
     missionId: request.mission_id ?? null,
+    priorApproval,
     metadata: {
       sanitisation_verdict: sanitised.verdict,
       sanitisation_findings: sanitised.findings,
@@ -300,6 +304,7 @@ interface TerminateParams {
   latencyMs: number;
   env: NodeJS.ProcessEnv;
   dryRun?: boolean;
+  approvalId?: string | null;
 }
 
 /**
@@ -324,6 +329,10 @@ function terminate(p: TerminateParams): QueryResponse {
 
   let auditRecordId: string | null = null;
   let auditChainHash: string | null = null;
+
+  if (ok && !p.dryRun && p.governance) {
+    recordGovernedExecution(p.governance);
+  }
 
   try {
     recordWork({
@@ -457,6 +466,7 @@ function terminate(p: TerminateParams): QueryResponse {
       verdict: p.governance?.mi9.verdict ?? 'not-evaluated',
       human_cosign_required: p.governance?.requiresCoSign ?? false,
       block_reason: p.governance?.blockReason ?? null,
+      approval_id: p.approvalId ?? null,
       findings:
         p.governance?.mi9.findings.map((f) => ({
           gate: f.gateNumber,

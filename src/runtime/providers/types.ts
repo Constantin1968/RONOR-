@@ -35,6 +35,7 @@ export type ProviderId =
   | 'google'
   | 'deepseek'
   | 'perplexity'
+  | 'kimi'
   | 'deterministic';
 
 /**

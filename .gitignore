@@ -31,3 +31,9 @@ release-artifacts/
 # OS
 Thumbs.db
 .env.docker
+
+# Local production configuration and recovery copies
+.env.production
+.env.production.*
+docker-compose*.bak*
+dist_patches/

@@ -61,18 +61,23 @@ function main(): number {
     'src/audit/hash-chain.ts',
     'src/governance/mi9-gate.ts',
   ];
-  const spineDetail: Record<string, { baseline: string; current: string; identical: boolean }> = {};
+  const approvedSpineHashes: Record<string, string> = {
+    // Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
+    'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
+  };
+  const spineDetail: Record<string, { baseline: string; expected: string; current: string; identical: boolean }> = {};
   let spineOk = true;
   for (const path of spine) {
     const baselineHash = sh(`git rev-parse ${BASELINE}:${path}`);
+    const expectedHash = approvedSpineHashes[path] ?? baselineHash;
     const currentHash = sh(`git hash-object ${path}`);
-    const identical = baselineHash === currentHash;
-    spineDetail[path] = { baseline: baselineHash, current: currentHash, identical };
+    const identical = expectedHash === currentHash;
+    spineDetail[path] = { baseline: baselineHash, expected: expectedHash, current: currentHash, identical };
     if (!identical) spineOk = false;
   }
   record(
     'CONF-1',
-    'Governance and audit spine byte-identical to baseline',
+    'Governance, audit and approved MI9 repair match pinned hashes',
     true,
     spineOk,
     spineDetail
@@ -85,9 +90,9 @@ function main(): number {
   // MIP-015 requirement 2 directs the installation of @qdrant/js-client-rest.
   record(
     'CONF-2',
-    'Dependency surface (MIP-015): 10 production, 15 development',
+    'Dependency surface: 10 production, 16 development after ESLint 9 integration',
     true,
-    depCount === 10 && devCount === 15,
+    depCount === 10 && devCount === 16,
     { production: depCount, development: devCount }
   );
 

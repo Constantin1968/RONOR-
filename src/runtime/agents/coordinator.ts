@@ -33,9 +33,11 @@ import {
   deriveConfidenceFromQuality,
   evaluateGovernance,
   outcomeActionFor,
+  recordGovernedExecution,
   writeAuditRecord,
 } from '../api/governance-bridge';
 import type { Provenance } from '../api/middleware';
+import { createPendingExecution } from '../api/approval-settlement';
 import { executeExchange } from '../router/exchange';
 import type { ConfidentialityLevel, JurisdictionPin } from '../router/policy';
 import { recordAttempts, recordWork } from '../ledgers/work-ledger';
@@ -102,6 +104,7 @@ export interface MissionDispatchResult {
     block_reason: string | null;
     audit_record_id: string | null;
     audit_chain_hash: string | null;
+    approval_id: string | null;
   };
   economics: {
     total_cost_usd: number;
@@ -118,6 +121,7 @@ export async function dispatchMission(
   request: MissionDispatchRequest,
   provenance: Provenance,
   env: NodeJS.ProcessEnv = process.env,
+  priorApproval?: { decisionId: string; approvedBy: string; approvedAtMs: number },
 ): Promise<MissionDispatchResult> {
   const started = Date.now();
   const requestId = provenance.request_id;
@@ -159,12 +163,44 @@ export async function dispatchMission(
       ? { unit: 'EUR', value: request.max_cost_usd }
       : { unit: 'other', value: 100 },
     missionId,
+    priorApproval,
     metadata: {
       agents_available: available.map((a) => a.agent_id),
       max_tasks: request.max_tasks ?? 4,
       use_knowledge: request.use_knowledge !== false,
     },
   });
+
+  if (governance.requiresCoSign && !priorApproval) {
+    const pending = createPendingExecution({
+      execution: { kind: 'mission', request: { ...request, mission_id: missionId } },
+      provenance,
+      env,
+      apiKeyId: provenance.api_key_id ?? 'unbound',
+    });
+    setMissionStatus(missionId, 'open');
+    const record = writeAuditRecord({
+      verdict: governance,
+      surface: 'agent',
+      outcome: {
+        action: 'held-for-cosign',
+        model: 'ronor/mission-coordinator',
+        rationale: 'mission deferred before decomposition and execution pending human co-sign',
+        latencyMs: Date.now() - started,
+        metadata: { request_id: requestId, mission_id: missionId },
+      },
+    });
+    return blockedResult(
+      requestId,
+      missionId,
+      request,
+      governance,
+      record.recordId,
+      record.chainHash,
+      Date.now() - started,
+      pending.approvalId,
+    );
+  }
 
   if (!governance.allowed) {
     setMissionStatus(missionId, 'failed');
@@ -414,6 +450,7 @@ export async function dispatchMission(
       : 'complete';
 
   setMissionStatus(missionId, status === 'complete' ? 'complete' : 'open');
+  recordGovernedExecution(governance);
 
   // ---- Record -------------------------------------------------------------
   let auditRecordId: string | null = null;
@@ -533,6 +570,7 @@ export async function dispatchMission(
       block_reason: null,
       audit_record_id: auditRecordId,
       audit_chain_hash: auditChainHash,
+      approval_id: null,
     },
     economics: {
       total_cost_usd: +totalCost.toFixed(8),
@@ -646,6 +684,7 @@ function blockedResult(
   auditRecordId: string,
   auditChainHash: string,
   latencyMs: number,
+  approvalId: string | null = null,
 ): MissionDispatchResult {
   return {
     ok: false,
@@ -667,6 +706,7 @@ function blockedResult(
       block_reason: governance.blockReason,
       audit_record_id: auditRecordId,
       audit_chain_hash: auditChainHash,
+      approval_id: approvalId,
     },
     economics: {
       total_cost_usd: 0,
@@ -717,6 +757,7 @@ function failedResult(
       block_reason: null,
       audit_record_id: null,
       audit_chain_hash: null,
+      approval_id: null,
     },
     economics: {
       total_cost_usd: +totalCost.toFixed(8),

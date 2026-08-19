@@ -18,6 +18,10 @@ import sys
 
 OUT = pathlib.Path("evidence/knowledge")
 BASELINE = "d058544d1c579611cce99cdf2b87a78d7534e75b"
+APPROVED_SPINE_HASHES = {
+    # Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
+    "src/governance/mi9-gate.ts": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
+}
 
 # The baseline plane roster, in order. Recorded as a literal so that a reordering
 # or an addition is caught, not merely a count change.
@@ -170,19 +174,21 @@ def main():
             capture_output=True,
             text=True,
         ).stdout.strip()
+        expected_hash = APPROVED_SPINE_HASHES.get(path, baseline_hash)
         current_hash = subprocess.run(
             ["git", "hash-object", path], capture_output=True, text=True
         ).stdout.strip()
         spine_detail[path] = {
             "baseline": baseline_hash,
+            "expected": expected_hash,
             "current": current_hash,
-            "identical": baseline_hash == current_hash,
+            "identical": expected_hash == current_hash,
         }
-        if baseline_hash != current_hash:
+        if expected_hash != current_hash:
             spine_ok = False
     check(
         "ISO-1",
-        "The orchestrator, audit chain and MI9 gate are byte-identical to the baseline",
+        "The orchestrator, audit chain and approved MI9 repair match pinned hashes",
         spine_ok,
         spine_detail,
     )

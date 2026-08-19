@@ -28,6 +28,7 @@ import {
 import { GoogleAdapter, sanitiseGeminiSchema } from '../../src/runtime/providers/google';
 import { OpenAIAdapter } from '../../src/runtime/providers/openai';
 import { PerplexityAdapter } from '../../src/runtime/providers/perplexity';
+import { KimiAdapter, KIMI_MODELS } from '../../src/runtime/providers/kimi';
 import {
   DEFAULT_GATEWAY_MODELS,
   gatewayServes,
@@ -231,6 +232,14 @@ describe('L1 · credential resolution', () => {
     expect(new PerplexityAdapter().credentialState(env)).toBe('key-absent');
   });
 
+  it('publishes current Kimi identifiers and activates only with its native key', () => {
+    expect(KIMI_MODELS[0]).toBe('kimi-k2.6');
+    expect(KIMI_MODELS).toContain('kimi-k2.5');
+    expect(KIMI_MODELS).not.toContain('kimi-k3');
+    expect(new KimiAdapter().credentialState(EMPTY_ENV)).toBe('key-absent');
+    expect(new KimiAdapter().credentialState({ KIMI_API_KEY: 'x' })).toBe('live-native');
+  });
+
   it('activates DeepSeek and Perplexity the moment a key appears — no code change', () => {
     expect(new DeepSeekAdapter().credentialState({ DEEPSEEK_API_KEY: 'x' })).toBe('live-native');
     expect(new PerplexityAdapter().credentialState({ PERPLEXITY_API_KEY: 'x' })).toBe('live-native');
@@ -279,7 +288,13 @@ describe('L1 · adapters refuse rather than simulate or throw', () => {
 describe('L1 · registry status surface', () => {
   it('reports every provider with an invocable verdict', () => {
     const statuses = providerStatuses(EMPTY_ENV);
-    expect(statuses).toHaveLength(6);
+    // Seven providers: openai, anthropic, google, deepseek, perplexity, kimi and
+    // the deterministic core. Kimi was registered on or around 5 Aug 2026 without
+    // updating this count, so this assertion has been failing ever since — which
+    // is defect D-3. The /status handler read `.invocable` off a provider the
+    // status surface had not fully described and threw on undefined. The suite
+    // was reporting the defect the whole time; nobody was running the suite.
+    expect(statuses).toHaveLength(7);
     const det = statuses.find((s) => s.provider === 'deterministic');
     expect(det?.invocable).toBe(true);
     expect(det?.transport).toBe('local');

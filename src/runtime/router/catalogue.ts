@@ -311,6 +311,26 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     search_augmented: true,
   },
 
+  // ---- Moonshot AI --------------------------------------------------------
+  {
+    id: 'kimi/kimi-k2.6',
+    provider: 'kimi',
+    vendorModel: 'kimi-k2.6',
+    displayName: 'Kimi K2.6',
+    capabilities: ['reasoning', 'generation', 'analysis', 'synthesis', 'decomposition'],
+    input_cost_per_1m: 0.95,
+    output_cost_per_1m: 4.0,
+    latency_seed_ms: 7000,
+    jurisdictions: ['CN'],
+    sovereignty_level: 0,
+    quality_score: 91,
+    evidence_reliability: 68,
+    operational_risk: 42,
+    context_window: 256_000,
+    max_output_tokens: 64_000,
+    search_augmented: false,
+  },
+
   // ---- Sovereign local ----------------------------------------------------
   {
     id: 'ronor/deterministic-core',

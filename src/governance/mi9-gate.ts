@@ -63,6 +63,31 @@ export interface DecisionContext {
     userId?: string;
     role: 'operator' | 'dispatcher' | 'auditor' | 'external';
   };
+  /**
+   * Task class — selects which policy profile the gates apply.
+   *
+   *   'operational'    — trading, dispatch, market actions. Full BESS policy.
+   *   'analytical'     — analysis and reporting. Evidence required, no hourly cap.
+   *   'conversational' — dialogue and queries. No impact, no hourly cap.
+   *
+   * Defaults to 'operational' when absent, so every existing caller keeps the
+   * strictest behaviour. Fail-closed by omission.
+   */
+  taskClass?: 'operational' | 'analytical' | 'conversational';
+  /**
+   * Present when this decision has ALREADY been co-signed by a human and is
+   * being re-evaluated for execution.
+   *
+   * A valid prior approval makes the rate-limit gate idempotent: an approved
+   * decision is not re-charged against the sliding window. This is the fix for
+   * defect D-1 — the infinite co-sign loop, where each approval guaranteed a
+   * fresh approval request because re-evaluation was blind to its own history.
+   */
+  priorApproval?: {
+    decisionId: string;
+    approvedBy: string;
+    approvedAtMs: number;
+  };
   metadata?: Record<string, unknown>;
 }
 
@@ -175,6 +200,63 @@ function cosignCount(): number {
   pruneOldDecisions();
   return decisionsThisHour.filter((d) => d.verdict === 'allow-with-cosign').length;
 }
+
+/**
+ * How long a human co-signature stays valid for re-evaluation. Fifteen minutes
+ * matches the DAM/ID freshness horizon in gate 6 — an approval must not outlive
+ * the market data it was granted against.
+ */
+const APPROVAL_VALIDITY_MS = 15 * 60 * 1000;
+
+/**
+ * True when ctx carries a valid human co-signature for THIS decision.
+ *
+ * Rejects three abuse paths:
+ *   - an approval issued for a different decisionId (replay across decisions)
+ *   - an approval older than the validity window (stale token replay)
+ *   - an approval timestamped in the future (clock skew or forgery)
+ */
+function hasValidPriorApproval(ctx: DecisionContext): boolean {
+  const a = ctx.priorApproval;
+  if (!a) return false;
+  if (a.decisionId !== ctx.decisionId) return false;
+  const age = Date.now() - a.approvedAtMs;
+  if (age < 0) return false;
+  return age <= APPROVAL_VALIDITY_MS;
+}
+
+/**
+ * Records an executed decision against the sliding window.
+ *
+ * Called by the orchestrator AFTER an action has actually executed — never from
+ * evaluate(). Keeping evaluation free of side effects is what stops the window
+ * from counting decisions that were merely considered. Before this split, a
+ * single request could consume the entire hourly budget by being re-evaluated.
+ *
+ * Non-operational work is deliberately not charged. Without this guard, a
+ * conversational request could be exempt while evaluated and still consume the
+ * budget when recorded, indirectly blocking later operational work.
+ */
+export function recordExecution(
+  verdict: Verdict,
+  taskClass: DecisionContext['taskClass'] = 'operational',
+): void {
+  if (taskClass === 'operational' && (verdict === 'allow' || verdict === 'allow-with-cosign')) {
+    decisionsThisHour.push({ ts: Date.now(), verdict });
+  }
+}
+
+/**
+ * Task classes exempt from the hourly decision budget.
+ *
+ * The rate limit exists to bound consequential market activity, not dialogue.
+ * Applying a 20 MWh BESS trading budget to a conversation was the trigger that
+ * made defect D-1 fire within minutes of normal use.
+ */
+const RATE_LIMIT_EXEMPT_CLASSES: ReadonlySet<string> = new Set([
+  'conversational',
+  'analytical',
+]);
 
 // ============================================================
 // Individual gates
@@ -388,7 +470,32 @@ function gatePolicyCompliance(ctx: DecisionContext, p: Policy): GateFinding {
   };
 }
 
-function gateRateLimits(_ctx: DecisionContext, p: Policy): GateFinding {
+function gateRateLimits(ctx: DecisionContext, p: Policy): GateFinding {
+  // D-1 fix, part 1: an already co-signed decision is not re-charged.
+  // Without this, approving a rate-limited request produced a fresh
+  // rate-limited request — the loop the Principal observed.
+  if (hasValidPriorApproval(ctx)) {
+    return {
+      gateNumber: 8,
+      gateName: 'rate-limits',
+      verdict: 'allow',
+      reason: `Decision already co-signed by ${ctx.priorApproval!.approvedBy}; rate limit not re-applied.`,
+      detail: { idempotent: true, approvedAtMs: ctx.priorApproval!.approvedAtMs },
+    };
+  }
+
+  // D-1 fix, part 2: conversation and analysis are not market activity.
+  const taskClass = ctx.taskClass ?? 'operational';
+  if (RATE_LIMIT_EXEMPT_CLASSES.has(taskClass)) {
+    return {
+      gateNumber: 8,
+      gateName: 'rate-limits',
+      verdict: 'allow',
+      reason: `Task class '${taskClass}' is not subject to the operational hourly budget.`,
+      detail: { taskClass, exempt: true },
+    };
+  }
+
   const auto = autonomousCount();
   const cosign = cosignCount();
   if (auto >= p.gates.rate_limits.autonomous_per_hour) {
@@ -471,10 +578,12 @@ export function evaluate(ctx: DecisionContext): MI9Result {
   let verdict: Verdict = 'allow';
   for (const f of findings) verdict = strictest(verdict, f.verdict);
 
-  // Record for rate-limit accounting
-  if (verdict === 'allow' || verdict === 'allow-with-cosign') {
-    decisionsThisHour.push({ ts: Date.now(), verdict });
-  }
+  // D-1 fix, part 3: evaluate() is now a pure function.
+  //
+  // Rate-limit accounting moved to recordExecution(), which the orchestrator
+  // calls after an action actually executes. Previously this push() ran on every
+  // evaluation, so re-evaluating one request incremented the window each pass —
+  // the arithmetic that made the loop unbreakable.
 
   const result: MI9Result = {
     decisionId: ctx.decisionId,

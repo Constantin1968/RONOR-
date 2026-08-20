@@ -74,8 +74,8 @@ services:
       RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
     secrets: [openhands_session_key, openhands_bridge_token, automation_capability_key]
     volumes:
-      - type: volume
-        source: openhands_nonce_store
+      - type: bind
+        source: ${RONOR_AUTOMATION_NONCE_DIR:?absolute pre-created nonce directory required}
         target: /var/lib/ronor-nonces
         read_only: false
     ports: ["127.0.0.1:3001:3001"]
@@ -125,9 +125,6 @@ networks:
   model-egress:
     name: ronor-model-egress
     external: true
-
-volumes:
-  openhands_nonce_store:
 
 secrets:
   langgraph_token:

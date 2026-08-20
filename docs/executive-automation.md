@@ -141,6 +141,7 @@ RONOR_OPENHANDS_SESSION_API_KEY=
 RONOR_OPENHANDS_BRIDGE_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_OPENHANDS_NONCE_DIR=/var/lib/ronor-nonces
+RONOR_AUTOMATION_NONCE_DIR=/absolute/host/path/owned-by-10001
 RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
 RONOR_OPENHANDS_BRIDGE_PORT=3001
 ```
@@ -150,7 +151,9 @@ Server readiness probe passes. Container isolation, credential-free worktrees
 and default-deny egress remain mandatory before enabling live execution.
 
 The bridge consumes every capability nonce with atomic exclusive file creation
-in a dedicated persistent volume. Replay therefore remains blocked across
+in a dedicated persistent host directory mounted only into the bridge. The
+operator pre-creates that directory for uid/gid 10001; the container receives
+no permission to change host ownership. Replay therefore remains blocked across
 process and container restarts; an unavailable nonce store fails closed before
 OpenHands is called. Adapter summaries and evidence are screened for secret-like
 material at both the bridge and runtime ingress boundaries.

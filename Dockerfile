@@ -48,11 +48,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/web ./web
 COPY src/governance/policies.yaml ./src/governance/policies.yaml
 
-# Audit chain and automation capability persistence. Compose runs the automation
-# services as uid/gid 10001; seed ownership lets an empty named volume inherit a
-# writable nonce directory without granting root or startup-time chown rights.
-RUN mkdir -p /app/data /var/lib/ronor-nonces && \
-    chown -R 10001:10001 /app/data /var/lib/ronor-nonces
+# Audit chain persistence
+RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 ENV AUDIT_DB_PATH=/app/data/audit.db
 ENV MI9_POLICY_PATH=/app/src/governance/policies.yaml

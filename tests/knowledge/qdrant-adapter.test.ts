@@ -487,8 +487,23 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     expect(pin).not.toMatch(/[\^~><*]/);
     expect(pkg.devDependencies?.['@qdrant/js-client-rest']).toBeUndefined();
 
-    // The authorised surface after MIP-015: ten production, fifteen development.
-    expect(Object.keys(pkg.dependencies)).toHaveLength(10);
+    // The authorised production surface after MIP-015 and the governed
+    // LangGraph planner. Keep this explicit so an unrelated package cannot be
+    // smuggled in while preserving only a numeric count.
+    expect(Object.keys(pkg.dependencies).sort()).toEqual([
+      '@langchain/core',
+      '@langchain/langgraph',
+      '@qdrant/js-client-rest',
+      'better-sqlite3',
+      'cors',
+      'dotenv',
+      'express',
+      'js-yaml',
+      'openai',
+      'uuid',
+      'winston',
+      'zod',
+    ].sort());
     expect(Object.keys(pkg.devDependencies).length).toBeGreaterThanOrEqual(15);
   });
 

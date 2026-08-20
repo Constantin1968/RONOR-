@@ -671,7 +671,7 @@ describe('L0 · read surfaces', () => {
       .get('/api/runtime/control/models')
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
     expect(res.status).toBe(200);
-    expect(res.body.cabinet.find((route: { role: string }) => route.role === 'analysis-batch').status).toBe('available');
+    expect(res.body.cabinet.find((route: { role: string }) => route.role === 'qwen-moe-primary').status).toBe('available');
     expect(JSON.stringify(res.body)).not.toContain('100.87.14.42');
   });
 });

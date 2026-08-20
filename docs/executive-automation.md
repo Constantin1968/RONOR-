@@ -40,6 +40,17 @@ attestation against every service and requires its pinned `ronor-*/v1` protocol.
 A configured URL is therefore never treated as proof of readiness, redirects are
 refused, and any unavailable or incompatible authority stops the run.
 
+The repository also provides independently mountable Codex and Victoria
+authority applications in `verification-authorities.ts`. Codex must receive an
+explicit evaluator port and independently reopens the diff, status and test
+report from the read-only artifact store before evaluation. Victoria uses a
+separate service credential, re-hashes the same artifacts itself and applies a
+distinct evidence policy. Both fail closed on missing test evidence, digest
+mismatch, malformed evaluator output or inaccessible storage; provider errors
+are never returned to the caller. The Codex evaluator's live provider binding is
+intentionally not implicit: it must be configured as a separate, least-privilege
+service before activation.
+
 ```text
 RONOR_AUTOMATION_ENABLED=false
 RONOR_LANGGRAPH_URL=

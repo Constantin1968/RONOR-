@@ -68,6 +68,9 @@ import { agentPassports } from '../agents/registry';
 import { consumePendingExecution } from './approval-settlement';
 import { managementAgents, getManagementAgent } from '../management/registry';
 import { planExecutiveDelegation } from '../management/executive';
+import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
+import { runExecutiveMission } from '../automation/runner';
+import type { ExecutionMandate } from '../automation/contracts';
 
 /**
  * Build the runtime router.
@@ -426,15 +429,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         failed: integrity.filter((item) => item?.valid === false).length,
       },
       council: { members: managementAgents().length },
-      automation: {
-        runner: 'implemented-disabled',
-        enabled: env.RONOR_AUTOMATION_ENABLED === 'true',
-        adapters: {
-          langgraph: env.RONOR_LANGGRAPH_URL ? 'configured-not-verified' : 'not-connected',
-          openhands: env.RONOR_OPENHANDS_URL ? 'configured-not-verified' : 'not-connected',
-          codex: env.RONOR_CODEX_VERIFIER_ENABLED === 'true' ? 'configured-not-verified' : 'not-connected',
-        },
-      },
+      automation: automationAdapterStatus(env),
     });
   });
 
@@ -474,6 +469,36 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       }
       const delegation = planExecutiveDelegation({ objective, operatorId: 'merlin' });
       res.status(201).json({ ok: true, delegation });
+    }),
+  );
+
+  router.post(
+    '/control/automation/run',
+    requireArchitect,
+    rateLimit,
+    asyncHandler(async (req, res) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (body.approved !== true) {
+        res.status(409).json({ ok: false, error: 'mandate_approval_required' });
+        return;
+      }
+      const adapters = configuredAutomationAdapters(env);
+      if (!adapters) {
+        res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
+        return;
+      }
+      const objective = sanitiseFreeText(body.objective, 8000);
+      const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
+      const branch = sanitiseIdentifier(body.branch, 200);
+      const mandate = body.mandate && typeof body.mandate === 'object' && !Array.isArray(body.mandate)
+        ? body.mandate as ExecutionMandate
+        : null;
+      if (!objective || !workspaceRoot || !branch || !mandate) {
+        res.status(400).json({ ok: false, error: 'invalid_automation_request' });
+        return;
+      }
+      const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters });
+      res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
     }),
   );
 

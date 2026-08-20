@@ -650,6 +650,21 @@ describe('L0 · read surfaces', () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('architect_identity_required');
   });
+
+  it('keeps live automation fail-closed and requires one explicit mandate approval', async () => {
+    const app = makeApp();
+    const unapproved = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({});
+    expect(unapproved.status).toBe(409);
+    const unavailable = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ approved: true });
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.body.automation.ready).toBe(false);
+  });
 });
 
 describe('CONTROL · executive delegation', () => {

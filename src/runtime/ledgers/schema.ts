@@ -158,6 +158,25 @@ export function ensureRuntimeLedgerSchema(): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_rt_missions_status ON runtime_missions(status);
+
+    CREATE TABLE IF NOT EXISTS runtime_automation_runs (
+      run_id               TEXT PRIMARY KEY,
+      mandate_id           TEXT NOT NULL UNIQUE,
+      mission_id           TEXT NOT NULL,
+      mandate_fingerprint  TEXT NOT NULL,
+      mandate_json         TEXT NOT NULL,
+      status               TEXT NOT NULL, -- running | failed | complete
+      lease_token          TEXT,
+      lease_owner          TEXT,
+      lease_expires_at     TEXT,
+      attempt_count        INTEGER NOT NULL DEFAULT 1,
+      created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at         TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rt_automation_mission ON runtime_automation_runs(mission_id);
+    CREATE INDEX IF NOT EXISTS idx_rt_automation_status ON runtime_automation_runs(status);
   `);
   ensured = true;
 }

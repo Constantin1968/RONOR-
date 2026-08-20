@@ -669,6 +669,7 @@ describe('L0 · read surfaces', () => {
     const unavailable = await request(app)
       .post('/api/runtime/control/automation/run')
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .set('Idempotency-Key', 'readiness-attempt-1')
       .send({ approved: true, mission_id: mission.mission_id, workspace_root: '/isolated/worktree', branch: 'agent/readiness' });
     expect(unavailable.status).toBe(503);
     expect(unavailable.body.automation.ready).toBe(false);

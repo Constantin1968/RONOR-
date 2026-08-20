@@ -27,6 +27,17 @@ sets and timestamps, and caps every requested limit by server policy. Client
 authority fields are refused. Exact branches do not use lexical-prefix matching;
 namespace authorization is possible only when policy explicitly ends in `/`.
 
+Every start request also carries a non-secret `Idempotency-Key`. RONOR derives a
+stable mandate handle from that key, the stored mission and the authenticated
+architect identity. The first claimant atomically persists the complete mandate
+and obtains a short lease in `runtime_automation_runs`; concurrent claimants are
+refused. A heartbeat renews ownership while work is active. After a crash, only
+an expired lease may be reclaimed, the original stored mandate is restored
+rather than regenerated, and the configured fix-cycle ceiling is enforced by
+the same transaction. A stale worker cannot complete a lease after ownership
+has moved. Fabric remains the append-only audit view; the run registry supplies
+cross-process mutual exclusion and recovery state.
+
 The implementation is adapter-driven. Tests use in-process doubles and perform
 no external calls. Live LangGraph and OpenHands adapters remain disabled until a
 dedicated sandbox and service identities are configured. Codex and Victoria are

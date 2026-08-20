@@ -9,6 +9,22 @@ export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
 }
 
+export function completedExecutionRun(mandate: ExecutionMandate): AutomationRun | null {
+  const fabric = getMissionFabric(mandate.mission_id);
+  if (!fabric) return null;
+  const runId = executionRunId(mandate.mandate_id);
+  const assured = fabric.checkpoints.some((event) =>
+    event.payload.run_id === runId && event.payload.id === `${runId}-victoria` && event.payload.verdict === 'pass');
+  if (!assured) return null;
+  const tasks = Object.values(fabric.tasks).filter((task) => task.run_id === runId);
+  const projected = fabric.runs[runId];
+  const cost = typeof projected?.cost_usd === 'number' ? projected.cost_usd : 0;
+  return {
+    run_id: runId, mission_id: mandate.mission_id, status: 'complete', cost_usd: cost,
+    completed_assignments: tasks.length, total_assignments: tasks.length, reason: null,
+  };
+}
+
 function storedPlan(value: unknown): PlannedAssignment[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 25) return null;
   const result: PlannedAssignment[] = [];
@@ -57,12 +73,9 @@ export async function runExecutiveMission(params: {
 
   const initialFabric = getMissionFabric(params.mandate.mission_id)!;
   const mandateClaimed = initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id);
-  const runTasks = Object.values(initialFabric.tasks).filter((task) => task.run_id === runId);
-  if (initialFabric.checkpoints.some((event) => event.payload.run_id === runId && event.payload.id === `${runId}-victoria` && event.payload.verdict === 'pass')) {
-    return { ...base, status: 'complete', completed_assignments: runTasks.length, total_assignments: runTasks.length, reason: null };
-  }
+  const completed = completedExecutionRun(params.mandate);
+  if (completed) return completed;
   const priorFailures = initialFabric.failures.filter((event) => event.payload.run_id === runId).length;
-  if (mandateClaimed && priorFailures >= params.mandate.max_fix_cycles) return { ...base, reason: 'fix_cycle_limit_exceeded' };
   const append = (type: 'checkpoint.created' | 'task.upserted' | 'task.status_changed' | 'failure.recorded' | 'run.status_changed' | 'evidence.added', payload: Record<string, unknown>, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => {
     const version = getMissionFabric(params.mandate.mission_id)!.version;
     appendMissionFabricEvent({

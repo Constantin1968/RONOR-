@@ -69,7 +69,7 @@ import { consumePendingExecution } from './approval-settlement';
 import { managementAgents, getManagementAgent } from '../management/registry';
 import { planExecutiveDelegation } from '../management/executive';
 import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
-import { executionRunId, runExecutiveMission } from '../automation/runner';
+import { completedExecutionRun, executionRunId, runExecutiveMission } from '../automation/runner';
 import { cancelAutomationRun, registerAutomationRun } from '../automation/run-control';
 import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
@@ -77,6 +77,8 @@ import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
 import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
 import { issueArchitectMandate } from '../automation/mandate-issuer';
+import { claimAutomationRun } from '../automation/run-lease';
+import type { AutomationRun } from '../automation/contracts';
 
 /**
  * Build the runtime router.
@@ -497,10 +499,11 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         return;
       }
       const missionId = sanitiseIdentifier(body.mission_id, 120);
+      const idempotencyKey = sanitiseIdentifier(req.header('idempotency-key') ?? body.idempotency_key, 120);
       const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
       const branch = sanitiseIdentifier(body.branch, 200);
       const mission = missionId ? getMission(missionId) : null;
-      if (!mission || !workspaceRoot || !branch || !req.apiKey) {
+      if (!mission || !workspaceRoot || !branch || !idempotencyKey || !req.apiKey) {
         res.status(400).json({ ok: false, error: 'invalid_automation_request' });
         return;
       }
@@ -513,7 +516,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       try {
         const optionalNumber = (value: unknown) => value === undefined ? undefined : Number(value);
         mandate = issueArchitectMandate({
-          missionId: mission.mission_id, objective: mission.objective, workspaceRoot, branch, architectKeyId: req.apiKey.key_id,
+          missionId: mission.mission_id, objective: mission.objective, workspaceRoot, branch,
+          architectKeyId: req.apiKey.key_id, idempotencyKey,
           maxCostUsd: optionalNumber(body.max_cost_usd),
           maxRuntimeMinutes: optionalNumber(body.max_runtime_minutes),
           maxFixCycles: optionalNumber(body.max_fix_cycles),
@@ -553,15 +557,38 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       try { await attestAutomationAdapters(env); }
       catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
       const runId = executionRunId(mandate.mandate_id);
+      const claim = claimAutomationRun({
+        runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,
+        leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
+      });
+      if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
+      if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
+      if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
+      mandate = claim.mandate;
+      if (claim.outcome === 'completed') {
+        const run = completedExecutionRun(mandate);
+        if (!run) { res.status(409).json({ ok: false, error: 'automation_terminal_state_inconsistent' }); return; }
+        res.status(200).json({ ok: true, run });
+        return;
+      }
       const control = registerAutomationRun(runId, mandate.mission_id);
-      if (!control) { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
+      if (!control) {
+        claim.lease.finish('failed');
+        res.status(409).json({ ok: false, error: 'automation_run_already_active' });
+        return;
+      }
+      claim.lease.startHeartbeat(() => control.abort());
+      let run: AutomationRun | undefined;
       try {
         const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
         const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
         const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: env.RONOR_AUTOMATION_WORKSPACE_ROOT, baseEnv });
-        const run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
+        run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
         res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
-      } finally { control.finish(); }
+      } finally {
+        claim.lease.finish(run?.status ?? 'failed');
+        control.finish();
+      }
     }),
   );
 

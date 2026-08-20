@@ -18,8 +18,16 @@ describe('server-side architect mandate issuer', () => {
       max_cost_usd: 2, max_runtime_minutes: 15, max_fix_cycles: 1,
       issued_at: '2026-08-20T12:00:00.000Z', expires_at: '2026-08-20T12:15:00.000Z',
     });
-    expect(mandate.mandate_id).toMatch(/^mandate_[0-9a-f-]{36}$/);
+    expect(mandate.mandate_id).toMatch(/^mandate_[a-f0-9]{32}$/);
     expect(validateMandate(mandate, { objective: base.objective, workspaceRoot: base.workspaceRoot, branch: base.branch, now: new Date('2026-08-20T12:01:00Z') })).toEqual({ valid: true, reason: null });
+  });
+
+  it('derives a stable handle only when the caller supplies an idempotency key', () => {
+    const first = issueArchitectMandate({ ...base, idempotencyKey: 'request-42' }, ceilings);
+    const retry = issueArchitectMandate({ ...base, idempotencyKey: 'request-42', now: new Date('2026-08-20T12:00:05Z') }, ceilings);
+    const next = issueArchitectMandate({ ...base, idempotencyKey: 'request-43' }, ceilings);
+    expect(retry.mandate_id).toBe(first.mandate_id);
+    expect(next.mandate_id).not.toBe(first.mandate_id);
   });
 
   it('refuses invalid identity, protected branches and limit expansion', () => {

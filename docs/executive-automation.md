@@ -117,14 +117,20 @@ runner sends a minimal execution envelope to a dedicated bridge, accompanied by
 a short-lived HMAC capability bound to the objective digest, assignment,
 allowed actions, deadline and one-time nonce. The bridge requires a distinct
 service token, rejects replay and mismatched claims, and then uses the native
-OpenHands Agent Server `/conversations` and event API with its session key as a
-Bearer credential. The host path is never transmitted: every conversation is
-bound to the fixed container path `/workspace/project`.
+OpenHands Agent Server `/api/conversations` event API with the documented
+`X-Session-API-Key` header. The host path is never transmitted: every
+conversation is bound to the fixed container path `/workspace/project`.
 
-The bridge uses `POST /api/conversations`, native conversation events and
-pause-on-timeout. It never deletes a conversation automatically. A completed
-conversation yields a SHA-256 event-log reference; diff and test artifacts must
-also be supplied before Codex can issue a production-grade verification verdict.
+The bridge creates every conversation with `AlwaysConfirm`. Before accepting a
+pending `ActionEvent`, a deterministic deny-by-default effect policy rejects Git
+push/remote mutation, network clients, cloud metadata or private addresses,
+workspace escape, privilege escalation and destructive commands. Rejection is
+followed by a pause; unknown actions fail closed. This policy complements the
+container boundary and does not replace it. The bridge uses native conversation
+events and pause-on-timeout, and never deletes a conversation automatically. A
+completed conversation yields a SHA-256 event-log reference; diff and test
+artifacts must also be supplied before Codex can issue a production-grade
+verification verdict.
 
 The service is not started by the normal runtime and fails closed unless every
 required value is provided. It binds to loopback by default:

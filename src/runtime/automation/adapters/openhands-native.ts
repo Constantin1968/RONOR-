@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { AdapterResult, OpenHandsExecutionEnvelope } from '../contracts';
 import type { NativeOpenHandsPort } from '../services/openhands-bridge';
+import { evaluateOpenHandsEffects } from '../effect-policy';
 
 type Fetcher = typeof fetch;
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
@@ -37,7 +38,7 @@ export function createNativeOpenHandsClient(config: {
     let response: Response;
     try {
       response = await fetcher(new URL(path, base), {
-        method, redirect: 'error', headers: { authorization: `Bearer ${config.sessionApiKey}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+        method, redirect: 'error', headers: { 'X-Session-API-Key': config.sessionApiKey, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch { throw new NativeOpenHandsError('openhands_unreachable'); }
@@ -53,33 +54,50 @@ export function createNativeOpenHandsClient(config: {
       catch { return false; }
     },
     async execute(envelope: OpenHandsExecutionEnvelope): Promise<AdapterResult> {
-      const created = await call('/conversations', 'POST', { working_dir: CONTAINER_WORKSPACE });
+      const created = await call('/api/conversations', 'POST', {
+        workspace: { kind: 'LocalWorkspace', working_dir: CONTAINER_WORKSPACE },
+        confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
+      });
       const conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
       if (!conversationId || !/^[A-Za-z0-9-]{1,120}$/.test(conversationId)) throw new NativeOpenHandsError('openhands_conversation_id_invalid');
-      await call(`/conversations/${conversationId}/events`, 'POST', { type: 'message', content: envelope.instruction });
+      await call(`/api/conversations/${conversationId}/events`, 'POST', {
+        role: 'user', content: [{ type: 'text', text: envelope.instruction }], run: true,
+      });
       const maxPolls = config.maxPolls ?? 120;
       for (let poll = 0; poll < maxPolls; poll += 1) {
-        const state = await call(`/conversations/${conversationId}`, 'GET');
-        const status = String(state.status ?? state.state ?? '').toLowerCase();
-        if (['error', 'failed', 'stopped'].includes(status)) return { ok: false, summary: `OpenHands terminated: ${status}.`, evidence: [`conversation:${conversationId}`], cost_usd: 0 };
+        const state = await call(`/api/conversations/${conversationId}`, 'GET');
+        const status = String(state.execution_status ?? '').toLowerCase();
+        if (status === 'waiting_for_confirmation') {
+          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET');
+          const decision = evaluateOpenHandsEffects(events, envelope.allowed_actions);
+          await call(`/api/conversations/${conversationId}/events/respond_to_confirmation`, 'POST', {
+            accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
+          });
+          if (!decision.allowed) {
+            try { await call(`/api/conversations/${conversationId}/pause`, 'POST', {}); } catch { /* already rejected */ }
+            return { ok: false, summary: `OpenHands action refused: ${decision.reason}.`, evidence: [`conversation:${conversationId}`], cost_usd: 0 };
+          }
+          continue;
+        }
+        if (['error', 'failed', 'stopped', 'stuck'].includes(status)) return { ok: false, summary: `OpenHands terminated: ${status}.`, evidence: [`conversation:${conversationId}`], cost_usd: 0 };
         if (['finished', 'complete', 'completed'].includes(status)) {
-          const events = await call(`/conversations/${conversationId}/events`, 'GET');
+          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET');
           const serialized = JSON.stringify(events);
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
           const cost = typeof state.cost_usd === 'number' && Number.isFinite(state.cost_usd) && state.cost_usd >= 0 ? state.cost_usd : 0;
           return {
             ok: true, summary: 'OpenHands conversation completed.', evidence: [`conversation:${conversationId}`], cost_usd: cost,
-            artifacts: [{ kind: 'event_log', sha256: digest, reference: `conversations/${conversationId}/events`, bytes: Buffer.byteLength(serialized) }],
+            artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}/events/search`, bytes: Buffer.byteLength(serialized) }],
           };
         }
         await sleep(config.pollIntervalMs ?? 1000);
       }
-      try { await call(`/conversations/${conversationId}/pause`, 'POST', {}); } catch { /* fail closed below */ }
+      try { await call(`/api/conversations/${conversationId}/pause`, 'POST', {}); } catch { /* fail closed below */ }
       return { ok: false, summary: 'OpenHands execution timed out and was paused.', evidence: [`conversation:${conversationId}`], cost_usd: 0 };
     },
     async cancel(assignmentId: string) {
       if (!/^[A-Za-z0-9-]{1,120}$/.test(assignmentId)) throw new NativeOpenHandsError('openhands_conversation_id_invalid');
-      await call(`/conversations/${assignmentId}/pause`, 'POST', {});
+      await call(`/api/conversations/${assignmentId}/pause`, 'POST', {});
     },
   };
 }

@@ -25,6 +25,7 @@ describe('Ollama sovereign local provider', () => {
     const cabinet = modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.87.14.42:11434' });
     expect(cabinet.find((route) => route.role === 'analysis-batch')?.status).toBe('available');
     expect(cabinet.find((route) => route.role === 'frontier-escalation')?.status).toBe('credential-gated');
+    expect(cabinet.find((route) => route.role === 'frontier-escalation')?.model).toContain('Grok 4.5');
     expect(modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://public.invalid' })
       .find((route) => route.role === 'analysis-batch')?.status).toBe('credential-gated');
   });

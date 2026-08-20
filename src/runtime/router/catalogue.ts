@@ -367,6 +367,26 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     search_augmented: false,
   },
 
+  // ---- xAI ----------------------------------------------------------------
+  {
+    id: 'xai/grok-4.5',
+    provider: 'xai',
+    vendorModel: 'grok-4.5',
+    displayName: 'Grok 4.5',
+    capabilities: ['reasoning', 'generation', 'analysis', 'synthesis', 'decomposition', 'verification'],
+    input_cost_per_1m: 2.0,
+    output_cost_per_1m: 6.0,
+    latency_seed_ms: 7000,
+    jurisdictions: ['US'],
+    sovereignty_level: 1,
+    quality_score: 94,
+    evidence_reliability: 76,
+    operational_risk: 18,
+    context_window: 500_000,
+    max_output_tokens: 64_000,
+    search_augmented: false,
+  },
+
   // ---- Sovereign local ----------------------------------------------------
   {
     id: 'ronor/deterministic-core',

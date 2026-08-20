@@ -12,6 +12,6 @@ export function modelCabinet(env: NodeJS.ProcessEnv): ModelRoute[] {
     { role: 'analysis-batch', model: 'qwen2.5:72b-instruct-q4_K_M', location: 'contabo', mode: 'batch', status: contabo ? 'available' : 'credential-gated', rationale: 'Primary sovereign high-quality batch analysis.' },
     { role: 'local-verification', model: 'llama3.1:70b-instruct-q4_K_M', location: 'contabo', mode: 'batch', status: contabo ? 'available' : 'credential-gated', rationale: 'Independent local review using a different model family.' },
     { role: 'deep-reasoning', model: 'deepseek-r1:70b-llama-distill-q4_K_M', location: 'contabo', mode: 'batch', status: contabo ? 'available' : 'credential-gated', rationale: 'Asynchronous reasoning with a larger output budget.' },
-    { role: 'frontier-escalation', model: 'Codex / Claude / Kimi', location: 'cloud', mode: 'cloud', status: 'credential-gated', rationale: 'Human-authorised escalation for frontier quality or independent evidence.' },
+    { role: 'frontier-escalation', model: 'Codex / Claude / Kimi / Grok 4.5', location: 'cloud', mode: 'cloud', status: 'credential-gated', rationale: 'Human-authorised escalation for frontier quality or independent evidence.' },
   ];
 }

@@ -84,6 +84,7 @@ export const NATIVE_KEY_VARS: Record<Exclude<ProviderId, 'deterministic' | 'olla
   deepseek: 'DEEPSEEK_API_KEY',
   perplexity: 'PERPLEXITY_API_KEY',
   kimi: 'KIMI_API_KEY',
+  xai: 'XAI_API_KEY',
 };
 
 /**

@@ -54,9 +54,14 @@ local endpoint can be overridden with `OLLAMA_BASE_URL`.
 - `qwen3-embedding:0.6b`: embeddings for persistent memory (not chat routing).
 
 Local generation has zero vendor-token cost and maximum sovereignty, but lower
-quality scores than frontier cloud models. Claude, Kimi, OpenAI, Gemini and
+quality scores than frontier cloud models. Claude, Kimi, Grok, OpenAI, Gemini and
 Perplexity remain credential-gated escalation routes. The router records which
 provider and transport produced every answer.
+
+Grok uses the current xAI `grok-4.5` model through the OpenAI-compatible API and
+remains disabled until `XAI_API_KEY` is supplied at runtime. Its catalogue entry
+does not claim live web or X search: those require separately governed tool
+integration. No xAI credential is committed, cached, or returned by CONTROL.
 
 The cabinet can split sovereign work between the workstation and a larger
 Tailscale-connected inference host. Endpoints remain environment configuration,

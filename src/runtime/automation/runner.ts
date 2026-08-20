@@ -1,11 +1,32 @@
 import crypto from 'crypto';
 import { appendMissionFabricEvent, getMission, getMissionFabric } from '../mission/store';
 import { actionPermitted, validateMandate } from './policy';
-import type { AutomationAdapters, AutomationRun, ExecutionMandate } from './contracts';
+import { isAutomationAction, type AutomationAdapters, type AutomationRun, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment } from './contracts';
 import type { WorkspaceArtifactCollector } from './artifacts';
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
+}
+
+function storedPlan(value: unknown): PlannedAssignment[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 25) return null;
+  const result: PlannedAssignment[] = [];
+  const ids = new Set<string>();
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') return null;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.id !== 'string' || ids.has(item.id) || typeof item.instruction !== 'string' ||
+        !Array.isArray(item.actions) || !item.actions.every(isAutomationAction)) return null;
+    ids.add(item.id);
+    result.push({ id: item.id, instruction: item.instruction, actions: item.actions });
+  }
+  return result;
+}
+
+function storedArtifacts(value: unknown): EvidenceArtifact[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is EvidenceArtifact => Boolean(item && typeof item === 'object' &&
+    typeof (item as EvidenceArtifact).sha256 === 'string' && typeof (item as EvidenceArtifact).reference === 'string'));
 }
 
 export async function runExecutiveMission(params: {
@@ -33,9 +54,13 @@ export async function runExecutiveMission(params: {
   if (!validation.valid) return { ...base, reason: validation.reason };
 
   const initialFabric = getMissionFabric(params.mandate.mission_id)!;
-  if (initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id)) {
-    return { ...base, reason: 'mandate_already_consumed' };
+  const mandateClaimed = initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id);
+  const runTasks = Object.values(initialFabric.tasks).filter((task) => task.run_id === runId);
+  if (initialFabric.checkpoints.some((event) => event.payload.run_id === runId && event.payload.id === `${runId}-victoria` && event.payload.verdict === 'pass')) {
+    return { ...base, status: 'complete', completed_assignments: runTasks.length, total_assignments: runTasks.length, reason: null };
   }
+  const priorFailures = initialFabric.failures.filter((event) => event.payload.run_id === runId).length;
+  if (mandateClaimed && priorFailures >= params.mandate.max_fix_cycles) return { ...base, reason: 'fix_cycle_limit_exceeded' };
   const append = (type: 'checkpoint.created' | 'task.upserted' | 'task.status_changed' | 'failure.recorded', payload: Record<string, unknown>, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => {
     const version = getMissionFabric(params.mandate.mission_id)!.version;
     appendMissionFabricEvent({
@@ -43,17 +68,30 @@ export async function runExecutiveMission(params: {
       actor: { kind: actor, id: actor === 'agent' ? 'victoria' : actor },
     });
   };
-  append('checkpoint.created', { id: `${runId}-mandate`, run_id: runId, mandate_id: params.mandate.mandate_id, status: 'granted' }, 'langgraph');
+  if (!mandateClaimed) append('checkpoint.created', { id: `${runId}-mandate`, run_id: runId, mandate_id: params.mandate.mandate_id, status: 'granted' }, 'langgraph');
 
   const expired = () => now().getTime() >= deadline;
   const cancelled = () => params.signal?.aborted === true;
   if (cancelled()) return { ...base, status: 'failed', reason: 'cancelled' };
-  let assignments;
-  try { assignments = await params.adapters.langgraph.plan(params.objective, params.signal); }
-  catch { const reason = cancelled() ? 'cancelled' : 'langgraph_failed'; append('failure.recorded', { id: `${runId}-planning-failed`, run_id: runId, reason }, 'langgraph'); return { ...base, status: 'failed', reason }; }
+  const planCheckpoint = getMissionFabric(params.mandate.mission_id)!.checkpoints.find((event) => event.payload.id === `${runId}-plan`);
+  let assignments = storedPlan(planCheckpoint?.payload.assignments);
+  if (!assignments) {
+    try { assignments = await params.adapters.langgraph.plan(params.objective, params.signal); }
+    catch { const reason = cancelled() ? 'cancelled' : 'langgraph_failed'; append('failure.recorded', { id: `${runId}-planning-failed-${priorFailures + 1}`, run_id: runId, reason }, 'langgraph'); return { ...base, status: 'failed', reason }; }
+    append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignments }, 'langgraph');
+  }
   let run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
   const workerEvidence: string[] = [];
   for (const assignment of assignments) {
+    const completed = getMissionFabric(params.mandate.mission_id)!.tasks[assignment.id];
+    if (completed?.run_id === runId && completed.status === 'complete') {
+      let artifacts = storedArtifacts(completed.artifacts);
+      if (params.artifactCollector) artifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id);
+      const evidence = Array.isArray(completed.evidence) ? completed.evidence.filter((item): item is string => typeof item === 'string') : [];
+      workerEvidence.push(...evidence, ...artifacts.map((artifact) => `artifact:${artifact.kind}:${artifact.sha256}:${artifact.reference}:${artifact.bytes}`));
+      run.completed_assignments += 1;
+      continue;
+    }
     if (cancelled()) return { ...run, status: 'failed', reason: 'cancelled' };
     if (expired()) {
       append('failure.recorded', { id: `${runId}-deadline`, run_id: runId, reason: 'runtime_limit_exceeded' }, 'langgraph');

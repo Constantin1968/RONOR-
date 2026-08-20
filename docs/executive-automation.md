@@ -98,6 +98,13 @@ relative reference, byte count and SHA-256 digest. Existing evidence is reused
 only when its digest matches; collisions, symlinks, path escapes and oversized
 outputs fail the run before verification.
 
+The first accepted LangGraph plan is stored as a Fabric checkpoint. On restart,
+the same mandate and deterministic run id reuse that plan, skip tasks already
+marked complete, re-hash their authoritative artifacts and continue from the
+next assignment. A Victoria PASS is returned idempotently without invoking any
+adapter. Failed attempts are counted against `max_fix_cycles`; exceeding the
+ceiling blocks further resume attempts.
+
 ## Local model cabinet
 
 Ollama is a first-class, fail-closed local provider. Set `OLLAMA_ENABLED=true`

@@ -97,16 +97,37 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(a.executeCount()).toBe(0);
   });
 
-  it('consumes a mandate once and blocks replay before adapter invocation', async () => {
+  it('returns a completed mandate idempotently without adapter reinvocation', async () => {
     const mission = createMission({ title: 'No replay', objective, operatorId: 'merlin' });
     const m = mandate(mission.mission_id);
     const firstAdapters = adapters([{ id: 'task-once', instruction: 'Implement', actions: ['edit_worktree'] }]);
     expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: firstAdapters })).status).toBe('complete');
     const replayAdapters = adapters([{ id: 'task-replay', instruction: 'Replay', actions: ['edit_worktree'] }]);
     const replay = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: replayAdapters });
-    expect(replay.status).toBe('blocked');
-    expect(replay.reason).toBe('mandate_already_consumed');
+    expect(replay.status).toBe('complete');
+    expect(replay.reason).toBeNull();
     expect(replayAdapters.executeCount()).toBe(0);
+  });
+
+  it('resumes a checkpointed plan without rerunning completed assignments', async () => {
+    const mission = createMission({ title: 'Resume', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const first = adapters([
+      { id: 'resume-1', instruction: 'First', actions: ['edit_worktree'] },
+      { id: 'resume-2', instruction: 'Second', actions: ['run_tests'] },
+    ]);
+    let calls = 0;
+    first.openhands.execute = async () => {
+      calls += 1;
+      if (calls === 2) throw new Error('transient');
+      return { ok: true, summary: 'done', evidence: ['first:done'], cost_usd: 0 };
+    };
+    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first })).reason).toBe('openhands_failed');
+    const resumed = adapters([{ id: 'different-plan', instruction: 'must not be used', actions: ['read_repo'] }]);
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    expect(result.status).toBe('complete');
+    expect(result.completed_assignments).toBe(2);
+    expect(resumed.executeCount()).toBe(1);
   });
 
   it('stops when Codex fails and never asks Victoria to approve', async () => {

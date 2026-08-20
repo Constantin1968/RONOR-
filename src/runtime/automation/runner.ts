@@ -3,6 +3,7 @@ import { appendMissionFabricEvent, getMission, getMissionFabric } from '../missi
 import { actionPermitted, validateMandate } from './policy';
 import { isAutomationAction, type AutomationAdapters, type AutomationRun, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment } from './contracts';
 import type { WorkspaceArtifactCollector } from './artifacts';
+import type { TestExecutor } from './test-executor';
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
@@ -38,6 +39,7 @@ export async function runExecutiveMission(params: {
   now?: () => Date;
   signal?: AbortSignal;
   artifactCollector?: WorkspaceArtifactCollector;
+  testExecutor?: TestExecutor;
 }): Promise<AutomationRun> {
   const now = params.now ?? (() => new Date());
   const startedAt = now().getTime();
@@ -108,7 +110,7 @@ export async function runExecutiveMission(params: {
     const completed = getMissionFabric(params.mandate.mission_id)!.tasks[assignment.id];
     if (completed?.run_id === runId && completed.status === 'complete') {
       let artifacts = storedArtifacts(completed.artifacts);
-      if (params.artifactCollector) artifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id);
+      if (params.artifactCollector) artifacts = params.artifactCollector.verify(artifacts);
       const evidence = Array.isArray(completed.evidence) ? completed.evidence.filter((item): item is string => typeof item === 'string') : [];
       workerClaims.push(...evidence);
       workerArtifacts.push(...artifacts);
@@ -140,6 +142,14 @@ export async function runExecutiveMission(params: {
     if (params.artifactCollector) {
       try { authoritativeArtifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id); }
       catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return terminal(run, 'failed', 'artifact_collection_failed', 'evidence', 'openhands'); }
+    }
+    if (assignment.actions.includes('run_tests')) {
+      if (!params.testExecutor) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-unavailable`, run_id: runId, reason: 'test_executor_not_configured' }, 'openhands'); return terminal(run, 'failed', 'test_executor_not_configured', 'tests', 'openhands'); }
+      let tests;
+      try { tests = params.testExecutor.run(params.workspaceRoot, runId, assignment.id, params.signal); }
+      catch { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-failed`, run_id: runId, reason: cancelled() ? 'cancelled' : 'test_execution_failed' }, 'openhands'); return terminal(run, 'failed', cancelled() ? 'cancelled' : 'test_execution_failed', 'tests', 'openhands'); }
+      workerClaims.push(...tests.claims); authoritativeArtifacts.push(tests.artifact);
+      if (!tests.passed) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-nonzero`, run_id: runId, reason: 'tests_failed' }, 'openhands'); return terminal(run, 'failed', 'tests_failed', 'tests', 'openhands'); }
     }
     run.completed_assignments += 1;
     workerClaims.push(...result.evidence);

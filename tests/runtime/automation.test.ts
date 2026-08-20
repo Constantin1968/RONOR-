@@ -2,10 +2,12 @@ import { createMission, getMissionFabric } from '../../src/runtime/mission/store
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
 import { runExecutiveMission } from '../../src/runtime/automation/runner';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
+import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
 const objective = 'Implement and verify a bounded RONOR feature.';
 const workspace = 'C:/sandbox/ronor';
 const branch = 'agent/mission-1';
+const testExecutor: TestExecutor = { run: () => ({ passed: true, claims: ['tests:pass'], artifact: { kind: 'test_report', sha256: 'f'.repeat(64), reference: 'run/test-report.json', bytes: 10 } }) };
 
 function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): ExecutionMandate {
   return {
@@ -76,7 +78,7 @@ describe('Executive Mission Runner · governed execution', () => {
       { id: 'task-automation-1', instruction: 'Implement in worktree', actions: ['read_repo', 'edit_worktree', 'run_tests', 'commit_local'] },
     ]);
     const result = await runExecutiveMission({
-      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a,
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a, testExecutor,
     });
     expect(result.status).toBe('complete');
     expect(result.completed_assignments).toBe(1);
@@ -124,9 +126,9 @@ describe('Executive Mission Runner · governed execution', () => {
       if (calls === 2) throw new Error('transient');
       return { ok: true, summary: 'done', evidence: ['first:done'], cost_usd: 0 };
     };
-    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first })).reason).toBe('openhands_failed');
+    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first, testExecutor })).reason).toBe('openhands_failed');
     const resumed = adapters([{ id: 'different-plan', instruction: 'must not be used', actions: ['read_repo'] }]);
-    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed, testExecutor });
     expect(result.status).toBe('complete');
     expect(result.completed_assignments).toBe(2);
     expect(resumed.executeCount()).toBe(1);
@@ -145,6 +147,22 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(result.status).toBe('failed');
     expect(result.reason).toBe('codex_verification_failed');
     expect(assuranceCalls).toBe(0);
+  });
+
+  it('creates an authoritative test report before Codex can verify', async () => {
+    const mission = createMission({ title: 'Test evidence', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-tests', instruction: 'Run governed tests', actions: ['run_tests'] }]);
+    let received: unknown;
+    a.codex.verify = async (_missionId, evidence) => { received = evidence; return { ok: true, verdict: 'pass', summary: 'verified', evidence: [], cost_usd: 0 }; };
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a, testExecutor });
+    expect(result.status).toBe('complete');
+    expect(received).toEqual(expect.objectContaining({ claims: expect.arrayContaining(['tests:pass']), artifacts: expect.arrayContaining([expect.objectContaining({ kind: 'test_report' })]) }));
+  });
+
+  it('fails closed when a planned test has no authoritative executor', async () => {
+    const mission = createMission({ title: 'Missing test authority', objective, operatorId: 'merlin' });
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: adapters([{ id: 'task-tests-missing', instruction: 'Run tests', actions: ['run_tests'] }]) });
+    expect(result.status).toBe('failed'); expect(result.reason).toBe('test_executor_not_configured');
   });
 
   it('passes actual OpenHands evidence to Codex instead of checkpoint hashes', async () => {

@@ -11,6 +11,7 @@ export interface WorkspaceArtifactCollector {
   collect(workspaceRoot: string, runId: string, assignmentId: string): EvidenceArtifact[];
   verify(artifacts: EvidenceArtifact[]): EvidenceArtifact[];
   read(artifacts: EvidenceArtifact[]): Array<{ artifact: EvidenceArtifact; content: string }>;
+  recordTestReport(runId: string, assignmentId: string, report: unknown): EvidenceArtifact;
 }
 
 function digest(content: Buffer): string {
@@ -98,6 +99,9 @@ export function createWorkspaceArtifactCollector(artifactRoot: string): Workspac
       const verified = verify(artifacts);
       if (verified.reduce((total, item) => total + item.bytes, 0) > 4 * 1024 * 1024) throw new Error('artifact_read_budget_exceeded');
       return verified.map((artifact) => ({ artifact, content: readFileSync(path.resolve(canonicalRoot, ...artifact.reference.split('/')), 'utf8') }));
+    },
+    recordTestReport(runId, assignmentId, report) {
+      return persist(runId, assignmentId, 'test-report.json', 'test_report', Buffer.from(JSON.stringify(report), 'utf8'));
     },
   };
 }

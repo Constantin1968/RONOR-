@@ -60,6 +60,7 @@ RONOR_OPENHANDS_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_AUTOMATION_WORKSPACE_ROOT=
 RONOR_AUTOMATION_ARTIFACT_ROOT=
+RONOR_AUTOMATION_TEST_COMMANDS_JSON=
 RONOR_AUTOMATION_EXPECTED_ORIGIN=https://github.com/Constantin1968/RONOR-.git
 RONOR_AUTOMATION_EXPECTED_HEAD=
 RONOR_CODEX_VERIFIER_URL=
@@ -78,6 +79,16 @@ OpenAI Responses API with `store:false`, no tools and a strict JSON-schema
 verdict. The model and current per-million-token prices are mandatory operator
 configuration so cost accounting cannot silently assume a free or guessed
 price. Evidence above the bounded context is refused rather than truncated.
+
+`RONOR_AUTOMATION_TEST_COMMANDS_JSON` is a server-side allowlist, never mission
+input. It contains bounded objects such as
+`[{"id":"jest","executable":"npm","args":["test","--","--runInBand"],"timeout_ms":900000}]`.
+RONOR invokes each executable directly with `shell:false`, a secretless minimal
+environment, output limits and a per-command timeout. Shell interpreters are
+refused. A SHA-256 `ronor-test-report/v1` artifact is written atomically; a
+non-zero exit, timeout, cancellation, secret-like output or missing executor
+stops the run before Codex. The executor must still run inside the dedicated
+automation container/worktree—the allowlist does not replace OS isolation.
 
 ## Native OpenHands bridge
 

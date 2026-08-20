@@ -10,6 +10,7 @@ const evidence: VerificationEvidence = { claims: ['tests:pass'], artifacts };
 const collector = (overrides: Partial<WorkspaceArtifactCollector> = {}): WorkspaceArtifactCollector => ({
   collect: jest.fn(() => artifacts), verify: jest.fn((items) => items),
   read: jest.fn((items) => items.map((artifact) => ({ artifact, content: 'safe' }))), ...overrides,
+  recordTestReport: jest.fn(() => artifacts[2]),
 });
 
 describe('independent verification authorities', () => {

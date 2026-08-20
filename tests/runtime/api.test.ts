@@ -12,6 +12,7 @@
 
 import express from 'express';
 import request from 'supertest';
+import { createMission } from '../../src/runtime/mission/store';
 import {
   INSECURE_DEFAULT_KEY,
   authenticate,

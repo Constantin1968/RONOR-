@@ -123,4 +123,40 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(result.reason).toBe('codex_verification_failed');
     expect(assuranceCalls).toBe(0);
   });
+
+  it('passes actual OpenHands evidence to Codex instead of checkpoint hashes', async () => {
+    const mission = createMission({ title: 'Evidence', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-evidence', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    let received: string[] = [];
+    a.codex.verify = async (_missionId, evidence) => {
+      received = evidence;
+      return { ok: true, verdict: 'pass', summary: 'verified', evidence: ['codex:pass'], cost_usd: 0 };
+    };
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result.status).toBe('complete');
+    expect(received).toEqual(['diff:abc', 'tests:pass']);
+  });
+
+  it('enforces the wall-clock deadline before invoking OpenHands', async () => {
+    const mission = createMission({ title: 'Deadline', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-late', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    const ticks = [new Date('2026-08-20T00:00:00Z'), new Date('2026-08-20T00:00:00Z'), new Date('2026-08-20T00:02:00Z')];
+    const result = await runExecutiveMission({
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_runtime_minutes: 1 }), adapters: a,
+      now: () => ticks.shift() ?? new Date('2026-08-20T00:02:00Z'),
+    });
+    expect(result.reason).toBe('runtime_limit_exceeded');
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('blocks assurance when Codex pushes total cost over budget', async () => {
+    const mission = createMission({ title: 'Budget', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-budget', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    let assuranceCalls = 0;
+    a.codex.verify = async () => ({ ok: true, verdict: 'pass', summary: 'verified', evidence: [], cost_usd: 1 });
+    a.assurance.accept = async () => { assuranceCalls += 1; return { ok: true, verdict: 'pass', summary: 'accepted', evidence: [], cost_usd: 0 }; };
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_cost_usd: 0.5 }), adapters: a });
+    expect(result.reason).toBe('cost_limit_exceeded');
+    expect(assuranceCalls).toBe(0);
+  });
 });

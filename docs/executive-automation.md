@@ -215,3 +215,41 @@ Qwen 3.8 Max, Coder Plus, Omni and Image remain credential-gated cloud routes.
 Uninstalled self-hosted candidates are visible but ineligible until their exact
 model is installed and declared. Manus remains deferred until after 26 August
 2026; no Manus credential or execution path is enabled.
+
+## Isolated automation composition
+
+`docker-compose.automation.yml` is an opt-in plane, separate from production
+and never started by normal RONOR deployment. It pins OpenHands Agent Server to
+`1.42.1-python`, publishes control ports on loopback only, drops every Linux
+capability, and uses non-root identities, read-only filesystems, bounded
+resources and `no-new-privileges`.
+
+Only OpenHands receives a writable mount: a dedicated Git worktree on the
+approved branch. Codex and Victoria see artifacts read-only. No service mounts
+the Docker socket, SSH agent, home directory, Tailscale socket, GitHub
+credential store or production environment. Host credentials therefore cannot
+be used to push, merge or deploy.
+
+Secrets live outside Git under `RONOR_AUTOMATION_SECRET_DIR`; RONOR services
+consume Docker secret files through `*_FILE`. The upstream Agent Server's
+session key is supplied from ignored, permission-restricted `.env.automation`,
+never Compose or Mission Fabric. Each service identity must be distinct.
+
+The `automation-control` network is internal. Only OpenHands and Codex also
+join a pre-created `ronor-model-egress` network, which the host firewall/proxy
+must restrict to approved model gateways. A generic Internet-connected bridge
+does not meet this policy.
+
+Safe static validation (nothing is started):
+
+```text
+docker compose --env-file .env.automation -f docker-compose.automation.yml config
+npm run typecheck
+npm test -- --runInBand tests/runtime/automation-container-policy.test.ts
+```
+
+Activation is separately human-approved. Record the base commit/worktree,
+verify network policy and secret-file permissions, then require authenticated
+health attestation. On failure, stop the composition, rotate its identities and
+retain artifacts for audit. Production, `main`, releases and deployments remain
+outside this composition.

@@ -1,0 +1,137 @@
+name: ronor-automation
+
+# Opt-in development automation plane. This file is deliberately separate from
+# the production stack and publishes only loopback control ports. It neither
+# mounts the Docker socket nor receives SSH/GitHub credentials.
+x-ronor-service: &ronor-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  image: ronor-automation:${RONOR_AUTOMATION_IMAGE_TAG:-local}
+  user: "10001:10001"
+  read_only: true
+  init: true
+  restart: "no"
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 512m
+  cpus: 1.0
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=128m
+  networks: [automation-control]
+
+services:
+  langgraph:
+    <<: *ronor-service
+    command: [node, dist/runtime/automation/services/langgraph-local.js]
+    environment:
+      RONOR_LANGGRAPH_HOST: 0.0.0.0
+      RONOR_LANGGRAPH_PORT: "2024"
+      RONOR_LANGGRAPH_TOKEN_FILE: /run/secrets/langgraph_token
+    secrets: [langgraph_token]
+    ports: ["127.0.0.1:2024:2024"]
+
+  openhands-agent:
+    image: ghcr.io/openhands/agent-server:1.42.1-python
+    user: "10001:10001"
+    read_only: true
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 4g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m
+    command: [--host, 0.0.0.0, --port, "8000"]
+    environment:
+      # Agent Server presently consumes this value directly. Supply it only
+      # through the ignored .env.automation file; it is never committed.
+      SESSION_API_KEY: ${RONOR_OPENHANDS_SESSION_API_KEY:?set in .env.automation}
+      LLM_MODEL: ${RONOR_OPENHANDS_LLM_MODEL:?set in .env.automation}
+      LLM_BASE_URL: ${RONOR_OPENHANDS_LLM_BASE_URL:?set in .env.automation}
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_WORKTREE:?absolute dedicated worktree required}
+        target: /workspace/project
+        read_only: false
+    networks: [automation-control, model-egress]
+
+  openhands-bridge:
+    <<: *ronor-service
+    command: [node, dist/runtime/automation/services/openhands-bridge-server.js]
+    depends_on: [openhands-agent]
+    environment:
+      RONOR_OPENHANDS_AGENT_SERVER_URL: http://openhands-agent:8000
+      RONOR_OPENHANDS_BRIDGE_HOST: 0.0.0.0
+      RONOR_OPENHANDS_BRIDGE_PORT: "3001"
+      RONOR_OPENHANDS_SESSION_API_KEY_FILE: /run/secrets/openhands_session_key
+      RONOR_OPENHANDS_BRIDGE_TOKEN_FILE: /run/secrets/openhands_bridge_token
+      RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
+    secrets: [openhands_session_key, openhands_bridge_token, automation_capability_key]
+    ports: ["127.0.0.1:3001:3001"]
+
+  codex-verifier:
+    <<: *ronor-service
+    command: [node, dist/runtime/automation/services/verification-authorities-server.js, codex]
+    environment:
+      RONOR_AUTHORITY_HOST: 0.0.0.0
+      RONOR_CODEX_VERIFIER_PORT: "3002"
+      RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
+      RONOR_CODEX_VERIFIER_TOKEN_FILE: /run/secrets/codex_verifier_token
+      RONOR_CODEX_API_KEY_FILE: /run/secrets/codex_api_key
+      RONOR_CODEX_MODEL: ${RONOR_CODEX_MODEL:?set in .env.automation}
+      RONOR_CODEX_INPUT_USD_PER_MTOK: ${RONOR_CODEX_INPUT_USD_PER_MTOK:?set current rate}
+      RONOR_CODEX_OUTPUT_USD_PER_MTOK: ${RONOR_CODEX_OUTPUT_USD_PER_MTOK:?set current rate}
+    secrets: [codex_verifier_token, codex_api_key]
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
+        target: /artifacts
+        read_only: true
+    networks: [automation-control, model-egress]
+    ports: ["127.0.0.1:3002:3002"]
+
+  victoria-assurance:
+    <<: *ronor-service
+    command: [node, dist/runtime/automation/services/verification-authorities-server.js, assurance]
+    environment:
+      RONOR_AUTHORITY_HOST: 0.0.0.0
+      RONOR_ASSURANCE_PORT: "3003"
+      RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
+      RONOR_ASSURANCE_TOKEN_FILE: /run/secrets/assurance_token
+    secrets: [assurance_token]
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
+        target: /artifacts
+        read_only: true
+    ports: ["127.0.0.1:3003:3003"]
+
+networks:
+  automation-control:
+    internal: true
+  # Must be a pre-created, firewall-restricted network reaching only the
+  # approved model gateway. Compose will fail rather than create broad egress.
+  model-egress:
+    name: ronor-model-egress
+    external: true
+
+secrets:
+  langgraph_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/langgraph_token
+  openhands_session_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/openhands_session_key
+  openhands_bridge_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/openhands_bridge_token
+  automation_capability_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/automation_capability_key
+  codex_verifier_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_verifier_token
+  codex_api_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_api_key
+  assurance_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_token

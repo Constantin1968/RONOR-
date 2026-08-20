@@ -32,6 +32,7 @@ release-artifacts/
 # OS
 Thumbs.db
 .env.docker
+.env.automation
 
 # Local production configuration and recovery copies
 .env.production

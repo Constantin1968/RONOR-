@@ -1,6 +1,7 @@
 import express from 'express';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import type { AutomationAction, PlannedAssignment } from '../contracts';
+import { requiredSecret } from './secret-files';
 
 const PlanState = Annotation.Root({
   objective: Annotation<string>(),
@@ -65,9 +66,9 @@ export function createLangGraphLocalApp(config: { serviceToken?: string } = {}) 
 
 if (require.main === module) {
   const port = Number(process.env.RONOR_LANGGRAPH_PORT ?? 2024);
-  const serviceToken = process.env.RONOR_LANGGRAPH_TOKEN;
-  if (!serviceToken) throw new Error('RONOR_LANGGRAPH_TOKEN_required');
-  createLangGraphLocalApp({ serviceToken }).listen(port, '127.0.0.1', () => {
-    process.stdout.write(`RONOR LangGraph local listening on 127.0.0.1:${port}\n`);
+  const serviceToken = requiredSecret('RONOR_LANGGRAPH_TOKEN');
+  const host = process.env.RONOR_LANGGRAPH_HOST || '127.0.0.1';
+  createLangGraphLocalApp({ serviceToken }).listen(port, host, () => {
+    process.stdout.write(`RONOR LangGraph local listening on ${host}:${port}\n`);
   });
 }

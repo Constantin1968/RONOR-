@@ -1,21 +1,16 @@
 import { createNativeOpenHandsClient } from '../adapters/openhands-native';
 import { createOpenHandsBridgeApp } from './openhands-bridge';
-
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name}_required`);
-  return value;
-}
+import { requiredSecret } from './secret-files';
 
 export async function startOpenHandsBridge() {
   const native = createNativeOpenHandsClient({
-    baseUrl: required('RONOR_OPENHANDS_AGENT_SERVER_URL'),
-    sessionApiKey: required('RONOR_OPENHANDS_SESSION_API_KEY'),
+    baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
+    sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
   });
   if (!await native.health()) throw new Error('openhands_agent_server_not_ready');
   const app = createOpenHandsBridgeApp({
-    capabilityKey: required('RONOR_AUTOMATION_CAPABILITY_KEY'),
-    serviceToken: required('RONOR_OPENHANDS_BRIDGE_TOKEN'),
+    capabilityKey: requiredSecret('RONOR_AUTOMATION_CAPABILITY_KEY'),
+    serviceToken: requiredSecret('RONOR_OPENHANDS_BRIDGE_TOKEN'),
     client: native,
   });
   const host = process.env.RONOR_OPENHANDS_BRIDGE_HOST || '127.0.0.1';

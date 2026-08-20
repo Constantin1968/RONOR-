@@ -35,6 +35,10 @@ Credentials are read from environment variables and are never returned by the
 status API. The registry fails closed unless automation is explicitly enabled
 and all four endpoints are configured. OpenHands, Codex and Assurance must use
 distinct endpoint and credential identities; aliasing any of them fails closed.
+Immediately before execution, the runtime performs authenticated `GET /health`
+attestation against every service and requires its pinned `ronor-*/v1` protocol.
+A configured URL is therefore never treated as proof of readiness, redirects are
+refused, and any unavailable or incompatible authority stops the run.
 
 ```text
 RONOR_AUTOMATION_ENABLED=false

@@ -75,6 +75,7 @@ import type { ExecutionMandate } from '../automation/contracts';
 import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
+import { attestAutomationAdapters } from '../automation/attestation';
 
 /**
  * Build the runtime router.
@@ -524,6 +525,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(422).json({ ok: false, error: 'workspace_policy_refused', reason: workspace.valid ? 'branch_request_mismatch' : workspace.reason });
         return;
       }
+      try { await attestAutomationAdapters(env); }
+      catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
       const runId = executionRunId(mandate.mandate_id);
       const control = registerAutomationRun(runId, mandate.mission_id);
       if (!control) { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }

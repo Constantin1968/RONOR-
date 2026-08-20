@@ -42,11 +42,15 @@ export const planningGraph = new StateGraph(PlanState)
   .addEdge('plan', END)
   .compile();
 
-export function createLangGraphLocalApp() {
+export function createLangGraphLocalApp(config: { serviceToken?: string } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '32kb' }));
-  app.get('/health', (_req, res) => res.json({ ok: true, service: 'ronor-langgraph-local' }));
+  if (config.serviceToken) app.use((req, res, next) => {
+    if (req.header('authorization') !== `Bearer ${config.serviceToken}`) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
+    next();
+  });
+  app.get('/health', (_req, res) => res.json({ ok: true, protocol: 'ronor-langgraph/v1' }));
   app.post('/v1/plan', async (req, res) => {
     const objective = typeof req.body?.objective === 'string' ? req.body.objective.trim() : '';
     if (!objective || objective.length > 8000) {
@@ -61,7 +65,9 @@ export function createLangGraphLocalApp() {
 
 if (require.main === module) {
   const port = Number(process.env.RONOR_LANGGRAPH_PORT ?? 2024);
-  createLangGraphLocalApp().listen(port, '127.0.0.1', () => {
+  const serviceToken = process.env.RONOR_LANGGRAPH_TOKEN;
+  if (!serviceToken) throw new Error('RONOR_LANGGRAPH_TOKEN_required');
+  createLangGraphLocalApp({ serviceToken }).listen(port, '127.0.0.1', () => {
     process.stdout.write(`RONOR LangGraph local listening on 127.0.0.1:${port}\n`);
   });
 }

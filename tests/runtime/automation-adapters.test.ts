@@ -38,6 +38,10 @@ describe('live automation adapter boundary', () => {
     await expect(adapter.plan('objective')).rejects.toThrow('adapter_url_requires_https_or_loopback');
   });
 
+  it('requires service authentication on loopback before reporting readiness', () => {
+    expect(automationAdapterStatus({ RONOR_LANGGRAPH_URL: 'http://127.0.0.1:2024' }).adapters.langgraph).toBe('authentication-required');
+  });
+
   it('requires authentication for remote services and disables redirects', async () => {
     const remote = createLangGraphAdapter({ baseUrl: 'https://graph.invalid', fetcher: jest.fn() });
     await expect(remote.plan('objective')).rejects.toThrow('adapter_auth_required');

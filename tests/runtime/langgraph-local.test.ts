@@ -22,4 +22,12 @@ describe('RONOR local LangGraph planner', () => {
     expect(response.status).toBe(200);
     expect(response.body.assignments[0].id).toMatch(/^langgraph-/);
   });
+
+  it('authenticates both health attestation and planning when configured', async () => {
+    const app = createLangGraphLocalApp({ serviceToken: 'graph-secret' });
+    expect((await request(app).get('/health')).status).toBe(401);
+    const health = await request(app).get('/health').set('Authorization', 'Bearer graph-secret');
+    expect(health.body.protocol).toBe('ronor-langgraph/v1');
+    expect((await request(app).post('/v1/plan').send({ objective: 'test runtime' })).status).toBe(401);
+  });
 });

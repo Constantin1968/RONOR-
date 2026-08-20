@@ -14,6 +14,7 @@ function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): 
     mandate_id: `mandate-${missionId}`,
     mission_id: missionId,
     issued_by: 'merlin',
+    issued_by_key_id: 'key_0123456789ab',
     objective_hash: objectiveHash(objective),
     workspace_root: workspace,
     branch_prefix: 'agent/',

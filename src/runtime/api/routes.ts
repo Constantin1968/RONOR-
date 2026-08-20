@@ -71,12 +71,12 @@ import { planExecutiveDelegation } from '../management/executive';
 import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
 import { executionRunId, runExecutiveMission } from '../automation/runner';
 import { cancelAutomationRun, registerAutomationRun } from '../automation/run-control';
-import type { ExecutionMandate } from '../automation/contracts';
 import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
 import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
+import { issueArchitectMandate } from '../automation/mandate-issuer';
 
 /**
  * Build the runtime router.
@@ -492,19 +492,38 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(409).json({ ok: false, error: 'mandate_approval_required' });
         return;
       }
+      if ('mandate' in body || 'objective' in body || 'issued_by' in body || 'allowed_actions' in body) {
+        res.status(400).json({ ok: false, error: 'client_authority_fields_forbidden' });
+        return;
+      }
+      const missionId = sanitiseIdentifier(body.mission_id, 120);
+      const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
+      const branch = sanitiseIdentifier(body.branch, 200);
+      const mission = missionId ? getMission(missionId) : null;
+      if (!mission || !workspaceRoot || !branch || !req.apiKey) {
+        res.status(400).json({ ok: false, error: 'invalid_automation_request' });
+        return;
+      }
       const adapters = configuredAutomationAdapters(env);
       if (!adapters) {
         res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
         return;
       }
-      const objective = sanitiseFreeText(body.objective, 8000);
-      const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
-      const branch = sanitiseIdentifier(body.branch, 200);
-      const mandate = body.mandate && typeof body.mandate === 'object' && !Array.isArray(body.mandate)
-        ? body.mandate as ExecutionMandate
-        : null;
-      if (!objective || !workspaceRoot || !branch || !mandate) {
-        res.status(400).json({ ok: false, error: 'invalid_automation_request' });
+      let mandate;
+      try {
+        const optionalNumber = (value: unknown) => value === undefined ? undefined : Number(value);
+        mandate = issueArchitectMandate({
+          missionId: mission.mission_id, objective: mission.objective, workspaceRoot, branch, architectKeyId: req.apiKey.key_id,
+          maxCostUsd: optionalNumber(body.max_cost_usd),
+          maxRuntimeMinutes: optionalNumber(body.max_runtime_minutes),
+          maxFixCycles: optionalNumber(body.max_fix_cycles),
+        }, {
+          maxCostUsd: Number(env.RONOR_AUTOMATION_MAX_COST_USD ?? 5),
+          maxRuntimeMinutes: Number(env.RONOR_AUTOMATION_MAX_RUNTIME_MINUTES ?? 60),
+          maxFixCycles: Number(env.RONOR_AUTOMATION_MAX_FIX_CYCLES ?? 3),
+        });
+      } catch {
+        res.status(422).json({ ok: false, error: 'mandate_policy_refused' });
         return;
       }
       if (!env.RONOR_AUTOMATION_WORKSPACE_ROOT) {
@@ -540,7 +559,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
         const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
         const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: env.RONOR_AUTOMATION_WORKSPACE_ROOT, baseEnv });
-        const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
+        const run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
         res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
       } finally { control.finish(); }
     }),

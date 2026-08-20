@@ -14,6 +14,7 @@ export interface ExecutionMandate {
   mandate_id: string;
   mission_id: string;
   issued_by: 'merlin';
+  issued_by_key_id: string;
   objective_hash: string;
   workspace_root: string;
   branch_prefix: string;

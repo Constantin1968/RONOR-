@@ -18,6 +18,15 @@ actions. Objective digest, workspace, branch prefix, expiry, cost, duration and
 fix-cycle ceilings bind the mandate. A new approval is required to expand any of
 those boundaries.
 
+The CONTROL client approves a mission, workspace, exact branch and bounded
+cost/time/fix-cycle request; it never submits an `ExecutionMandate`. After
+`requireArchitect` authenticates the dedicated Merlin credential, RONOR creates
+the mandate server-side, binds it to that credential's non-secret key id and
+the stored mission objective, assigns a random identifier, derives the action
+sets and timestamps, and caps every requested limit by server policy. Client
+authority fields are refused. Exact branches do not use lexical-prefix matching;
+namespace authorization is possible only when policy explicitly ends in `/`.
+
 The implementation is adapter-driven. Tests use in-process doubles and perform
 no external calls. Live LangGraph and OpenHands adapters remain disabled until a
 dedicated sandbox and service identities are configured. Codex and Victoria are

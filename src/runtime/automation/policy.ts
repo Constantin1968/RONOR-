@@ -18,9 +18,12 @@ export function validateMandate(
   context: { objective: string; workspaceRoot: string; branch: string; now?: Date },
 ): { valid: boolean; reason: string | null } {
   if (mandate.issued_by !== 'merlin') return { valid: false, reason: 'issuer_not_architect' };
+  if (!/^key_[a-f0-9]{12}$/.test(mandate.issued_by_key_id)) return { valid: false, reason: 'issuer_identity_invalid' };
   if (objectiveHash(context.objective) !== mandate.objective_hash) return { valid: false, reason: 'objective_mismatch' };
   if (context.workspaceRoot !== mandate.workspace_root) return { valid: false, reason: 'workspace_mismatch' };
-  if (!context.branch.startsWith(mandate.branch_prefix)) return { valid: false, reason: 'branch_outside_mandate' };
+  const branchAllowed = context.branch === mandate.branch_prefix ||
+    (mandate.branch_prefix.endsWith('/') && context.branch.startsWith(mandate.branch_prefix));
+  if (!branchAllowed) return { valid: false, reason: 'branch_outside_mandate' };
   const now = (context.now ?? new Date()).getTime();
   if (now < Date.parse(mandate.issued_at) || now >= Date.parse(mandate.expires_at)) {
     return { valid: false, reason: 'mandate_expired_or_not_yet_valid' };
@@ -38,4 +41,3 @@ export function actionPermitted(mandate: ExecutionMandate, action: AutomationAct
   if (ALWAYS_DENIED_ACTIONS.includes(action)) return false;
   return mandate.allowed_actions.includes(action) && !mandate.denied_actions.includes(action);
 }
-

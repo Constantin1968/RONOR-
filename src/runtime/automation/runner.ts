@@ -80,7 +80,10 @@ export async function runExecutiveMission(params: {
     emitStatus(result, stage, actor);
     return result;
   };
-  if (!mandateClaimed) append('checkpoint.created', { id: `${runId}-mandate`, run_id: runId, mandate_id: params.mandate.mandate_id, status: 'granted' }, 'langgraph');
+  if (!mandateClaimed) append('checkpoint.created', {
+    id: `${runId}-mandate`, run_id: runId, mandate_id: params.mandate.mandate_id,
+    issued_by_key_id: params.mandate.issued_by_key_id, status: 'granted',
+  }, 'langgraph');
 
   const expired = () => now().getTime() >= deadline;
   const cancelled = () => params.signal?.aborted === true;

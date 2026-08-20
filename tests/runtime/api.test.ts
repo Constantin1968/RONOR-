@@ -658,6 +658,12 @@ describe('L0 · read surfaces', () => {
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
       .send({});
     expect(unapproved.status).toBe(409);
+    const forged = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ approved: true, mandate: { issued_by: 'merlin' } });
+    expect(forged.status).toBe(400);
+    expect(forged.body.error).toBe('client_authority_fields_forbidden');
     const unavailable = await request(app)
       .post('/api/runtime/control/automation/run')
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)

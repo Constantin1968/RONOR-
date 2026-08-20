@@ -1,6 +1,8 @@
-import type { AdapterResult, ExecutionMandate, PlannedAssignment, VerificationVerdict } from '../contracts';
+import { isAutomationAction, type AdapterResult, type ExecutionMandate, type PlannedAssignment, type VerificationVerdict } from '../contracts';
 
 type Fetcher = typeof fetch;
+const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
+const MAX_ASSIGNMENTS = 25;
 
 export class AutomationAdapterError extends Error {}
 
@@ -21,16 +23,23 @@ function cleanStrings(value: unknown, maximum = 50): string[] {
 
 async function postJson(params: { baseUrl: string; path: string; token?: string; body: unknown; fetcher: Fetcher; timeoutMs: number }): Promise<Record<string, unknown>> {
   const base = safeBaseUrl(params.baseUrl);
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
+  if (!loopback && !params.token) throw new AutomationAdapterError('adapter_auth_required');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
     const response = await params.fetcher(new URL(base.pathname + params.path, base.origin), {
-      method: 'POST', signal: controller.signal,
+      method: 'POST', signal: controller.signal, redirect: 'error',
       headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}) },
       body: JSON.stringify(params.body),
     });
     if (!response.ok) throw new AutomationAdapterError(`adapter_http_${response.status}`);
-    const value: unknown = await response.json();
+    const contentLength = Number(response.headers.get('content-length') ?? 0);
+    if (contentLength > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
+    const raw = await response.text();
+    if (new TextEncoder().encode(raw).byteLength > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
+    let value: unknown;
+    try { value = JSON.parse(raw); } catch { throw new AutomationAdapterError('adapter_invalid_json'); }
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AutomationAdapterError('adapter_invalid_json');
     return value as Record<string, unknown>;
   } catch (error) {
@@ -43,11 +52,16 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
   return { async plan(objective: string): Promise<PlannedAssignment[]> {
     const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/plan', token: config.token, body: { objective }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 30_000 });
     if (!Array.isArray(body.assignments)) throw new AutomationAdapterError('langgraph_assignments_missing');
+    if (body.assignments.length === 0 || body.assignments.length > MAX_ASSIGNMENTS) throw new AutomationAdapterError('langgraph_assignment_count_invalid');
+    const seen = new Set<string>();
     return body.assignments.map((raw) => {
       if (!raw || typeof raw !== 'object') throw new AutomationAdapterError('langgraph_assignment_invalid');
       const item = raw as Record<string, unknown>;
-      if (typeof item.id !== 'string' || typeof item.instruction !== 'string') throw new AutomationAdapterError('langgraph_assignment_invalid');
-      return { id: item.id.slice(0, 120), instruction: item.instruction.slice(0, 8000), actions: cleanStrings(item.actions, 20) as PlannedAssignment['actions'] };
+      if (typeof item.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(item.id) || seen.has(item.id) || typeof item.instruction !== 'string' || item.instruction.length === 0) throw new AutomationAdapterError('langgraph_assignment_invalid');
+      seen.add(item.id);
+      const actions = cleanStrings(item.actions, 20);
+      if (actions.length === 0 || !actions.every(isAutomationAction)) throw new AutomationAdapterError('langgraph_action_invalid');
+      return { id: item.id, instruction: item.instruction.slice(0, 8000), actions };
     });
   }};
 }

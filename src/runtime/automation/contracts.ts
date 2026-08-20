@@ -1,7 +1,14 @@
-export type AutomationAction =
-  | 'read_repo' | 'create_branch' | 'edit_worktree' | 'run_tests' | 'commit_local' | 'prepare_draft_pr'
-  | 'external_send' | 'secrets_read' | 'main_write' | 'push' | 'merge' | 'release' | 'deploy'
-  | 'financial_action' | 'destructive_action';
+export const AUTOMATION_ACTIONS = [
+  'read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local', 'prepare_draft_pr',
+  'external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy',
+  'financial_action', 'destructive_action',
+] as const;
+
+export type AutomationAction = typeof AUTOMATION_ACTIONS[number];
+
+export function isAutomationAction(value: unknown): value is AutomationAction {
+  return typeof value === 'string' && (AUTOMATION_ACTIONS as readonly string[]).includes(value);
+}
 
 export interface ExecutionMandate {
   mandate_id: string;
@@ -42,4 +49,3 @@ export interface AutomationRun {
   total_assignments: number;
   reason: string | null;
 }
-

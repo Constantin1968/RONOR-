@@ -3,12 +3,21 @@ import { createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdap
 
 export interface AutomationAdapterStatus { enabled: boolean; ready: boolean; runner: string; adapters: Record<'langgraph' | 'openhands' | 'codex', string>; }
 
+function endpointConfigured(urlValue: string | undefined, tokenValue: string | undefined): boolean {
+  if (!urlValue) return false;
+  try {
+    const url = new URL(urlValue);
+    const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    return loopback || Boolean(tokenValue);
+  } catch { return false; }
+}
+
 export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapterStatus {
   const enabled = env.RONOR_AUTOMATION_ENABLED === 'true';
   const configured = {
-    langgraph: Boolean(env.RONOR_LANGGRAPH_URL),
-    openhands: Boolean(env.RONOR_OPENHANDS_URL),
-    codex: Boolean(env.RONOR_CODEX_VERIFIER_URL),
+    langgraph: endpointConfigured(env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN),
+    openhands: endpointConfigured(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN),
+    codex: endpointConfigured(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
   };
   return {
     enabled,

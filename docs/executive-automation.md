@@ -97,7 +97,9 @@ runner sends a minimal execution envelope to a dedicated bridge, accompanied by
 a short-lived HMAC capability bound to the objective digest, assignment,
 allowed actions, deadline and one-time nonce. The bridge requires a distinct
 service token, rejects replay and mismatched claims, and then uses the native
-OpenHands Agent Server conversation/event API with `X-Session-API-Key`.
+OpenHands Agent Server `/conversations` and event API with its session key as a
+Bearer credential. The host path is never transmitted: every conversation is
+bound to the fixed container path `/workspace/project`.
 
 The bridge uses `POST /api/conversations`, native conversation events and
 pause-on-timeout. It never deletes a conversation automatically. A completed

@@ -9,10 +9,12 @@ const CONTAINER_WORKSPACE = '/workspace/project';
 
 export class NativeOpenHandsError extends Error {}
 
-function baseUrl(value: string): URL {
+function baseUrl(value: string, plaintextServiceHosts: readonly string[]): URL {
   const url = new URL(value);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) throw new NativeOpenHandsError('openhands_url_requires_https_or_loopback');
+  const internal = plaintextServiceHosts.some((host) => host.toLowerCase() === url.hostname.toLowerCase());
+  if (url.username || url.password || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '')) throw new NativeOpenHandsError('openhands_url_invalid');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && (loopback || internal))) throw new NativeOpenHandsError('openhands_url_requires_https_or_trusted_service');
   return url;
 }
 
@@ -28,9 +30,10 @@ export function createNativeOpenHandsClient(config: {
   pollIntervalMs?: number;
   maxPolls?: number;
   sleep?: (ms: number) => Promise<void>;
+  plaintextServiceHosts?: readonly string[];
 }): NativeOpenHandsPort & { health(): Promise<boolean> } {
   if (!config.sessionApiKey) throw new NativeOpenHandsError('openhands_session_key_required');
-  const base = baseUrl(config.baseUrl);
+  const base = baseUrl(config.baseUrl, config.plaintextServiceHosts ?? []);
   const fetcher = config.fetcher ?? fetch;
   const sleep = config.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
 

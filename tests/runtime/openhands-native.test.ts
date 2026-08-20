@@ -83,6 +83,23 @@ describe('native OpenHands Agent Server client', () => {
 
   it('fails closed on missing session key and plaintext remote endpoints', () => {
     expect(() => createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: '' })).toThrow('openhands_session_key_required');
-    expect(() => createNativeOpenHandsClient({ baseUrl: 'http://hands.invalid', sessionApiKey: 'key' })).toThrow('openhands_url_requires_https_or_loopback');
+    expect(() => createNativeOpenHandsClient({ baseUrl: 'http://hands.invalid', sessionApiKey: 'key' })).toThrow('openhands_url_requires_https_or_trusted_service');
+  });
+
+  it('admits only an explicitly named plaintext service on the isolated network', async () => {
+    const fetcher = jest.fn(() => json({ ok: true }));
+    const client = createNativeOpenHandsClient({
+      baseUrl: 'http://openhands-agent:8000', sessionApiKey: 'session-key',
+      plaintextServiceHosts: ['openhands-agent'], fetcher,
+    });
+    await expect(client.health()).resolves.toBe(true);
+    const [healthUrl] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(healthUrl)).toBe('http://openhands-agent:8000/health');
+    expect(() => createNativeOpenHandsClient({
+      baseUrl: 'http://other-agent:8000', sessionApiKey: 'session-key', plaintextServiceHosts: ['openhands-agent'],
+    })).toThrow('openhands_url_requires_https_or_trusted_service');
+    expect(() => createNativeOpenHandsClient({
+      baseUrl: 'http://openhands-agent:8000/path?redirect=x', sessionApiKey: 'session-key', plaintextServiceHosts: ['openhands-agent'],
+    })).toThrow('openhands_url_invalid');
   });
 });

@@ -146,6 +146,11 @@ RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
 RONOR_OPENHANDS_BRIDGE_PORT=3001
 ```
 
+The native client permits plaintext only for loopback and the exact
+`openhands-agent` service name on the internal Compose network. Every other
+endpoint requires HTTPS; URL credentials, query strings, fragments and base
+paths are rejected, and redirects remain disabled.
+
 `npm run automation:openhands-bridge` starts only this bridge after the Agent
 Server readiness probe passes. Container isolation, credential-free worktrees
 and default-deny egress remain mandatory before enabling live execution.

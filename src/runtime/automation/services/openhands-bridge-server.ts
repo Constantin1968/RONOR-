@@ -6,6 +6,7 @@ export async function startOpenHandsBridge() {
   const native = createNativeOpenHandsClient({
     baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
     sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
+    plaintextServiceHosts: ['openhands-agent'],
   });
   if (!await native.health()) throw new Error('openhands_agent_server_not_ready');
   const app = createOpenHandsBridgeApp({

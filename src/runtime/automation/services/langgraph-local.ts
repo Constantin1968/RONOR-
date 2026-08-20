@@ -6,6 +6,7 @@ const PlanState = Annotation.Root({
   objective: Annotation<string>(),
   domains: Annotation<string[]>(),
   assignments: Annotation<PlannedAssignment[]>(),
+  readOnly: Annotation<boolean>(),
 });
 
 function classify(state: typeof PlanState.State): Partial<typeof PlanState.State> {
@@ -16,16 +17,20 @@ function classify(state: typeof PlanState.State): Partial<typeof PlanState.State
     if (domain === 'documentation') return /doc|document/.test(text);
     return true;
   });
-  return { domains };
+  const readOnly = /read[ -]?only|f[aă]r[aă] modific|f[aă]r[aă] edit|no (?:file )?(?:edit|change)|without (?:file )?(?:editing|changes)/.test(text);
+  return { domains, readOnly };
 }
 
 function createPlan(state: typeof PlanState.State): Partial<typeof PlanState.State> {
+  const actions = state.readOnly
+    ? ['read_repo', 'run_tests'] as AutomationAction[]
+    : ['read_repo', 'edit_worktree', 'run_tests'] as AutomationAction[];
   const assignments: PlannedAssignment[] = state.domains.map((domain, index) => ({
     id: `langgraph-${domain}-${index + 1}`,
     instruction: `Address the ${domain} portion of the approved objective: ${state.objective}`,
-    actions: ['read_repo', 'edit_worktree', 'run_tests'] as AutomationAction[],
+    actions,
   }));
-  assignments.push({ id: 'langgraph-local-commit', instruction: 'Create a clear local commit after all declared tests pass.', actions: ['commit_local'] });
+  if (!state.readOnly) assignments.push({ id: 'langgraph-local-commit', instruction: 'Create a clear local commit after all declared tests pass.', actions: ['commit_local'] });
   return { assignments };
 }
 
@@ -48,7 +53,7 @@ export function createLangGraphLocalApp() {
       res.status(400).json({ ok: false, error: 'invalid_objective' });
       return;
     }
-    const result = await planningGraph.invoke({ objective, domains: [], assignments: [] });
+    const result = await planningGraph.invoke({ objective, domains: [], assignments: [], readOnly: false });
     res.json({ assignments: result.assignments });
   });
   return app;

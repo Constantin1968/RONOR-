@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "automation:langgraph": "ts-node src/runtime/automation/services/langgraph-local.ts",
     "build": "tsc",
     "postbuild": "cp -r web dist/ 2>/dev/null || true && mkdir -p dist/governance && cp src/governance/policies.yaml dist/governance/ 2>/dev/null || true",
     "test": "jest --runInBand",
@@ -45,6 +46,8 @@
   "author": "Constantin Liviu NITA (Merlin) · Ma11AI · Mayleven Ecosystem (Mayleven Ltd, Company No. 17000500, England & Wales)",
   "license": "MIT",
   "dependencies": {
+    "@langchain/core": "^1.2.9",
+    "@langchain/langgraph": "^1.4.12",
     "@qdrant/js-client-rest": "1.18.0",
     "better-sqlite3": "^11.1.2",
     "cors": "^2.8.5",

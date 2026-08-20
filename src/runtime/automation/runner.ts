@@ -83,12 +83,22 @@ export async function runExecutiveMission(params: {
   const expired = () => now().getTime() >= deadline;
   const cancelled = () => params.signal?.aborted === true;
   if (cancelled()) return terminal(base, 'failed', 'cancelled', 'planning', 'langgraph');
-  const planCheckpoint = getMissionFabric(params.mandate.mission_id)!.checkpoints.find((event) => event.payload.id === `${runId}-plan`);
-  let assignments = storedPlan(planCheckpoint?.payload.assignments);
+  const planFabric = getMissionFabric(params.mandate.mission_id)!;
+  const planCheckpoint = planFabric.checkpoints.find((event) => event.payload.id === `${runId}-plan`);
+  const planItems = planCheckpoint
+    ? planFabric.checkpoints
+      .filter((event) => event.payload.plan_id === `${runId}-plan` && typeof event.payload.index === 'number')
+      .sort((left, right) => Number(left.payload.index) - Number(right.payload.index))
+      .map((event) => event.payload.assignment)
+    : [];
+  let assignments = storedPlan(planItems);
   if (!assignments) {
     try { assignments = await params.adapters.langgraph.plan(params.objective, params.signal); }
     catch { const reason = cancelled() ? 'cancelled' : 'langgraph_failed'; append('failure.recorded', { id: `${runId}-planning-failed-${priorFailures + 1}`, run_id: runId, reason }, 'langgraph'); return terminal(base, 'failed', reason, 'planning', 'langgraph'); }
-    append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignments }, 'langgraph');
+    assignments.forEach((assignment, index) => append('checkpoint.created', {
+      id: `${runId}-plan-${index}`, run_id: runId, plan_id: `${runId}-plan`, index, assignment,
+    }, 'langgraph'));
+    append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignment_count: assignments.length, status: 'complete' }, 'langgraph');
   }
   let run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
   emitStatus(run, 'langgraph', 'langgraph');

@@ -1,4 +1,5 @@
-import { OllamaAdapter } from '../../src/runtime/providers/ollama';
+import { OllamaAdapter, ollamaBaseForModel } from '../../src/runtime/providers/ollama';
+import { modelCabinet } from '../../src/runtime/router/model-cabinet';
 import { RUNTIME_CATALOGUE } from '../../src/runtime/router/catalogue';
 
 describe('Ollama sovereign local provider', () => {
@@ -9,8 +10,23 @@ describe('Ollama sovereign local provider', () => {
 
   it('registers zero-cost sovereign chat models', () => {
     const models = RUNTIME_CATALOGUE.filter((entry) => entry.provider === 'ollama');
-    expect(models).toHaveLength(3);
+    expect(models).toHaveLength(6);
     expect(models.every((entry) => entry.sovereignty_level === 3 && entry.input_cost_per_1m === 0)).toBe(true);
+  });
+
+  it('routes small models locally and 70B models only through an approved Tailscale endpoint', () => {
+    const env = { OLLAMA_CONTABO_BASE_URL: 'http://100.87.14.42:11434' };
+    expect(ollamaBaseForModel('qwen3:4b-instruct', env)).toBe('http://127.0.0.1:11434');
+    expect(ollamaBaseForModel('qwen2.5:72b-instruct-q4_K_M', env)).toBe('http://100.87.14.42:11434');
+    expect(ollamaBaseForModel('qwen2.5:72b-instruct-q4_K_M', { OLLAMA_CONTABO_BASE_URL: 'http://public.invalid' })).toBeNull();
+  });
+
+  it('publishes explicit interactive, batch, memory and cloud roles', () => {
+    const cabinet = modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.87.14.42:11434' });
+    expect(cabinet.find((route) => route.role === 'analysis-batch')?.status).toBe('available');
+    expect(cabinet.find((route) => route.role === 'frontier-escalation')?.status).toBe('credential-gated');
+    expect(modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://public.invalid' })
+      .find((route) => route.role === 'analysis-batch')?.status).toBe('credential-gated');
   });
 
   it('normalises a local chat response without credentials', async () => {
@@ -20,6 +36,19 @@ describe('Ollama sovereign local provider', () => {
       const result = await new OllamaAdapter().invoke({ model: 'qwen3:4b-instruct', prompt: 'test' }, { OLLAMA_ENABLED: 'true' });
       expect(result).toMatchObject({ ok: true, provider: 'ollama', transport: 'local', content: 'local-pass', simulated: false });
       expect(result.usage.estimated).toBe(false);
+    } finally { global.fetch = original; }
+  });
+
+  it('never sends embedding-only models to the chat endpoint', async () => {
+    const original = global.fetch;
+    global.fetch = jest.fn() as typeof fetch;
+    try {
+      const result = await new OllamaAdapter().invoke(
+        { model: 'bge-m3:latest', prompt: 'test' },
+        { OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.64.0.1:11434' }
+      );
+      expect(result).toMatchObject({ ok: false, failure: { kind: 'model-unsupported' } });
+      expect(global.fetch).not.toHaveBeenCalled();
     } finally { global.fetch = original; }
   });
 });

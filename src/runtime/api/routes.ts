@@ -71,6 +71,7 @@ import { planExecutiveDelegation } from '../management/executive';
 import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
 import { runExecutiveMission } from '../automation/runner';
 import type { ExecutionMandate } from '../automation/contracts';
+import { modelCabinet } from '../router/model-cabinet';
 
 /**
  * Build the runtime router.
@@ -435,6 +436,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
 
   router.get('/control/council', requireArchitect, (_req, res) => {
     res.json({ ok: true, architect: 'merlin', management: managementAgents() });
+  });
+
+  router.get('/control/models', requireArchitect, (_req, res) => {
+    res.json({ ok: true, cabinet: modelCabinet(env), providers: providerStatuses(env) });
   });
 
   router.get('/control/council/:id', requireArchitect, (req, res) => {

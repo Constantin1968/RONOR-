@@ -82,6 +82,24 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     latency_seed_ms: 4200, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 59, evidence_reliability: 48, operational_risk: 14,
     context_window: 128_000, max_output_tokens: 8192, search_augmented: false,
   },
+  {
+    id: 'ollama/qwen2.5-72b-contabo', provider: 'ollama', vendorModel: 'qwen2.5:72b-instruct-q4_K_M', displayName: 'Qwen2.5 72B Sovereign',
+    capabilities: ['reasoning', 'generation', 'analysis', 'summarization', 'synthesis', 'decomposition'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 102_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 85, evidence_reliability: 68, operational_risk: 16,
+    context_window: 32_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
+    id: 'ollama/llama3.1-70b-contabo', provider: 'ollama', vendorModel: 'llama3.1:70b-instruct-q4_K_M', displayName: 'Llama 3.1 70B Sovereign Verifier',
+    capabilities: ['reasoning', 'analysis', 'verification', 'synthesis'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 116_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 84, evidence_reliability: 72, operational_risk: 15,
+    context_window: 128_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
+    id: 'ollama/deepseek-r1-70b-contabo', provider: 'ollama', vendorModel: 'deepseek-r1:70b-llama-distill-q4_K_M', displayName: 'DeepSeek R1 70B Sovereign',
+    capabilities: ['reasoning', 'analysis', 'calculation', 'synthesis'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 125_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 86, evidence_reliability: 65, operational_risk: 18,
+    context_window: 128_000, max_output_tokens: 8192, search_augmented: false,
+  },
   // ---- OpenAI -------------------------------------------------------------
   {
     id: 'openai/gpt-5.5',

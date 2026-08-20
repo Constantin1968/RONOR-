@@ -57,3 +57,22 @@ Local generation has zero vendor-token cost and maximum sovereignty, but lower
 quality scores than frontier cloud models. Claude, Kimi, OpenAI, Gemini and
 Perplexity remain credential-gated escalation routes. The router records which
 provider and transport produced every answer.
+
+The cabinet can split sovereign work between the workstation and a larger
+Tailscale-connected inference host. Endpoints remain environment configuration,
+are restricted to loopback, Tailscale addresses, or HTTPS, and are never exposed
+by the CONTROL status API.
+
+```text
+OLLAMA_ENABLED=false
+OLLAMA_LOCAL_BASE_URL=http://127.0.0.1:11434
+OLLAMA_CONTABO_BASE_URL=http://<tailscale-host>:11434
+```
+
+The measured routing policy keeps Qwen 4B and Qwen Coder interactive on the
+workstation, assigns Qwen 72B to private batch analysis, Llama 70B to an
+independent local-verification role, and BGE-M3 to 1024-dimensional memory.
+DeepSeek 70B is opt-in for deep reasoning rather than rapid work because its
+short-output benchmark exhausted the response budget before producing a final
+answer. Cloud models remain explicit escalation routes, never automatic
+defaults.

@@ -11,6 +11,7 @@ describe('CONTROL architect interface', () => {
     expect(html).toContain('Switchboard');
     expect(html).toContain('Consiliu');
     expect(html).toContain('Misiuni');
+    expect(html).toContain('SOVEREIGN MODEL CABINET');
     expect(html).toContain('MERLIN');
   });
 
@@ -25,5 +26,6 @@ describe('CONTROL architect interface', () => {
     expect(js).toContain("ev.ctrlKey");
     expect(js).toContain("ev.key==='Escape'");
     expect(js).toContain('nu are încă un adapter live conectat');
+    expect(js).toContain("api('/models')");
   });
 });

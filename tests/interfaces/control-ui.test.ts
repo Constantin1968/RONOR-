@@ -24,8 +24,21 @@ describe('CONTROL architect interface', () => {
 
   it('supports keyboard-first access and honest adapter status', () => {
     expect(js).toContain("ev.ctrlKey");
-    expect(js).toContain("ev.key==='Escape'");
+    expect(js).toContain("ev.key === 'Escape'");
     expect(js).toContain('nu are încă un adapter live conectat');
     expect(js).toContain("api('/models')");
+  });
+
+  it('renders live run stages, approvals, evidence, failures and bounded cancellation', () => {
+    expect(html).toContain('runStages');
+    expect(html).toContain('runApprovals');
+    expect(html).toContain('runEvidence');
+    expect(html).toContain('runFailures');
+    expect(html).toContain('cancelRun');
+    expect(js).toContain("api('/missions/'");
+    expect(js).toContain("'/cancel'");
+    expect(js).toContain('setTimeout');
+    expect(js).toContain('stopPolling');
+    expect(js).toContain('rollback automat');
   });
 });

@@ -61,6 +61,8 @@ export type MissionFabricEventType =
   | 'checkpoint.created'
   | 'approval.required'
   | 'approval.resolved'
+  | 'run.status_changed'
+  | 'run.cancel_requested'
   | 'message.recorded';
 
 export interface MissionFabricEvent {
@@ -90,6 +92,7 @@ export interface MissionFabricProjection {
   failures: MissionFabricEvent[];
   checkpoints: MissionFabricEvent[];
   approvals: Record<string, Record<string, unknown>>;
+  runs: Record<string, Record<string, unknown>>;
   messages: MissionFabricEvent[];
 }
 
@@ -349,7 +352,7 @@ function projectMissionFabric(fabric: MissionFabricState): MissionFabricProjecti
   const projection: MissionFabricProjection = {
     version: fabric.version,
     event_head: fabric.event_head,
-    tasks: {}, evidence: {}, coverage: {}, failures: [], checkpoints: [], approvals: {}, messages: [],
+    tasks: {}, evidence: {}, coverage: {}, failures: [], checkpoints: [], approvals: {}, runs: {}, messages: [],
   };
   for (const event of fabric.events) {
     const id = typeof event.payload.id === 'string' ? event.payload.id : event.event_id;
@@ -363,6 +366,15 @@ function projectMissionFabric(fabric: MissionFabricState): MissionFabricProjecti
     else if (event.type === 'checkpoint.created') projection.checkpoints.push(event);
     else if (event.type === 'approval.required' || event.type === 'approval.resolved') {
       projection.approvals[id] = { ...(projection.approvals[id] ?? {}), ...event.payload };
+    } else if (event.type === 'run.status_changed' || event.type === 'run.cancel_requested') {
+      const previous = projection.runs[id] ?? {};
+      const priorStages = previous.stage_statuses && typeof previous.stage_statuses === 'object' && !Array.isArray(previous.stage_statuses)
+        ? previous.stage_statuses as Record<string, unknown> : {};
+      const stage = typeof event.payload.stage === 'string' ? event.payload.stage : null;
+      projection.runs[id] = {
+        ...previous, ...event.payload,
+        stage_statuses: stage ? { ...priorStages, [stage]: event.payload.status } : priorStages,
+      };
     } else if (event.type === 'message.recorded') projection.messages.push(event);
   }
   return projection;
@@ -376,7 +388,8 @@ function validateFabricInput(
   const allowedActors = new Set(['human', 'ronor', 'codex', 'langgraph', 'openhands', 'agent']);
   const allowedTypes = new Set<MissionFabricEventType>([
     'task.upserted', 'task.status_changed', 'evidence.added', 'coverage.updated',
-    'failure.recorded', 'checkpoint.created', 'approval.required', 'approval.resolved', 'message.recorded',
+    'failure.recorded', 'checkpoint.created', 'approval.required', 'approval.resolved',
+    'run.status_changed', 'run.cancel_requested', 'message.recorded',
   ]);
   if (!allowedActors.has(actor.kind) || !actor.id || actor.id.length > 120) {
     throw new MissionFabricValidationError('Invalid mission fabric actor.');

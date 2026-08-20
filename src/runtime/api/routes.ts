@@ -541,6 +541,12 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_cancel_request' }); return; }
     const result = cancelAutomationRun(runId, missionId);
     if (result !== 'cancelled') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    const fabric = getMissionFabric(missionId);
+    if (fabric) appendMissionFabricEvent({
+      missionId, expectedVersion: fabric.version, type: 'run.cancel_requested',
+      actor: { kind: 'human', id: 'merlin' },
+      payload: { id: runId, run_id: runId, mission_id: missionId, status: 'cancel_requested', rollback: false },
+    });
     res.status(202).json({ ok: true, status: 'cancellation_requested', rollback: false });
   });
 

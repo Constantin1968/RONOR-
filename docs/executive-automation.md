@@ -112,6 +112,13 @@ separate worker claims and verified artifact descriptors; concatenated evidence
 strings and unverified worker paths are not accepted by the live route. Any
 post-capture modification terminates the run with `artifact_integrity_failed`.
 
+Mission Fabric projects bounded `run.status_changed`, `run.cancel_requested`
+and `evidence.added` events. CONTROL polls only the selected mission, displays
+the accumulated LangGraph, OpenHands, Codex and Assurance stage states,
+approvals, artifact references and failures, and stops polling on a terminal
+state. Rendering uses `textContent`; artifact bodies and credentials are never
+placed in the browser response.
+
 ## Local model cabinet
 
 Ollama is a first-class, fail-closed local provider. Set `OLLAMA_ENABLED=true`

@@ -84,6 +84,8 @@ describe('Executive Mission Runner · governed execution', () => {
     const fabric = getMissionFabric(mission.mission_id)!;
     expect(fabric.tasks['task-automation-1'].status).toBe('complete');
     expect(fabric.checkpoints.some((e) => e.payload.verdict === 'pass')).toBe(true);
+    expect(fabric.runs[result.run_id].status).toBe('complete');
+    expect(fabric.runs[result.run_id].stage).toBe('complete');
   });
 
   it('blocks push before OpenHands is invoked', async () => {
@@ -163,6 +165,10 @@ describe('Executive Mission Runner · governed execution', () => {
       claims: ['tests:pass'],
       artifacts: [{ kind: 'git_diff', sha256: 'a'.repeat(64), reference: 'run/task-evidence/diff.patch', bytes: 42 }],
     });
+    const fabric = getMissionFabric(mission.mission_id)!;
+    expect(Object.values(fabric.evidence)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'git_diff', digest: 'a'.repeat(64), reference: 'run/task-evidence/diff.patch' }),
+    ]));
   });
 
   it('enforces the wall-clock deadline before invoking OpenHands', async () => {

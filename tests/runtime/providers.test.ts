@@ -294,7 +294,7 @@ describe('L1 · registry status surface', () => {
     // is defect D-3. The /status handler read `.invocable` off a provider the
     // status surface had not fully described and threw on undefined. The suite
     // was reporting the defect the whole time; nobody was running the suite.
-    expect(statuses).toHaveLength(7);
+    expect(statuses).toHaveLength(8);
     const det = statuses.find((s) => s.provider === 'deterministic');
     expect(det?.invocable).toBe(true);
     expect(det?.transport).toBe('local');

@@ -42,3 +42,18 @@ RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 ```
 
+## Local model cabinet
+
+Ollama is a first-class, fail-closed local provider. Set `OLLAMA_ENABLED=true`
+only after `http://127.0.0.1:11434/api/tags` passes its health check. The default
+local endpoint can be overridden with `OLLAMA_BASE_URL`.
+
+- `qwen3:4b-instruct`: private general analysis and drafting;
+- `qwen2.5-coder:3b`: bounded coding assistance;
+- `deepseek-r1:1.5b`: lightweight reasoning;
+- `qwen3-embedding:0.6b`: embeddings for persistent memory (not chat routing).
+
+Local generation has zero vendor-token cost and maximum sovereignty, but lower
+quality scores than frontier cloud models. Claude, Kimi, OpenAI, Gemini and
+Perplexity remain credential-gated escalation routes. The router records which
+provider and transport produced every answer.

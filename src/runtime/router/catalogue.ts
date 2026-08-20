@@ -64,6 +64,24 @@ export interface CatalogueEntry {
 }
 
 export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
+  {
+    id: 'ollama/qwen3-4b-instruct', provider: 'ollama', vendorModel: 'qwen3:4b-instruct', displayName: 'Qwen3 4B Local',
+    capabilities: ['generation', 'analysis', 'summarization', 'extraction', 'decomposition'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 6500, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 68, evidence_reliability: 55, operational_risk: 12,
+    context_window: 40_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
+    id: 'ollama/qwen2.5-coder-3b', provider: 'ollama', vendorModel: 'qwen2.5-coder:3b', displayName: 'Qwen2.5 Coder 3B Local',
+    capabilities: ['generation', 'analysis', 'validation', 'verification'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 5200, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 66, evidence_reliability: 58, operational_risk: 12,
+    context_window: 32_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
+    id: 'ollama/deepseek-r1-1.5b', provider: 'ollama', vendorModel: 'deepseek-r1:1.5b', displayName: 'DeepSeek R1 1.5B Local',
+    capabilities: ['reasoning', 'analysis', 'calculation'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 4200, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 59, evidence_reliability: 48, operational_risk: 14,
+    context_window: 128_000, max_output_tokens: 8192, search_augmented: false,
+  },
   // ---- OpenAI -------------------------------------------------------------
   {
     id: 'openai/gpt-5.5',

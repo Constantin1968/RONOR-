@@ -71,6 +71,7 @@ import { planExecutiveDelegation } from '../management/executive';
 import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
 import { runExecutiveMission } from '../automation/runner';
 import type { ExecutionMandate } from '../automation/contracts';
+import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { modelCabinet } from '../router/model-cabinet';
 
 /**
@@ -500,6 +501,21 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         : null;
       if (!objective || !workspaceRoot || !branch || !mandate) {
         res.status(400).json({ ok: false, error: 'invalid_automation_request' });
+        return;
+      }
+      if (!env.RONOR_AUTOMATION_WORKSPACE_ROOT) {
+        res.status(503).json({ ok: false, error: 'workspace_policy_not_configured' });
+        return;
+      }
+      const workspace = inspectAndValidateWorkspace(workspaceRoot, {
+        approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
+        branch_prefix: mandate.branch_prefix,
+        expected_origin: env.RONOR_AUTOMATION_EXPECTED_ORIGIN,
+        expected_head: env.RONOR_AUTOMATION_EXPECTED_HEAD,
+        require_clean: true,
+      });
+      if (!workspace.valid || workspace.snapshot?.branch !== branch) {
+        res.status(422).json({ ok: false, error: 'workspace_policy_refused', reason: workspace.valid ? 'branch_request_mismatch' : workspace.reason });
         return;
       }
       const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters });

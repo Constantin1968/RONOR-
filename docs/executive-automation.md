@@ -39,6 +39,9 @@ RONOR_LANGGRAPH_TOKEN=
 RONOR_OPENHANDS_URL=
 RONOR_OPENHANDS_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
+RONOR_AUTOMATION_WORKSPACE_ROOT=
+RONOR_AUTOMATION_EXPECTED_ORIGIN=https://github.com/Constantin1968/RONOR-.git
+RONOR_AUTOMATION_EXPECTED_HEAD=
 RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 ```
@@ -72,6 +75,13 @@ RONOR_OPENHANDS_BRIDGE_PORT=3001
 `npm run automation:openhands-bridge` starts only this bridge after the Agent
 Server readiness probe passes. Container isolation, credential-free worktrees
 and default-deny egress remain mandatory before enabling live execution.
+
+Before calling the bridge, the runtime resolves the worktree and approved root
+to canonical paths, refuses links and path escapes, verifies that the directory
+is the Git toplevel, rejects `main` and `master`, enforces the branch namespace,
+origin and optional base commit, and requires a clean starting tree. The actual
+branch must equal the branch declared by the request. Inspection failures return
+a bounded reason code without filesystem or remote details.
 
 ## Local model cabinet
 

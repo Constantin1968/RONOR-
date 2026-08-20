@@ -1,0 +1,126 @@
+import { createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
+import { runExecutiveMission } from '../../src/runtime/automation/runner';
+import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
+
+const objective = 'Implement and verify a bounded RONOR feature.';
+const workspace = 'C:/sandbox/ronor';
+const branch = 'agent/mission-1';
+
+function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): ExecutionMandate {
+  return {
+    mandate_id: `mandate-${missionId}`,
+    mission_id: missionId,
+    issued_by: 'merlin',
+    objective_hash: objectiveHash(objective),
+    workspace_root: workspace,
+    branch_prefix: 'agent/',
+    allowed_actions: ['read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local'],
+    denied_actions: [...ALWAYS_DENIED_ACTIONS],
+    max_cost_usd: 5,
+    max_runtime_minutes: 60,
+    max_fix_cycles: 3,
+    issued_at: '2026-08-20T00:00:00.000Z',
+    expires_at: '2026-08-21T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function adapters(assignments: PlannedAssignment[]): AutomationAdapters & { executeCount: () => number } {
+  let executions = 0;
+  return {
+    executeCount: () => executions,
+    langgraph: { plan: async () => assignments },
+    openhands: {
+      execute: async () => {
+        executions += 1;
+        return { ok: true, summary: 'implemented in sandbox', evidence: ['diff:abc', 'tests:pass'], cost_usd: 0.2 };
+      },
+    },
+    codex: {
+      verify: async () => ({ ok: true, verdict: 'pass', summary: 'independent checks pass', evidence: ['codex:pass'], cost_usd: 0.1 }),
+    },
+    assurance: {
+      accept: async () => ({ ok: true, verdict: 'pass', summary: 'Victoria accepted', evidence: ['assurance:pass'], cost_usd: 0 }),
+    },
+  };
+}
+
+describe('Executive Mission Runner · mandate policy', () => {
+  it('permits bounded development and denies every consequential action', () => {
+    const m = mandate('msn-policy');
+    expect(actionPermitted(m, 'edit_worktree')).toBe(true);
+    for (const action of ALWAYS_DENIED_ACTIONS) expect(actionPermitted(m, action)).toBe(false);
+  });
+
+  it('binds objective, workspace, branch, issuer and expiry', () => {
+    const m = mandate('msn-policy');
+    const valid = validateMandate(m, { objective, workspaceRoot: workspace, branch, now: new Date('2026-08-20T12:00:00Z') });
+    expect(valid.valid).toBe(true);
+    expect(validateMandate(m, { objective: 'different', workspaceRoot: workspace, branch }).reason).toBe('objective_mismatch');
+    expect(validateMandate(m, { objective, workspaceRoot: 'C:/other', branch }).reason).toBe('workspace_mismatch');
+    expect(validateMandate(m, { objective, workspaceRoot: workspace, branch: 'main' }).reason).toBe('branch_outside_mandate');
+    expect(validateMandate({ ...m, issued_by: 'merlin', expires_at: '2026-08-19T00:00:00Z' }, { objective, workspaceRoot: workspace, branch }).reason).toBe('mandate_expired_or_not_yet_valid');
+  });
+
+  it('refuses a mandate that attempts to allow deployment', () => {
+    const m = mandate('msn-policy', { allowed_actions: ['read_repo', 'deploy'] });
+    expect(validateMandate(m, { objective, workspaceRoot: workspace, branch }).reason).toBe('consequential_action_cannot_be_delegated');
+  });
+});
+
+describe('Executive Mission Runner · governed execution', () => {
+  it('runs LangGraph → OpenHands → Codex → Victoria without repeated approvals', async () => {
+    const mission = createMission({ title: 'Automation', objective, operatorId: 'merlin' });
+    const a = adapters([
+      { id: 'task-automation-1', instruction: 'Implement in worktree', actions: ['read_repo', 'edit_worktree', 'run_tests', 'commit_local'] },
+    ]);
+    const result = await runExecutiveMission({
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a,
+    });
+    expect(result.status).toBe('complete');
+    expect(result.completed_assignments).toBe(1);
+    expect(a.executeCount()).toBe(1);
+    const fabric = getMissionFabric(mission.mission_id)!;
+    expect(fabric.tasks['task-automation-1'].status).toBe('complete');
+    expect(fabric.checkpoints.some((e) => e.payload.verdict === 'pass')).toBe(true);
+  });
+
+  it('blocks push before OpenHands is invoked', async () => {
+    const mission = createMission({ title: 'Denied automation', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-push', instruction: 'Push it', actions: ['push'] }]);
+    const result = await runExecutiveMission({
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a,
+    });
+    expect(result.status).toBe('blocked');
+    expect(result.reason).toBe('action_outside_mandate:push');
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('consumes a mandate once and blocks replay before adapter invocation', async () => {
+    const mission = createMission({ title: 'No replay', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const firstAdapters = adapters([{ id: 'task-once', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: firstAdapters })).status).toBe('complete');
+    const replayAdapters = adapters([{ id: 'task-replay', instruction: 'Replay', actions: ['edit_worktree'] }]);
+    const replay = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: replayAdapters });
+    expect(replay.status).toBe('blocked');
+    expect(replay.reason).toBe('mandate_already_consumed');
+    expect(replayAdapters.executeCount()).toBe(0);
+  });
+
+  it('stops when Codex fails and never asks Victoria to approve', async () => {
+    const mission = createMission({ title: 'Failed verification', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-verify', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    let assuranceCalls = 0;
+    a.codex.verify = async () => ({ ok: true, verdict: 'fail', summary: 'regression', evidence: ['tests:fail'], cost_usd: 0 });
+    a.assurance.accept = async () => {
+      assuranceCalls += 1;
+      return { ok: true, verdict: 'pass', summary: 'should not run', evidence: [], cost_usd: 0 };
+    };
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result.status).toBe('failed');
+    expect(result.reason).toBe('codex_verification_failed');
+    expect(assuranceCalls).toBe(0);
+  });
+});

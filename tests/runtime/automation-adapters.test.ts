@@ -1,12 +1,12 @@
 import { automationAdapterStatus, configuredAutomationAdapters } from '../../src/runtime/automation/adapter-registry';
-import { AutomationAdapterError, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from '../../src/runtime/automation/adapters/http';
+import { AutomationAdapterError, createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from '../../src/runtime/automation/adapters/http';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const response = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
 const mandate = { mandate_id: 'm1', mission_id: 'mission1' } as ExecutionMandate;
 
 describe('live automation adapter boundary', () => {
-  it('fails closed until enabled and all three endpoints are configured', () => {
+  it('fails closed until enabled and all four independent endpoints are configured', () => {
     expect(automationAdapterStatus({}).ready).toBe(false);
     expect(configuredAutomationAdapters({ RONOR_AUTOMATION_ENABLED: 'true', RONOR_LANGGRAPH_URL: 'https://graph.invalid' })).toBeNull();
     const env = {
@@ -14,10 +14,23 @@ describe('live automation adapter boundary', () => {
       RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
+      RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
       RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
     };
     expect(automationAdapterStatus(env).ready).toBe(true);
     expect(configuredAutomationAdapters(env)).not.toBeNull();
+  });
+
+  it('refuses aliased implementer, verifier and assurance identities', () => {
+    const env = {
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
+      RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
+      RONOR_OPENHANDS_URL: 'https://shared.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
+      RONOR_CODEX_VERIFIER_URL: 'https://shared.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
+      RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+    };
+    expect(automationAdapterStatus(env).ready).toBe(false);
+    expect(automationAdapterStatus(env).adapters.codex).toBe('identity-conflict');
   });
 
   it('refuses plaintext remote endpoints', async () => {
@@ -77,6 +90,12 @@ describe('live automation adapter boundary', () => {
     const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: codexFetch });
     await expect(codex.verify('mission1', { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
     expect((codexFetch.mock.calls[0] as unknown as [URL, RequestInit])[1].body).toContain('"artifacts":[]');
+
+    const assuranceFetch = jest.fn(() => response({ ok: true, summary: 'assured independently', evidence: ['policy:pass'], cost_usd: 0, verdict: 'pass' }));
+    const assurance = createAssuranceAdapter({ baseUrl: 'https://assurance.invalid', token: 'assurance-token', fetcher: assuranceFetch });
+    const codexVerdict = { ok: true, verdict: 'pass' as const, summary: 'verified', evidence: ['tests'], cost_usd: 0 };
+    await expect(assurance.accept('mission1', codexVerdict, { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
+    expect((assuranceFetch.mock.calls[0] as unknown as [URL, RequestInit])[0].pathname).toBe('/v1/assure');
   });
 
   it('rejects malformed results without leaking response bodies', async () => {

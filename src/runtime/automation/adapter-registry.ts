@@ -1,7 +1,13 @@
-import type { AutomationAdapters, VerificationVerdict } from './contracts';
-import { createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from './adapters/http';
+import type { AutomationAdapters } from './contracts';
+import { createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from './adapters/http';
 
-export interface AutomationAdapterStatus { enabled: boolean; ready: boolean; runner: string; adapters: Record<'langgraph' | 'openhands' | 'codex', string>; }
+export interface AutomationAdapterStatus { enabled: boolean; ready: boolean; runner: string; adapters: Record<'langgraph' | 'openhands' | 'codex' | 'assurance', string>; }
+
+function sameIdentity(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right) return false;
+  try { const a = new URL(left); const b = new URL(right); return a.origin === b.origin && a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, ''); }
+  catch { return false; }
+}
 
 function endpointState(urlValue: string | undefined, tokenValue: string | undefined): string {
   if (!urlValue) return 'not-connected';
@@ -20,8 +26,14 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
     langgraph: endpointState(env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN),
     openhands: endpointState(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN),
     codex: endpointState(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
+    assurance: endpointState(env.RONOR_ASSURANCE_URL, env.RONOR_ASSURANCE_TOKEN),
   };
   if (states.openhands === 'configured-not-verified' && !env.RONOR_AUTOMATION_CAPABILITY_KEY) states.openhands = 'capability-key-required';
+  const identityConflict = sameIdentity(env.RONOR_OPENHANDS_URL, env.RONOR_CODEX_VERIFIER_URL) ||
+    sameIdentity(env.RONOR_OPENHANDS_URL, env.RONOR_ASSURANCE_URL) || sameIdentity(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_ASSURANCE_URL) ||
+    Boolean(env.RONOR_OPENHANDS_TOKEN && (env.RONOR_OPENHANDS_TOKEN === env.RONOR_CODEX_VERIFIER_TOKEN || env.RONOR_OPENHANDS_TOKEN === env.RONOR_ASSURANCE_TOKEN)) ||
+    Boolean(env.RONOR_CODEX_VERIFIER_TOKEN && env.RONOR_CODEX_VERIFIER_TOKEN === env.RONOR_ASSURANCE_TOKEN);
+  if (identityConflict) { states.openhands = 'identity-conflict'; states.codex = 'identity-conflict'; states.assurance = 'identity-conflict'; }
   const configured = Object.fromEntries(Object.entries(states).map(([name, state]) => [name, state === 'configured-not-verified'])) as Record<keyof typeof states, boolean>;
   return {
     enabled,
@@ -31,6 +43,7 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
       langgraph: states.langgraph,
       openhands: states.openhands,
       codex: states.codex,
+      assurance: states.assurance,
     },
   };
 }
@@ -43,10 +56,6 @@ export function configuredAutomationAdapters(env: NodeJS.ProcessEnv): Automation
     langgraph: createLangGraphAdapter({ baseUrl: env.RONOR_LANGGRAPH_URL!, token: token('RONOR_LANGGRAPH_TOKEN') }),
     openhands: createOpenHandsAdapter({ baseUrl: env.RONOR_OPENHANDS_URL!, token: token('RONOR_OPENHANDS_TOKEN'), capabilityKey: env.RONOR_AUTOMATION_CAPABILITY_KEY }),
     codex: createCodexVerifierAdapter({ baseUrl: env.RONOR_CODEX_VERIFIER_URL!, token: token('RONOR_CODEX_VERIFIER_TOKEN') }),
-    assurance: { async accept(_missionId: string, verdict: VerificationVerdict): Promise<VerificationVerdict> {
-      return verdict.verdict === 'pass'
-        ? { ok: true, verdict: 'pass', summary: 'Victoria accepted independent Codex evidence.', evidence: verdict.evidence, cost_usd: 0 }
-        : { ok: false, verdict: 'fail', summary: 'Victoria rejected failed verification.', evidence: verdict.evidence, cost_usd: 0 };
-    } },
+    assurance: createAssuranceAdapter({ baseUrl: env.RONOR_ASSURANCE_URL!, token: token('RONOR_ASSURANCE_TOKEN') }),
   };
 }

@@ -160,7 +160,8 @@ export async function runExecutiveMission(params: {
   let verifiedArtifacts = workerArtifacts;
   try { if (params.artifactCollector) verifiedArtifacts = params.artifactCollector.verify(workerArtifacts); }
   catch { append('failure.recorded', { id: `${runId}-artifact-integrity-failed`, run_id: runId, reason: 'artifact_integrity_failed' }, 'codex'); return terminal(run, 'failed', 'artifact_integrity_failed', 'codex', 'codex'); }
-  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, { claims: workerClaims, artifacts: verifiedArtifacts }, params.signal); }
+  const verificationEvidence = { claims: workerClaims, artifacts: verifiedArtifacts };
+  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, params.signal); }
   catch { const reason = cancelled() ? 'cancelled' : 'codex_adapter_failed'; append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason }, 'codex'); return terminal(run, 'failed', reason, 'codex', 'codex'); }
   run.cost_usd += codex.cost_usd;
   append('checkpoint.created', { id: `${runId}-codex`, run_id: runId, verdict: codex.verdict, evidence: codex.evidence }, 'codex');
@@ -170,7 +171,7 @@ export async function runExecutiveMission(params: {
   run.status = 'assuring';
   emitStatus(run, 'assurance', 'agent');
   if (expired()) return terminal(run, 'failed', 'runtime_limit_exceeded', 'assurance', 'agent');
-  const assurance = await params.adapters.assurance.accept(params.mandate.mission_id, codex);
+  const assurance = await params.adapters.assurance.accept(params.mandate.mission_id, codex, verificationEvidence, params.signal);
   run.cost_usd += assurance.cost_usd;
   append('checkpoint.created', { id: `${runId}-victoria`, run_id: runId, verdict: assurance.verdict, evidence: assurance.evidence }, 'agent');
   if (!assurance.ok || assurance.verdict !== 'pass') return terminal(run, 'failed', 'independent_assurance_failed', 'assurance', 'agent');

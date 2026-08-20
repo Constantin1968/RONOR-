@@ -21,16 +21,20 @@ those boundaries.
 The implementation is adapter-driven. Tests use in-process doubles and perform
 no external calls. Live LangGraph and OpenHands adapters remain disabled until a
 dedicated sandbox and service identities are configured. Codex and Victoria are
-separate verifier roles and cannot be replaced by the implementing OpenHands
-worker.
+independent service identities and cannot be replaced by the implementing
+OpenHands worker or by one another. Victoria receives the verified evidence
+manifest and issues its own assurance verdict; a Codex PASS is never converted
+automatically into a Victoria PASS.
 ## Live adapter boundary
 
-The runner connects through three small HTTP contracts: LangGraph `POST /v1/plan`,
-OpenHands `POST /v1/execute`, and the independent Codex verifier `POST /v1/verify`.
+The runner connects through four small HTTP contracts: LangGraph `POST /v1/plan`,
+OpenHands `POST /v1/execute`, the independent Codex verifier `POST /v1/verify`,
+and Victoria assurance `POST /v1/assure`.
 Remote endpoints require HTTPS; plaintext HTTP is accepted only on loopback.
 Credentials are read from environment variables and are never returned by the
 status API. The registry fails closed unless automation is explicitly enabled
-and all three endpoints are configured.
+and all four endpoints are configured. OpenHands, Codex and Assurance must use
+distinct endpoint and credential identities; aliasing any of them fails closed.
 
 ```text
 RONOR_AUTOMATION_ENABLED=false
@@ -45,6 +49,8 @@ RONOR_AUTOMATION_EXPECTED_ORIGIN=https://github.com/Constantin1968/RONOR-.git
 RONOR_AUTOMATION_EXPECTED_HEAD=
 RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
+RONOR_ASSURANCE_URL=
+RONOR_ASSURANCE_TOKEN=
 ```
 
 ## Native OpenHands bridge

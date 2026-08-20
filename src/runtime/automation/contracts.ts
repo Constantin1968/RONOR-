@@ -48,7 +48,7 @@ export interface AutomationAdapters {
   langgraph: { plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> };
   openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> };
   codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
-  assurance: { accept(missionId: string, verdict: VerificationVerdict): Promise<VerificationVerdict> };
+  assurance: { accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
 }
 
 export type AutomationRunStatus =

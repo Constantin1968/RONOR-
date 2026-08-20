@@ -14,7 +14,6 @@ function safeBaseUrl(value: string): URL {
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
     throw new AutomationAdapterError('adapter_url_requires_https_or_loopback');
   }
-  url.pathname = url.pathname.replace(/\/$/, '');
   return url;
 }
 
@@ -33,7 +32,8 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   const cancel = () => controller.abort();
   params.signal?.addEventListener('abort', cancel, { once: true });
   try {
-    const response = await params.fetcher(new URL(base.pathname + params.path, base.origin), {
+    const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
+    const response = await params.fetcher(new URL(`${prefix}${params.path}`, base.origin), {
       method: 'POST', signal: controller.signal, redirect: 'error',
       headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}), ...(params.capability ? { 'x-ronor-capability': params.capability } : {}) },
       body: JSON.stringify(params.body),
@@ -94,6 +94,19 @@ export function createCodexVerifierAdapter(config: { baseUrl: string; token?: st
     const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');
+    return { ...result, verdict: body.verdict };
+  }};
+}
+
+export function createAssuranceAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+  return { async accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
+    const body = await postJson({
+      baseUrl: config.baseUrl, path: '/v1/assure', token: config.token,
+      body: { mission_id: missionId, verification: { verdict: verdict.verdict, summary: verdict.summary, evidence: verdict.evidence }, evidence },
+      fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal,
+    });
+    const result = parseAdapterResult(body);
+    if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('assurance_verdict_invalid');
     return { ...result, verdict: body.verdict };
   }};
 }

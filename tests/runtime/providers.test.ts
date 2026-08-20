@@ -25,7 +25,7 @@ import {
   extractExpression,
   tokenise,
 } from '../../src/runtime/providers/deterministic';
-import { GoogleAdapter, sanitiseGeminiSchema } from '../../src/runtime/providers/google';
+import { GoogleAdapter, GOOGLE_MODELS, sanitiseGeminiSchema } from '../../src/runtime/providers/google';
 import { OpenAIAdapter } from '../../src/runtime/providers/openai';
 import { PerplexityAdapter } from '../../src/runtime/providers/perplexity';
 import { KimiAdapter, KIMI_MODELS } from '../../src/runtime/providers/kimi';
@@ -75,6 +75,12 @@ describe('L1 · family conventions', () => {
 
   it('defaults an unknown model to the safe max_tokens convention', () => {
     expect(inferFamilyConventions('some-new-model-v9').tokenParam).toBe('max_tokens');
+  });
+
+  it('publishes the current stable Gemini Flash models', () => {
+    expect(GOOGLE_MODELS).toContain('gemini-3.7-flash');
+    expect(GOOGLE_MODELS).toContain('gemini-3.6-flash');
+    expect(GOOGLE_MODELS).not.toContain('gemini-3-flash-preview');
   });
 });
 

@@ -81,3 +81,15 @@ DeepSeek 70B is opt-in for deep reasoning rather than rapid work because its
 short-output benchmark exhausted the response budget before producing a final
 answer. Cloud models remain explicit escalation routes, never automatic
 defaults.
+
+Gemini uses stable `gemini-3.7-flash` and `gemini-3.6-flash` routes, with
+`gemini-3.1-pro-preview` retained for complex work. It remains disabled until
+an explicit Gemini credential or allow-listed gateway is configured.
+
+The Qwen portfolio is surfaced as a governed cabinet rather than treated as one
+interchangeable model. Selection filters by modality, sovereignty, interactive
+latency and budget class. Installed Ollama models are zero-token-cost routes;
+Qwen 3.8 Max, Coder Plus, Omni and Image remain credential-gated cloud routes.
+Uninstalled self-hosted candidates are visible but ineligible until their exact
+model is installed and declared. Manus remains deferred until after 26 August
+2026; no Manus credential or execution path is enabled.

@@ -1,5 +1,5 @@
 import { OllamaAdapter, ollamaBaseForModel } from '../../src/runtime/providers/ollama';
-import { modelCabinet } from '../../src/runtime/router/model-cabinet';
+import { modelCabinet, selectModelRoutes } from '../../src/runtime/router/model-cabinet';
 import { RUNTIME_CATALOGUE } from '../../src/runtime/router/catalogue';
 
 describe('Ollama sovereign local provider', () => {
@@ -10,7 +10,7 @@ describe('Ollama sovereign local provider', () => {
 
   it('registers zero-cost sovereign chat models', () => {
     const models = RUNTIME_CATALOGUE.filter((entry) => entry.provider === 'ollama');
-    expect(models).toHaveLength(6);
+    expect(models).toHaveLength(9);
     expect(models.every((entry) => entry.sovereignty_level === 3 && entry.input_cost_per_1m === 0)).toBe(true);
   });
 
@@ -23,11 +23,19 @@ describe('Ollama sovereign local provider', () => {
 
   it('publishes explicit interactive, batch, memory and cloud roles', () => {
     const cabinet = modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.87.14.42:11434' });
-    expect(cabinet.find((route) => route.role === 'analysis-batch')?.status).toBe('available');
+    expect(cabinet.find((route) => route.role === 'analysis-baseline')?.status).toBe('available');
     expect(cabinet.find((route) => route.role === 'frontier-escalation')?.status).toBe('credential-gated');
     expect(cabinet.find((route) => route.role === 'frontier-escalation')?.model).toContain('Grok 4.5');
     expect(modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://public.invalid' })
-      .find((route) => route.role === 'analysis-batch')?.status).toBe('credential-gated');
+      .find((route) => route.role === 'analysis-baseline')?.status).toBe('install-required');
+  });
+
+  it('selects only available routes inside privacy, modality and budget constraints', () => {
+    const routes = modelCabinet({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.64.0.1:11434' });
+    const selected = selectModelRoutes(routes, { modality: 'text', max_budget_class: 0, require_sovereign: true });
+    expect(selected.length).toBeGreaterThan(0);
+    expect(selected.every((route) => route.status === 'available' && route.privacy === 'sovereign' && route.budget_class === 0)).toBe(true);
+    expect(selected.some((route) => route.model === 'qwen3.8-max')).toBe(false);
   });
 
   it('normalises a local chat response without credentials', async () => {

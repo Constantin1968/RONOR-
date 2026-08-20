@@ -43,7 +43,7 @@ import {
   type ProviderResponse,
 } from './types';
 
-export const GOOGLE_MODELS = ['gemini-3.1-pro-preview', 'gemini-3-flash-preview'] as const;
+export const GOOGLE_MODELS = ['gemini-3.1-pro-preview', 'gemini-3.7-flash', 'gemini-3.6-flash'] as const;
 
 /**
  * Strip JSON Schema keywords Gemini's `responseSchema` dialect rejects.

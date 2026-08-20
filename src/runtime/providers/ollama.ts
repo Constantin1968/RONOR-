@@ -1,7 +1,7 @@
 import { providerFailure, type CredentialState, type ProviderAdapter, type ProviderDescriptor, type ProviderInvocation, type ProviderResponse } from './types';
 
-export const OLLAMA_MODELS = ['qwen3:4b-instruct', 'qwen2.5-coder:3b', 'deepseek-r1:1.5b', 'qwen3-embedding:0.6b', 'qwen2.5:72b-instruct-q4_K_M', 'deepseek-r1:70b-llama-distill-q4_K_M', 'llama3.1:70b-instruct-q4_K_M', 'bge-m3:latest'] as const;
-const CONTABO_MODELS = new Set<string>(OLLAMA_MODELS.slice(4));
+export const OLLAMA_MODELS = ['qwen3:4b-instruct', 'qwen3.5:4b', 'qwen2.5-coder:3b', 'deepseek-r1:1.5b', 'qwen3-embedding:0.6b', 'qwen2.5:72b-instruct-q4_K_M', 'qwen3.5:35b-a3b', 'qwen3-coder:30b', 'deepseek-r1:70b-llama-distill-q4_K_M', 'llama3.1:70b-instruct-q4_K_M', 'bge-m3:latest'] as const;
+const CONTABO_MODELS = new Set<string>(['qwen2.5:72b-instruct-q4_K_M', 'qwen3.5:35b-a3b', 'qwen3-coder:30b', 'deepseek-r1:70b-llama-distill-q4_K_M', 'llama3.1:70b-instruct-q4_K_M', 'bge-m3:latest']);
 const EMBEDDING_ONLY_MODELS = new Set<string>(['qwen3-embedding:0.6b', 'bge-m3:latest']);
 
 export function ollamaBaseForModel(model: string, env: NodeJS.ProcessEnv): string | null {

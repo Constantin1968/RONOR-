@@ -65,6 +65,12 @@ export interface CatalogueEntry {
 
 export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
   {
+    id: 'ollama/qwen3.5-4b', provider: 'ollama', vendorModel: 'qwen3.5:4b', displayName: 'Qwen 3.5 4B Local',
+    capabilities: ['reasoning', 'generation', 'analysis', 'summarization', 'extraction'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 7000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 73, evidence_reliability: 57, operational_risk: 12,
+    context_window: 256_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
     id: 'ollama/qwen3-4b-instruct', provider: 'ollama', vendorModel: 'qwen3:4b-instruct', displayName: 'Qwen3 4B Local',
     capabilities: ['generation', 'analysis', 'summarization', 'extraction', 'decomposition'], input_cost_per_1m: 0, output_cost_per_1m: 0,
     latency_seed_ms: 6500, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 68, evidence_reliability: 55, operational_risk: 12,
@@ -87,6 +93,18 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     capabilities: ['reasoning', 'generation', 'analysis', 'summarization', 'synthesis', 'decomposition'], input_cost_per_1m: 0, output_cost_per_1m: 0,
     latency_seed_ms: 102_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 85, evidence_reliability: 68, operational_risk: 16,
     context_window: 32_000, max_output_tokens: 8192, search_augmented: false,
+  },
+  {
+    id: 'ollama/qwen3.5-35b-a3b-contabo', provider: 'ollama', vendorModel: 'qwen3.5:35b-a3b', displayName: 'Qwen 3.5 35B-A3B Sovereign',
+    capabilities: ['reasoning', 'generation', 'analysis', 'summarization', 'synthesis', 'decomposition', 'verification'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 80_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 89, evidence_reliability: 70, operational_risk: 14,
+    context_window: 256_000, max_output_tokens: 65_536, search_augmented: false,
+  },
+  {
+    id: 'ollama/qwen3-coder-30b-contabo', provider: 'ollama', vendorModel: 'qwen3-coder:30b', displayName: 'Qwen 3 Coder 30B Sovereign',
+    capabilities: ['generation', 'analysis', 'validation', 'verification', 'decomposition'], input_cost_per_1m: 0, output_cost_per_1m: 0,
+    latency_seed_ms: 75_000, jurisdictions: ['LOCAL', 'RO'], sovereignty_level: 3, quality_score: 87, evidence_reliability: 68, operational_risk: 14,
+    context_window: 256_000, max_output_tokens: 32_768, search_augmented: false,
   },
   {
     id: 'ollama/llama3.1-70b-contabo', provider: 'ollama', vendorModel: 'llama3.1:70b-instruct-q4_K_M', displayName: 'Llama 3.1 70B Sovereign Verifier',
@@ -250,10 +268,10 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     search_augmented: false,
   },
   {
-    id: 'google/gemini-3-flash-preview',
+    id: 'google/gemini-3.6-flash',
     provider: 'google',
-    vendorModel: 'gemini-3-flash-preview',
-    displayName: 'Gemini 3 Flash',
+    vendorModel: 'gemini-3.6-flash',
+    displayName: 'Gemini 3.6 Flash',
     capabilities: ['summarization', 'extraction', 'analysis', 'validation', 'lookup'],
     input_cost_per_1m: 0.5,
     output_cost_per_1m: 3.0,
@@ -384,6 +402,24 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     operational_risk: 18,
     context_window: 500_000,
     max_output_tokens: 64_000,
+    search_augmented: false,
+  },
+  {
+    id: 'google/gemini-3.7-flash',
+    provider: 'google',
+    vendorModel: 'gemini-3.7-flash',
+    displayName: 'Gemini 3.7 Flash',
+    capabilities: ['reasoning', 'generation', 'analysis', 'synthesis', 'summarization', 'extraction', 'verification'],
+    input_cost_per_1m: 0.5,
+    output_cost_per_1m: 3.0,
+    latency_seed_ms: 2400,
+    jurisdictions: ['US'],
+    sovereignty_level: 1,
+    quality_score: 89,
+    evidence_reliability: 72,
+    operational_risk: 18,
+    context_window: 1_000_000,
+    max_output_tokens: 65_536,
     search_augmented: false,
   },
 

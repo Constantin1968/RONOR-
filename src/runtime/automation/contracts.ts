@@ -27,7 +27,13 @@ export interface ExecutionMandate {
 }
 
 export interface PlannedAssignment { id: string; instruction: string; actions: AutomationAction[]; }
-export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; cost_usd: number; }
+export interface EvidenceArtifact {
+  kind: 'git_diff' | 'git_status' | 'test_report' | 'event_log';
+  sha256: string;
+  reference: string;
+  bytes: number;
+}
+export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
 export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; }
 
 export interface AutomationAdapters {

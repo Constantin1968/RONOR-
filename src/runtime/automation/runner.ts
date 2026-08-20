@@ -65,7 +65,8 @@ export async function runExecutiveMission(params: {
       return { ...run, status: 'failed', reason: result.ok ? 'cost_limit_exceeded' : result.summary };
     }
     run.completed_assignments += 1;
-    workerEvidence.push(...result.evidence);
+    workerEvidence.push(...result.evidence, ...(result.artifacts ?? []).map((artifact) =>
+      `artifact:${artifact.kind}:${artifact.sha256}:${artifact.reference}:${artifact.bytes}`));
     append('task.status_changed', { id: assignment.id, run_id: runId, status: 'complete', evidence: result.evidence }, 'openhands');
   }
 

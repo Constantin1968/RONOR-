@@ -71,4 +71,21 @@ describe('live automation adapter boundary', () => {
     const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'session-token', capabilityKey: 'k'.repeat(32), fetcher: jest.fn(() => response({ token: 'secret' })) });
     await expect(adapter.execute({ id: 'a', instruction: 'x', actions: [] }, mandate)).rejects.toBeInstanceOf(AutomationAdapterError);
   });
+
+  it('normalises immutable artifact references and rejects invalid digests', async () => {
+    const valid = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'git_diff', sha256: 'a'.repeat(64), reference: 'run/a1/diff.patch', bytes: 42 },
+      ] })),
+    });
+    await expect(valid.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).resolves.toMatchObject({ artifacts: [{ kind: 'git_diff', bytes: 42 }] });
+    const invalid = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'git_diff', sha256: 'not-a-digest', reference: '../escape', bytes: 1 },
+      ] })),
+    });
+    await expect(invalid.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_artifacts_invalid');
+  });
 });

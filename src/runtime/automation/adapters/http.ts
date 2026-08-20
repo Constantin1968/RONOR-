@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { isAutomationAction, type AdapterResult, type ExecutionMandate, type PlannedAssignment, type VerificationVerdict } from '../contracts';
+import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 
 type Fetcher = typeof fetch;
@@ -98,5 +98,20 @@ function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
   if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' || typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0) {
     throw new AutomationAdapterError('adapter_result_invalid');
   }
-  return { ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), cost_usd: body.cost_usd };
+  const artifacts: EvidenceArtifact[] = [];
+  if (body.artifacts !== undefined) {
+    if (!Array.isArray(body.artifacts) || body.artifacts.length > 50) throw new AutomationAdapterError('adapter_artifacts_invalid');
+    for (const raw of body.artifacts) {
+      if (!raw || typeof raw !== 'object') throw new AutomationAdapterError('adapter_artifacts_invalid');
+      const item = raw as Record<string, unknown>;
+      if (!['git_diff', 'git_status', 'test_report', 'event_log'].includes(String(item.kind)) ||
+          typeof item.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(item.sha256) ||
+          typeof item.reference !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/.test(item.reference) || item.reference.includes('..') ||
+          typeof item.bytes !== 'number' || !Number.isSafeInteger(item.bytes) || item.bytes < 0) {
+        throw new AutomationAdapterError('adapter_artifacts_invalid');
+      }
+      artifacts.push({ kind: item.kind as EvidenceArtifact['kind'], sha256: item.sha256, reference: item.reference, bytes: item.bytes });
+    }
+  }
+  return { ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), artifacts, cost_usd: body.cost_usd };
 }

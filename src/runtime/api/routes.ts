@@ -66,6 +66,8 @@ import { ingestDocuments, knowledgeStatus } from '../knowledge/bridge';
 import { dispatchMission, type MissionDispatchRequest } from '../agents/coordinator';
 import { agentPassports } from '../agents/registry';
 import { consumePendingExecution } from './approval-settlement';
+import { managementAgents, getManagementAgent } from '../management/registry';
+import { planExecutiveDelegation } from '../management/executive';
 
 /**
  * Build the runtime router.
@@ -342,8 +344,15 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       const actorBody = body.actor && typeof body.actor === 'object'
         ? body.actor as Record<string, unknown>
         : {};
-      const actorId = sanitiseIdentifier(actorBody.id) ?? req.apiKey?.label ?? null;
-      const actorKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'human';
+      // Authorship is bound to the authenticated principal. Body actor fields are
+      // hints only and can never impersonate Merlin or another service.
+      const actorId = req.apiKey?.label ?? null;
+      const claimedKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'agent';
+      const actorKind = req.apiKey?.role === 'architect'
+        ? 'human'
+        : ['codex', 'langgraph', 'openhands'].includes(claimedKind) && actorId?.toLowerCase().startsWith(claimedKind)
+          ? claimedKind
+          : 'agent';
       const eventType = typeof body.type === 'string' ? body.type as MissionFabricEventType : null;
       const expectedVersion = typeof body.expected_version === 'number' && Number.isInteger(body.expected_version)
         ? body.expected_version
@@ -390,6 +399,50 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     requireAuth('read'),
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, agents: agentPassports() });
+    }),
+  );
+
+  // -------------------------------------------------------------------------
+  // CONTROL · Executive Intelligence Council
+  // -------------------------------------------------------------------------
+  router.get(
+    '/management',
+    requireAuth('architect'),
+    asyncHandler(async (_req: Request, res: Response) => {
+      res.json({ ok: true, architect: 'merlin', management: managementAgents() });
+    }),
+  );
+
+  router.get(
+    '/management/:id',
+    requireAuth('architect'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      const member = id ? getManagementAgent(id) : null;
+      if (!member) {
+        res.status(404).json({ ok: false, error: 'not_found' });
+        return;
+      }
+      res.json({ ok: true, management_agent: member });
+    }),
+  );
+
+  router.post(
+    '/management/executive/delegate',
+    requireAuth('architect'),
+    rateLimit,
+    asyncHandler(async (req: Request, res: Response) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const objective = sanitiseFreeText(body.objective, 8000);
+      if (!objective) {
+        res.status(400).json({ ok: false, error: 'invalid_request', message: '`objective` is required.' });
+        return;
+      }
+      const delegation = planExecutiveDelegation({
+        objective,
+        operatorId: req.apiKey?.label ?? 'merlin',
+      });
+      res.status(201).json({ ok: true, delegation });
     }),
   );
 

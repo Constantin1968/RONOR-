@@ -53,11 +53,13 @@ import { loadPolicy } from '../../src/governance/mi9-gate';
 
 const TEST_SECRET = 'test-operator-secret-key-0123456789';
 const ADMIN_SECRET = 'test-admin-secret-key-9876543210abc';
+const ARCHITECT_SECRET = 'test-architect-secret-key-0123456789abc';
 
 beforeAll(() => {
   loadPolicy();
   upsertApiKey({ secret: TEST_SECRET, label: 'test-operator', role: 'operator', scopes: ['query', 'read', 'agent'] });
   upsertApiKey({ secret: ADMIN_SECRET, label: 'test-admin', role: 'admin', scopes: ['admin'] });
+  upsertApiKey({ secret: ARCHITECT_SECRET, label: 'merlin', role: 'architect', scopes: ['architect'] });
 });
 
 beforeEach(() => {
@@ -159,6 +161,14 @@ describe('L0 · authentication', () => {
     // Admin holds only the 'admin' scope explicitly, yet must reach 'query'.
     expect(hasScope(admin!, 'query')).toBe(true);
     expect(hasScope(admin!, 'anything-at-all')).toBe(true);
+    expect(hasScope(admin!, 'architect')).toBe(false);
+  });
+
+  it('reserves constitutional authority for the architect identity', () => {
+    const architect = authenticate(ARCHITECT_SECRET);
+    expect(architect?.label).toBe('merlin');
+    expect(hasScope(architect!, 'architect')).toBe(true);
+    expect(hasScope(architect!, 'admin')).toBe(true);
   });
 
   it('does not grant an operator an unlisted scope', () => {
@@ -598,6 +608,69 @@ describe('L0 · read surfaces', () => {
       .set('Authorization', `Bearer ${TEST_SECRET}`);
     expect(res.status).toBe(404);
   });
+
+  it('exposes the architect-governed AI management registry without send authority', async () => {
+    const res = await request(makeApp())
+      .get('/api/runtime/management')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+    expect(res.status).toBe(200);
+    expect(res.body.architect).toBe('merlin');
+    const richard = res.body.management.find((a: { agent_id: string }) => a.agent_id === 'richard');
+    expect(richard.role).toBe('AI Chief Executive Adviser');
+    expect(richard.external_send_authority).toBe(false);
+    expect(richard.email_status).toBe('proposed');
+  });
+
+  it('denies CONTROL management data to operators and technical administrators', async () => {
+    for (const secret of [TEST_SECRET, ADMIN_SECRET]) {
+      const res = await request(makeApp())
+        .get('/api/runtime/management')
+        .set('Authorization', `Bearer ${secret}`);
+      expect(res.status).toBe(403);
+    }
+  });
+});
+
+describe('CONTROL · executive delegation', () => {
+  it('turns Merlin\'s objective into a RACI mission and an unsent email draft', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ objective: 'Resolve the RONOR runtime security and deployment reliability situation.' });
+    expect(res.status).toBe(201);
+    const delegation = res.body.delegation;
+    expect(delegation.accountable).toBe('richard');
+    expect(delegation.responsible).toEqual(expect.arrayContaining(['oliver', 'christopher', 'james']));
+    expect(delegation.independent_verifier).toBe('victoria');
+    expect(delegation.communication.status).toBe('draft');
+    expect(delegation.communication.from).toBe('richard@ma11ai.com');
+    expect(delegation.requires_merlin_approval).toContain('deployment');
+
+    const fabric = await request(app)
+      .get(`/api/runtime/missions/${delegation.mission_id}/fabric`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`);
+    expect(fabric.status).toBe(200);
+    expect(fabric.body.fabric.tasks['executive-victoria'].status).toBe('awaiting-independent-verification');
+    expect(fabric.body.fabric.approvals['merlin-consequential-action']).toBeDefined();
+    expect(fabric.body.integrity.valid).toBe(true);
+  });
+
+  it('requires agent scope and refuses an empty objective', async () => {
+    const res = await request(makeApp())
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ objective: '   ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('denies executive delegation to a normal agent-scoped operator', async () => {
+    const res = await request(makeApp())
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ objective: 'Pretend this came from Merlin.' });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('L0 · mission lifecycle', () => {
@@ -731,6 +804,46 @@ describe('L0 · mission lifecycle', () => {
       });
     expect(secret.status).toBe(400);
     expect(secret.body.error).toBe('invalid_event');
+  });
+
+  it('binds fabric authorship to the credential and rejects credential content', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Identity binding', objective: 'Prevent actor impersonation' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+    const spoof = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'human', id: 'merlin' },
+        type: 'message.recorded',
+        payload: { id: 'message-bound', text: 'ordinary operator message' },
+      });
+    expect(spoof.status).toBe(201);
+    expect(spoof.body.fabric.messages[0].actor).toEqual({ kind: 'agent', id: 'test-operator' });
+
+    const credential = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        type: 'message.recorded',
+        payload: { id: 'message-credential', text: 'Bearer abcdefghijklmnopqrstuvwxyz' },
+      });
+    expect(credential.status).toBe(400);
+
+    const reserved = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        type: 'task.upserted',
+        payload: { id: '__proto__', status: 'assigned' },
+      });
+    expect(reserved.status).toBe(400);
   });
 });
 

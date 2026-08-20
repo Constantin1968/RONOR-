@@ -29,7 +29,7 @@ import crypto from 'crypto';
 import { getDb } from '../../audit/hash-chain';
 import { ensureRuntimeLedgerSchema } from '../ledgers/schema';
 
-export type ApiRole = 'admin' | 'operator' | 'readonly';
+export type ApiRole = 'architect' | 'admin' | 'operator' | 'readonly';
 
 /** The shipped default. Its presence is a reportable security finding. */
 export const INSECURE_DEFAULT_KEY = 'ronor-dev-key-change-in-production';
@@ -186,6 +186,19 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
   let seeded = 0;
   let insecure = false;
 
+  const architect = env.RONOR_ARCHITECT_API_KEY?.trim();
+  if (architect) {
+    upsertApiKey({
+      secret: architect,
+      label: 'merlin',
+      role: 'architect',
+      scopes: ['architect', 'query', 'agent', 'read', 'admin', 'ingest'],
+      rateLimitRpm: Number(env.RONOR_ARCHITECT_RATE_LIMIT_RPM ?? 240),
+    });
+    seeded++;
+    if (architect === INSECURE_DEFAULT_KEY) insecure = true;
+  }
+
   const admin = env.RONOR_ADMIN_API_KEY?.trim();
   if (admin) {
     upsertApiKey({
@@ -267,5 +280,8 @@ export function hasScope(key: ApiKeyRecord, scope: string): boolean {
   // An admin role implies every scope. Enumerating admin scopes at every call
   // site is how a new endpoint ends up unreachable by the only key that should
   // certainly reach it.
+  if (key.role === 'architect') return true;
+  // Technical administrators do not inherit the constitutional Architect role.
+  if (scope === 'architect') return false;
   return key.role === 'admin' || key.scopes.includes(scope);
 }

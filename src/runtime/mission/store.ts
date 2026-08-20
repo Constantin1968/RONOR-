@@ -387,8 +387,14 @@ function validateFabricInput(
   if (/"(?:token|secret|password|private[_-]?key|api[_-]?key)"\s*:/i.test(json)) {
     throw new MissionFabricValidationError('Secret-like fields are forbidden in mission fabric events.');
   }
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,}|\b(?:ghp_|sk-)[A-Za-z0-9_-]{16,}|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i.test(json)) {
+    throw new MissionFabricValidationError('Credential-like content is forbidden in mission fabric events.');
+  }
   if (!payload.id || typeof payload.id !== 'string' || payload.id.length > 160) {
     throw new MissionFabricValidationError('Mission fabric payload requires a bounded string `id`.');
+  }
+  if (['__proto__', 'prototype', 'constructor'].includes(payload.id.toLowerCase())) {
+    throw new MissionFabricValidationError('Reserved mission fabric identifier.');
   }
 }
 

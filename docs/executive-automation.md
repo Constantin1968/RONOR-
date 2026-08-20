@@ -83,6 +83,12 @@ origin and optional base commit, and requires a clean starting tree. The actual
 branch must equal the branch declared by the request. Inspection failures return
 a bounded reason code without filesystem or remote details.
 
+An active run can be cancelled only through the architect route
+`POST /control/automation/runs/:runId/cancel`. The request is bound to its
+mission and produces an `AbortSignal` that propagates to LangGraph, OpenHands
+and Codex HTTP calls. Cancellation is distinct from adapter timeout and never
+claims to roll back local effects that completed before the signal arrived.
+
 ## Local model cabinet
 
 Ollama is a first-class, fail-closed local provider. Set `OLLAMA_ENABLED=true`

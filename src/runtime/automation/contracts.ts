@@ -44,9 +44,9 @@ export interface AdapterResult { ok: boolean; summary: string; evidence: string[
 export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; }
 
 export interface AutomationAdapters {
-  langgraph: { plan(objective: string): Promise<PlannedAssignment[]> };
-  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate): Promise<AdapterResult> };
-  codex: { verify(missionId: string, evidence: string[]): Promise<VerificationVerdict> };
+  langgraph: { plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> };
+  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> };
+  codex: { verify(missionId: string, evidence: string[], signal?: AbortSignal): Promise<VerificationVerdict> };
   assurance: { accept(missionId: string, verdict: VerificationVerdict): Promise<VerificationVerdict> };
 }
 

@@ -48,6 +48,16 @@ describe('live automation adapter boundary', () => {
     await expect(createLangGraphAdapter({ baseUrl: 'http://127.0.0.1:2024', fetcher }).plan('x')).rejects.toThrow('adapter_response_too_large');
   });
 
+  it('propagates cooperative cancellation distinctly from timeout', async () => {
+    const fetcher = jest.fn((_url: URL | Request | string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    }));
+    const controller = new AbortController();
+    const pending = createLangGraphAdapter({ baseUrl: 'http://127.0.0.1:2024', fetcher, timeoutMs: 10_000 }).plan('objective', controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow('adapter_cancelled');
+  });
+
   it('normalises valid LangGraph, OpenHands and Codex responses', async () => {
     const graphFetch = jest.fn(() => response({ assignments: [{ id: 'a1', instruction: 'edit safely', actions: ['read_repo', 'run_tests'] }] }));
     const graph = createLangGraphAdapter({ baseUrl: 'https://graph.invalid', token: 'session-token', fetcher: graphFetch });

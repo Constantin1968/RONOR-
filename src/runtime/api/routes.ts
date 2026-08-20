@@ -69,7 +69,8 @@ import { consumePendingExecution } from './approval-settlement';
 import { managementAgents, getManagementAgent } from '../management/registry';
 import { planExecutiveDelegation } from '../management/executive';
 import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
-import { runExecutiveMission } from '../automation/runner';
+import { executionRunId, runExecutiveMission } from '../automation/runner';
+import { cancelAutomationRun, registerAutomationRun } from '../automation/run-control';
 import type { ExecutionMandate } from '../automation/contracts';
 import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { modelCabinet } from '../router/model-cabinet';
@@ -518,10 +519,24 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(422).json({ ok: false, error: 'workspace_policy_refused', reason: workspace.valid ? 'branch_request_mismatch' : workspace.reason });
         return;
       }
-      const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters });
-      res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
+      const runId = executionRunId(mandate.mandate_id);
+      const control = registerAutomationRun(runId, mandate.mission_id);
+      if (!control) { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
+      try {
+        const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters, signal: control.signal });
+        res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
+      } finally { control.finish(); }
     }),
   );
+
+  router.post('/control/automation/runs/:runId/cancel', requireArchitect, rateLimit, (req, res) => {
+    const runId = sanitiseIdentifier(req.params.runId, 120);
+    const missionId = sanitiseIdentifier((req.body as Record<string, unknown> | undefined)?.mission_id, 120);
+    if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_cancel_request' }); return; }
+    const result = cancelAutomationRun(runId, missionId);
+    if (result !== 'cancelled') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    res.status(202).json({ ok: true, status: 'cancellation_requested', rollback: false });
+  });
 
   router.get(
     '/management',

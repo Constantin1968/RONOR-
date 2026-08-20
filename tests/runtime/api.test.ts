@@ -664,10 +664,11 @@ describe('L0 · read surfaces', () => {
       .send({ approved: true, mandate: { issued_by: 'merlin' } });
     expect(forged.status).toBe(400);
     expect(forged.body.error).toBe('client_authority_fields_forbidden');
+    const mission = createMission({ title: 'Automation readiness', objective: 'Verify fail-closed readiness.', operatorId: 'merlin' });
     const unavailable = await request(app)
       .post('/api/runtime/control/automation/run')
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
-      .send({ approved: true });
+      .send({ approved: true, mission_id: mission.mission_id, workspace_root: '/isolated/worktree', branch: 'agent/readiness' });
     expect(unavailable.status).toBe(503);
     expect(unavailable.body.automation.ready).toBe(false);
   });

@@ -66,7 +66,18 @@ RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 RONOR_ASSURANCE_URL=
 RONOR_ASSURANCE_TOKEN=
+RONOR_CODEX_API_KEY=
+RONOR_CODEX_MODEL=
+RONOR_CODEX_INPUT_USD_PER_MTOK=
+RONOR_CODEX_OUTPUT_USD_PER_MTOK=
 ```
+
+`npm run automation:codex-verifier` and `npm run automation:assurance` start
+the two authorities on loopback ports 3002 and 3003. The Codex process uses the
+OpenAI Responses API with `store:false`, no tools and a strict JSON-schema
+verdict. The model and current per-million-token prices are mandatory operator
+configuration so cost accounting cannot silently assume a free or guessed
+price. Evidence above the bounded context is refused rather than truncated.
 
 ## Native OpenHands bridge
 

@@ -247,7 +247,7 @@ export function appendToMission(params: {
     );
     return true;
   });
-  if (!tx()) return null;
+  if (!tx.immediate()) return null;
 
   return getMission(params.missionId);
 }
@@ -313,7 +313,7 @@ export function appendMissionFabricEvent(params: {
     return projectMissionFabric(state.fabric);
   });
 
-  return tx();
+  return tx.immediate();
 }
 
 export function getMissionFabric(missionId: string): MissionFabricProjection | null {

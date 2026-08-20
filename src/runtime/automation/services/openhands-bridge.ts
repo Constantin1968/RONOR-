@@ -85,7 +85,9 @@ export function createOpenHandsBridgeApp(config: {
   const nonces = config.nonces ?? new MemoryCapabilityNonceStore();
   const now = config.now ?? (() => new Date());
   app.use(express.json({ limit: '32kb' }));
-  app.get('/health', (_req, res) => res.json({ ok: true, protocol: 'ronor-openhands-bridge/v1' }));
+  app.get('/health', (req, res) => bearer(req.header('authorization')) === config.serviceToken
+    ? res.json({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute'] })
+    : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/execute', async (req, res) => {
     if (!config.serviceToken || bearer(req.header('authorization')) !== config.serviceToken) {
       res.status(401).json({ ok: false, error: 'unauthorized' }); return;

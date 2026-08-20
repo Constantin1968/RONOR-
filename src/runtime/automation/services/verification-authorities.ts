@@ -36,7 +36,7 @@ function hasRequiredEvidence(evidence: VerificationEvidence): boolean {
 
 export function createCodexVerifierApp(config: { serviceToken: string; artifacts: WorkspaceArtifactCollector; evaluator: CodexEvaluationPort }) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
-  app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-codex-verifier/v1' }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
+  app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capabilities: ['verify'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/verify', async (req, res) => {
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     const missionId = req.body?.mission_id; const evidence = parseEvidence(req.body?.evidence);
@@ -54,7 +54,7 @@ export function createCodexVerifierApp(config: { serviceToken: string; artifacts
 
 export function createAssuranceAuthorityApp(config: { serviceToken: string; artifacts: WorkspaceArtifactCollector }) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
-  app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-assurance/v1' }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
+  app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capabilities: ['assure'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/assure', (req, res) => {
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     const missionId = req.body?.mission_id; const verification = req.body?.verification as Record<string, unknown> | undefined; const evidence = parseEvidence(req.body?.evidence);

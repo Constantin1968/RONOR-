@@ -1,4 +1,4 @@
-import { attestAutomationAdapters } from '../../src/runtime/automation/attestation';
+import { attestAutomationAdapters, clearAutomationAttestations, currentAutomationAttestation } from '../../src/runtime/automation/attestation';
 
 const env = {
   RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
@@ -8,19 +8,27 @@ const env = {
 };
 
 describe('automation endpoint attestation', () => {
+  beforeEach(() => clearAutomationAttestations());
   it('requires four independently authenticated compatible protocols', async () => {
-    const protocols: Record<string, string> = {
-      'graph.invalid': 'ronor-langgraph/v1', 'hands.invalid': 'ronor-openhands-bridge/v1',
-      'codex.invalid': 'ronor-codex-verifier/v1', 'assurance.invalid': 'ronor-assurance/v1',
+    const declarations: Record<string, { protocol: string; service_id: string; capability: string }> = {
+      'graph.invalid': { protocol: 'ronor-langgraph/v1', service_id: 'langgraph', capability: 'plan' },
+      'hands.invalid': { protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capability: 'execute' },
+      'codex.invalid': { protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capability: 'verify' },
+      'assurance.invalid': { protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capability: 'assure' },
     };
     const fetcher = jest.fn((url: string | URL | Request, init?: RequestInit) => {
       const target = new URL(String(url));
       expect(target.pathname).toBe('/health');
       expect(init?.redirect).toBe('error');
       expect((init?.headers as Record<string, string>).authorization).toMatch(/^Bearer /);
-      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol: protocols[target.hostname] }), { status: 200 }));
+      const declaration = declarations[target.hostname];
+      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol: declaration.protocol, service_id: declaration.service_id, capabilities: [declaration.capability] }), { status: 200 }));
     });
-    await expect(attestAutomationAdapters(env, fetcher)).resolves.toEqual({ langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' });
+    const now = new Date('2026-08-20T12:00:00Z');
+    const result = await attestAutomationAdapters(env, fetcher, { now: () => now, ttlMs: 10_000 });
+    expect(result.verified).toEqual({ langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' });
+    expect(currentAutomationAttestation(env, new Date('2026-08-20T12:00:09Z'))?.verified).toEqual(result.verified);
+    expect(currentAutomationAttestation(env, new Date('2026-08-20T12:00:10Z'))).toBeNull();
     expect(fetcher).toHaveBeenCalledTimes(4);
   });
 
@@ -32,5 +40,13 @@ describe('automation endpoint attestation', () => {
 
   it('never accepts a missing service credential even on loopback', async () => {
     await expect(attestAutomationAdapters({ ...env, RONOR_LANGGRAPH_URL: 'http://127.0.0.1:2024', RONOR_LANGGRAPH_TOKEN: '' }, jest.fn())).rejects.toThrow('attestation_langgraph_not_configured');
+  });
+
+  it('refuses a service identity or capability mismatch and caches no readiness', async () => {
+    const fetcher = jest.fn(() => Promise.resolve(new Response(JSON.stringify({
+      ok: true, protocol: 'ronor-langgraph/v1', service_id: 'openhands-bridge', capabilities: ['plan'],
+    }), { status: 200 })));
+    await expect(attestAutomationAdapters(env, fetcher)).rejects.toThrow('attestation_langgraph_protocol_mismatch');
+    expect(currentAutomationAttestation(env)).toBeNull();
   });
 });

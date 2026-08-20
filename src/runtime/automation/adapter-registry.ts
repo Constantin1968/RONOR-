@@ -1,11 +1,13 @@
 import type { AutomationAdapters } from './contracts';
 import { createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from './adapters/http';
+import { currentAutomationAttestation } from './attestation';
 
-export interface AutomationAdapterStatus { enabled: boolean; ready: boolean; runner: string; adapters: Record<'langgraph' | 'openhands' | 'codex' | 'assurance', string>; }
+export interface AutomationAdapterStatus { enabled: boolean; configured: boolean; ready: boolean; runner: string; attested_at: string | null; attestation_expires_at: string | null; adapters: Record<'langgraph' | 'openhands' | 'codex' | 'assurance', string>; }
 
 function sameIdentity(left: string | undefined, right: string | undefined): boolean {
   if (!left || !right) return false;
-  try { const a = new URL(left); const b = new URL(right); return a.origin === b.origin && a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, ''); }
+  // Different URL paths behind one origin are still one failure/trust domain.
+  try { const a = new URL(left); const b = new URL(right); return a.origin === b.origin; }
   catch { return false; }
 }
 
@@ -34,17 +36,17 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
     Boolean(env.RONOR_OPENHANDS_TOKEN && (env.RONOR_OPENHANDS_TOKEN === env.RONOR_CODEX_VERIFIER_TOKEN || env.RONOR_OPENHANDS_TOKEN === env.RONOR_ASSURANCE_TOKEN)) ||
     Boolean(env.RONOR_CODEX_VERIFIER_TOKEN && env.RONOR_CODEX_VERIFIER_TOKEN === env.RONOR_ASSURANCE_TOKEN);
   if (identityConflict) { states.openhands = 'identity-conflict'; states.codex = 'identity-conflict'; states.assurance = 'identity-conflict'; }
-  const configured = Object.fromEntries(Object.entries(states).map(([name, state]) => [name, state === 'configured-not-verified'])) as Record<keyof typeof states, boolean>;
+  const configuredParts = Object.fromEntries(Object.entries(states).map(([name, state]) => [name, state === 'configured-not-verified'])) as Record<keyof typeof states, boolean>;
+  const configured = enabled && Object.values(configuredParts).every(Boolean);
+  const attestation = configured ? currentAutomationAttestation(env) : null;
   return {
     enabled,
-    ready: enabled && Object.values(configured).every(Boolean),
+    configured,
+    ready: configured && Boolean(attestation),
     runner: enabled ? 'enabled' : 'implemented-disabled',
-    adapters: {
-      langgraph: states.langgraph,
-      openhands: states.openhands,
-      codex: states.codex,
-      assurance: states.assurance,
-    },
+    attested_at: attestation?.verified_at ?? null,
+    attestation_expires_at: attestation?.expires_at ?? null,
+    adapters: attestation ? { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } : states,
   };
 }
 

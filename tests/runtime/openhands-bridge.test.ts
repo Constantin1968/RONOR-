@@ -19,6 +19,12 @@ const capability = (nonce = 'nonce-1') => signExecutionCapability({
 }, key);
 
 describe('RONOR OpenHands bridge', () => {
+  it('requires the bridge identity for health attestation', async () => {
+    const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute: jest.fn() } });
+    expect((await request(app).get('/health')).status).toBe(401);
+    const response = await request(app).get('/health').set('Authorization', `Bearer ${serviceToken}`);
+    expect(response.body).toMatchObject({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute'] });
+  });
   it('executes once with matching service identity and capability', async () => {
     const execute = jest.fn(async () => ({ ok: true, summary: 'done', evidence: ['tests:pass'], cost_usd: 0 }));
     const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute }, now: () => new Date('2026-08-20T00:00:00Z') });

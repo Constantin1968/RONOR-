@@ -1,12 +1,14 @@
 import { automationAdapterStatus, configuredAutomationAdapters } from '../../src/runtime/automation/adapter-registry';
 import { AutomationAdapterError, createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from '../../src/runtime/automation/adapters/http';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
+import { attestAutomationAdapters, clearAutomationAttestations } from '../../src/runtime/automation/attestation';
 
 const response = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
 const mandate = { mandate_id: 'm1', mission_id: 'mission1' } as ExecutionMandate;
 
 describe('live automation adapter boundary', () => {
-  it('fails closed until enabled and all four independent endpoints are configured', () => {
+  beforeEach(() => clearAutomationAttestations());
+  it('distinguishes configured from cryptographically separate, live readiness', async () => {
     expect(automationAdapterStatus({}).ready).toBe(false);
     expect(configuredAutomationAdapters({ RONOR_AUTOMATION_ENABLED: 'true', RONOR_LANGGRAPH_URL: 'https://graph.invalid' })).toBeNull();
     const env = {
@@ -17,7 +19,19 @@ describe('live automation adapter boundary', () => {
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
       RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
     };
-    expect(automationAdapterStatus(env).ready).toBe(true);
+    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: false, attested_at: null });
+    expect(configuredAutomationAdapters(env)).toBeNull();
+    const declarations: Record<string, [string, string, string]> = {
+      'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
+      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute'],
+      'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
+      'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+    };
+    await attestAutomationAdapters(env, jest.fn((url: string | URL | Request) => {
+      const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
+      return response({ ok: true, protocol, service_id, capabilities: [capability] });
+    }));
+    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
     expect(configuredAutomationAdapters(env)).not.toBeNull();
   });
 
@@ -31,6 +45,7 @@ describe('live automation adapter boundary', () => {
     };
     expect(automationAdapterStatus(env).ready).toBe(false);
     expect(automationAdapterStatus(env).adapters.codex).toBe('identity-conflict');
+    expect(automationAdapterStatus({ ...env, RONOR_OPENHANDS_URL: 'https://workers.invalid/hands', RONOR_CODEX_VERIFIER_URL: 'https://workers.invalid/codex' }).ready).toBe(false);
   });
 
   it('refuses plaintext remote endpoints', async () => {

@@ -445,6 +445,14 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     res.json({ ok: true, architect: 'merlin', management: managementAgents() });
   });
 
+  router.get('/control/automation/readiness', requireArchitect, rateLimit, asyncHandler(async (_req, res) => {
+    const configured = automationAdapterStatus(env);
+    if (!configured.configured) { res.status(503).json({ ok: false, automation: configured }); return; }
+    try { await attestAutomationAdapters(env); }
+    catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed', automation: automationAdapterStatus(env) }); return; }
+    res.json({ ok: true, automation: automationAdapterStatus(env) });
+  }));
+
   router.get('/control/models', requireArchitect, (_req, res) => {
     res.json({ ok: true, cabinet: modelCabinet(env), providers: providerStatuses(env) });
   });
@@ -507,8 +515,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(400).json({ ok: false, error: 'invalid_automation_request' });
         return;
       }
-      const adapters = configuredAutomationAdapters(env);
-      if (!adapters) {
+      const configured = automationAdapterStatus(env);
+      if (!configured.configured) {
         res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
         return;
       }
@@ -556,6 +564,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       }
       try { await attestAutomationAdapters(env); }
       catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
+      const adapters = configuredAutomationAdapters(env);
+      if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
       const runId = executionRunId(mandate.mandate_id);
       const claim = claimAutomationRun({
         runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,

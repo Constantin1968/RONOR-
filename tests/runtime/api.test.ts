@@ -51,6 +51,7 @@ import {
 } from '../../src/runtime/api/middleware';
 import { createRuntimeRouter } from '../../src/runtime/api/routes';
 import { loadPolicy } from '../../src/governance/mi9-gate';
+import { clearAutomationAttestations } from '../../src/runtime/automation/attestation';
 
 const TEST_SECRET = 'test-operator-secret-key-0123456789';
 const ADMIN_SECRET = 'test-admin-secret-key-9876543210abc';
@@ -65,6 +66,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   resetRateLimiter();
+  clearAutomationAttestations();
 });
 
 /**
@@ -673,6 +675,35 @@ describe('L0 · read surfaces', () => {
       .send({ approved: true, mission_id: mission.mission_id, workspace_root: '/isolated/worktree', branch: 'agent/readiness' });
     expect(unavailable.status).toBe(503);
     expect(unavailable.body.automation.ready).toBe(false);
+  });
+
+  it('reports automation ready only after authenticated identity and capability attestation', async () => {
+    const env: NodeJS.ProcessEnv = {
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
+      RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
+      RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
+      RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
+      RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+    };
+    const declarations: Record<string, [string, string, string]> = {
+      'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
+      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute'],
+      'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
+      'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+    };
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
+      return new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities: [capability] }));
+    });
+    try {
+      const before = await request(makeApp(env)).get('/api/runtime/control/overview').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+      expect(before.body.automation).toMatchObject({ configured: true, ready: false });
+      const probe = await request(makeApp(env)).get('/api/runtime/control/automation/readiness').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+      expect(probe.status).toBe(200);
+      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+      expect(JSON.stringify(probe.body)).not.toContain('graph-token');
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally { fetchMock.mockRestore(); }
   });
 
   it('exposes the governed model cabinet without exposing endpoint URLs', async () => {

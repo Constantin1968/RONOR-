@@ -51,7 +51,7 @@ export function createLangGraphLocalApp(config: { serviceToken?: string } = {}) 
     if (req.header('authorization') !== `Bearer ${config.serviceToken}`) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     next();
   });
-  app.get('/health', (_req, res) => res.json({ ok: true, protocol: 'ronor-langgraph/v1' }));
+  app.get('/health', (_req, res) => res.json({ ok: true, protocol: 'ronor-langgraph/v1', service_id: 'langgraph', capabilities: ['plan'] }));
   app.post('/v1/plan', async (req, res) => {
     const objective = typeof req.body?.objective === 'string' ? req.body.objective.trim() : '';
     if (!objective || objective.length > 8000) {

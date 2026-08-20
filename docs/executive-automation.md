@@ -155,6 +155,14 @@ paths are rejected, and redirects remain disabled.
 Server readiness probe passes. Container isolation, credential-free worktrees
 and default-deny egress remain mandatory before enabling live execution.
 
+`GET /api/runtime/control/automation/readiness` performs an architect-only,
+authenticated probe of LangGraph, OpenHands, Codex and Victoria. Readiness is
+true only when each endpoint declares its exact protocol, service identity and
+required capability. The proof is cached for at most 30 seconds, is keyed to the
+complete private configuration fingerprint, is invalidated on probe failure or
+configuration change, and exposes only timestamps and bounded state labels.
+Every execution request performs a fresh attestation before claiming its lease.
+
 The bridge consumes every capability nonce with atomic exclusive file creation
 in a dedicated persistent host directory mounted only into the bridge. The
 operator pre-creates that directory for uid/gid 10001; the container receives

@@ -41,7 +41,7 @@ import {
 } from '../../audit/hash-chain';
 import { getPolicyVersion } from '../../governance/mi9-gate';
 import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
-import { asyncHandler, rateLimit, requireAuth } from './middleware';
+import { asyncHandler, rateLimit, requireArchitect, requireAuth } from './middleware';
 import { runQueryPipeline, type QueryRequest } from './pipeline';
 import { sanitiseFreeText, sanitiseIdentifier } from './sanitize';
 import { providerStatuses } from '../providers/registry';
@@ -405,9 +405,81 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
   // -------------------------------------------------------------------------
   // CONTROL · Executive Intelligence Council
   // -------------------------------------------------------------------------
+  router.get('/control/session', requireArchitect, (_req, res) => {
+    res.json({ ok: true, interface: 'CONTROL', identity: 'merlin', role: 'architect' });
+  });
+
+  router.get('/control/overview', requireArchitect, (_req, res) => {
+    const missions = listMissions(100);
+    const integrity = missions.map((mission) => verifyMissionFabric(mission.mission_id));
+    res.json({
+      ok: true,
+      architect: 'merlin',
+      runtime: 'runtime-active',
+      missions: {
+        total: missions.length,
+        active: missions.filter((mission) => ['open', 'executing'].includes(mission.status)).length,
+        recent: missions.slice(0, 8),
+      },
+      fabric: {
+        verified: integrity.filter((item) => item?.valid === true).length,
+        failed: integrity.filter((item) => item?.valid === false).length,
+      },
+      council: { members: managementAgents().length },
+      automation: {
+        runner: 'implemented-disabled',
+        enabled: env.RONOR_AUTOMATION_ENABLED === 'true',
+        adapters: {
+          langgraph: env.RONOR_LANGGRAPH_URL ? 'configured-not-verified' : 'not-connected',
+          openhands: env.RONOR_OPENHANDS_URL ? 'configured-not-verified' : 'not-connected',
+          codex: env.RONOR_CODEX_VERIFIER_ENABLED === 'true' ? 'configured-not-verified' : 'not-connected',
+        },
+      },
+    });
+  });
+
+  router.get('/control/council', requireArchitect, (_req, res) => {
+    res.json({ ok: true, architect: 'merlin', management: managementAgents() });
+  });
+
+  router.get('/control/council/:id', requireArchitect, (req, res) => {
+    const id = sanitiseIdentifier(req.params.id);
+    const member = id ? getManagementAgent(id) : null;
+    if (!member) {
+      res.status(404).json({ ok: false, error: 'not_found' });
+      return;
+    }
+    res.json({ ok: true, management_agent: member });
+  });
+
+  router.get('/control/missions/:id/fabric', requireArchitect, (req, res) => {
+    const id = sanitiseIdentifier(req.params.id);
+    const fabric = id ? getMissionFabric(id) : null;
+    if (!id || !fabric) {
+      res.status(404).json({ ok: false, error: 'not_found' });
+      return;
+    }
+    res.json({ ok: true, fabric, integrity: verifyMissionFabric(id) });
+  });
+
+  router.post(
+    '/control/executive/delegate',
+    requireArchitect,
+    rateLimit,
+    asyncHandler(async (req, res) => {
+      const objective = sanitiseFreeText((req.body as Record<string, unknown> | undefined)?.objective, 8000);
+      if (!objective) {
+        res.status(400).json({ ok: false, error: 'invalid_request', message: '`objective` is required.' });
+        return;
+      }
+      const delegation = planExecutiveDelegation({ objective, operatorId: 'merlin' });
+      res.status(201).json({ ok: true, delegation });
+    }),
+  );
+
   router.get(
     '/management',
-    requireAuth('architect'),
+    requireArchitect,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, architect: 'merlin', management: managementAgents() });
     }),
@@ -415,7 +487,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
 
   router.get(
     '/management/:id',
-    requireAuth('architect'),
+    requireArchitect,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const member = id ? getManagementAgent(id) : null;
@@ -429,7 +501,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
 
   router.post(
     '/management/executive/delegate',
-    requireAuth('architect'),
+    requireArchitect,
     rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const body = (req.body ?? {}) as Record<string, unknown>;

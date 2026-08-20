@@ -629,6 +629,27 @@ describe('L0 · read surfaces', () => {
       expect(res.status).toBe(403);
     }
   });
+
+  it('exposes a truthful CONTROL overview only to verified Merlin', async () => {
+    const res = await request(makeApp({ RONOR_LANGGRAPH_URL: 'http://configured.invalid' }))
+      .get('/api/runtime/control/overview')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+    expect(res.status).toBe(200);
+    expect(res.body.architect).toBe('merlin');
+    expect(res.body.automation.adapters.langgraph).toBe('configured-not-verified');
+    expect(res.body.automation.adapters.openhands).toBe('not-connected');
+    expect(res.body.automation.runner).toBe('implemented-disabled');
+  });
+
+  it('rejects an architect-scoped credential that is not the Merlin identity', async () => {
+    const impostor = 'test-architect-impostor-secret-012345';
+    upsertApiKey({ secret: impostor, label: 'not-merlin', role: 'architect', scopes: ['architect'] });
+    const res = await request(makeApp())
+      .get('/api/runtime/control/session')
+      .set('Authorization', `Bearer ${impostor}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('architect_identity_required');
+  });
 });
 
 describe('CONTROL · executive delegation', () => {

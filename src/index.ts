@@ -259,6 +259,7 @@ async function bootstrap(): Promise<void> {
   // The console is mounted on an explicit path so the baseline root-served UI
   // keeps its exact behaviour.
   app.use('/console', express.static('web/console'));
+  app.use('/control', express.static('web/control'));
   app.use('/', express.static('web'));
 
   // Health endpoint

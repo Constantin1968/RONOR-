@@ -127,6 +127,18 @@ export function requireAuth(scope: string) {
   };
 }
 
+/** CONTROL is reserved for the single authenticated Architect identity. */
+export function requireArchitect(req: Request, res: Response, next: NextFunction): void {
+  requireAuth('architect')(req, res, () => {
+    const key = req.apiKey;
+    if (key?.role !== 'architect' || key.label.toLowerCase() !== 'merlin') {
+      res.status(403).json({ ok: false, error: 'architect_identity_required', message: 'CONTROL is reserved for the verified Architect identity.', request_id: req.provenance?.request_id });
+      return;
+    }
+    next();
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------

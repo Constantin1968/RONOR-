@@ -56,4 +56,19 @@ recorded in the Mission State Fabric.
 `RONOR_ARCHITECT_API_KEY` is loaded only from the deployment secret boundary.
 Its hashed identity is labelled `merlin`. It must never be stored in Git, a URL,
 browser local storage, an email or mission state.
+## CONTROL v1
+
+The Architect surface is served locally at `/control`. Its dedicated API lives
+under `/api/runtime/control` and requires both the `architect` role and the
+verified `merlin` identity. Operator, administrator, and differently labelled
+architect credentials are denied.
+
+The interface provides a sovereign overview, keyboard-first Agent Switchboard,
+Executive Intelligence Council, and recent Mission State Fabric activity. The
+browser keeps the temporary credential in `sessionStorage` only. Adapter states
+are reported honestly: configuration is not presented as a verified connection,
+and unavailable agents never return simulated execution.
+
+Richard delegation creates a governed mission and draft communication. It does
+not send email, invoke an external adapter, push, merge, release, or deploy.
 

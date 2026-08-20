@@ -38,9 +38,40 @@ RONOR_LANGGRAPH_URL=
 RONOR_LANGGRAPH_TOKEN=
 RONOR_OPENHANDS_URL=
 RONOR_OPENHANDS_TOKEN=
+RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 ```
+
+## Native OpenHands bridge
+
+RONOR never sends a host workspace path or the full mandate to OpenHands. The
+runner sends a minimal execution envelope to a dedicated bridge, accompanied by
+a short-lived HMAC capability bound to the objective digest, assignment,
+allowed actions, deadline and one-time nonce. The bridge requires a distinct
+service token, rejects replay and mismatched claims, and then uses the native
+OpenHands Agent Server conversation/event API with `X-Session-API-Key`.
+
+The bridge uses `POST /api/conversations`, native conversation events and
+pause-on-timeout. It never deletes a conversation automatically. A completed
+conversation yields a SHA-256 event-log reference; diff and test artifacts must
+also be supplied before Codex can issue a production-grade verification verdict.
+
+The service is not started by the normal runtime and fails closed unless every
+required value is provided. It binds to loopback by default:
+
+```text
+RONOR_OPENHANDS_AGENT_SERVER_URL=http://127.0.0.1:8000
+RONOR_OPENHANDS_SESSION_API_KEY=
+RONOR_OPENHANDS_BRIDGE_TOKEN=
+RONOR_AUTOMATION_CAPABILITY_KEY=
+RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
+RONOR_OPENHANDS_BRIDGE_PORT=3001
+```
+
+`npm run automation:openhands-bridge` starts only this bridge after the Agent
+Server readiness probe passes. Container isolation, credential-free worktrees
+and default-deny egress remain mandatory before enabling live execution.
 
 ## Local model cabinet
 

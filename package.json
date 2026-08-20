@@ -7,6 +7,7 @@
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "automation:langgraph": "ts-node src/runtime/automation/services/langgraph-local.ts",
+    "automation:openhands-bridge": "ts-node src/runtime/automation/services/openhands-bridge-server.ts",
     "build": "tsc",
     "postbuild": "cp -r web dist/ 2>/dev/null || true && mkdir -p dist/governance && cp src/governance/policies.yaml dist/governance/ 2>/dev/null || true",
     "test": "jest --runInBand",

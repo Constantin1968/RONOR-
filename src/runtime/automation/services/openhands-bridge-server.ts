@@ -1,5 +1,5 @@
 import { createNativeOpenHandsClient } from '../adapters/openhands-native';
-import { createOpenHandsBridgeApp } from './openhands-bridge';
+import { createOpenHandsBridgeApp, FileCapabilityNonceStore } from './openhands-bridge';
 import { requiredSecret } from './secret-files';
 
 export async function startOpenHandsBridge() {
@@ -12,6 +12,7 @@ export async function startOpenHandsBridge() {
     capabilityKey: requiredSecret('RONOR_AUTOMATION_CAPABILITY_KEY'),
     serviceToken: requiredSecret('RONOR_OPENHANDS_BRIDGE_TOKEN'),
     client: native,
+    nonces: new FileCapabilityNonceStore(requiredSecret('RONOR_OPENHANDS_NONCE_DIR')),
   });
   const host = process.env.RONOR_OPENHANDS_BRIDGE_HOST || '127.0.0.1';
   const port = Number(process.env.RONOR_OPENHANDS_BRIDGE_PORT || 3001);

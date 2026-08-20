@@ -107,6 +107,14 @@ describe('live automation adapter boundary', () => {
     await expect(adapter.execute({ id: 'a', instruction: 'x', actions: [] }, mandate)).rejects.toBeInstanceOf(AutomationAdapterError);
   });
 
+  it('refuses secret-like adapter output before it reaches Mission Fabric', async () => {
+    const adapter = createOpenHandsAdapter({
+      baseUrl: 'https://hands.invalid', token: 'session-token', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'Bearer abcdefghijklmnopqrstuvwxyz123456', evidence: [], cost_usd: 0 })),
+    });
+    await expect(adapter.execute({ id: 'a', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_sensitive_output_refused');
+  });
+
   it('normalises immutable artifact references and rejects invalid digests', async () => {
     const valid = createOpenHandsAdapter({
       baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),

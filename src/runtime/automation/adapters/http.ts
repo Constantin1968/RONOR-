@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
+import { assertAutomationOutputSafe } from '../output-safety';
 
 type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
@@ -112,6 +113,8 @@ export function createAssuranceAdapter(config: { baseUrl: string; token?: string
 }
 
 function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
+  try { assertAutomationOutputSafe(body); }
+  catch { throw new AutomationAdapterError('adapter_sensitive_output_refused'); }
   if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' || typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0) {
     throw new AutomationAdapterError('adapter_result_invalid');
   }

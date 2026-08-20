@@ -140,6 +140,7 @@ RONOR_OPENHANDS_AGENT_SERVER_URL=http://127.0.0.1:8000
 RONOR_OPENHANDS_SESSION_API_KEY=
 RONOR_OPENHANDS_BRIDGE_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
+RONOR_OPENHANDS_NONCE_DIR=/var/lib/ronor-nonces
 RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
 RONOR_OPENHANDS_BRIDGE_PORT=3001
 ```
@@ -147,6 +148,12 @@ RONOR_OPENHANDS_BRIDGE_PORT=3001
 `npm run automation:openhands-bridge` starts only this bridge after the Agent
 Server readiness probe passes. Container isolation, credential-free worktrees
 and default-deny egress remain mandatory before enabling live execution.
+
+The bridge consumes every capability nonce with atomic exclusive file creation
+in a dedicated persistent volume. Replay therefore remains blocked across
+process and container restarts; an unavailable nonce store fails closed before
+OpenHands is called. Adapter summaries and evidence are screened for secret-like
+material at both the bridge and runtime ingress boundaries.
 
 Before calling the bridge, the runtime resolves the worktree and approved root
 to canonical paths, refuses links and path escapes, verifies that the directory

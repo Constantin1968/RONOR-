@@ -68,10 +68,16 @@ services:
       RONOR_OPENHANDS_AGENT_SERVER_URL: http://openhands-agent:8000
       RONOR_OPENHANDS_BRIDGE_HOST: 0.0.0.0
       RONOR_OPENHANDS_BRIDGE_PORT: "3001"
+      RONOR_OPENHANDS_NONCE_DIR: /var/lib/ronor-nonces
       RONOR_OPENHANDS_SESSION_API_KEY_FILE: /run/secrets/openhands_session_key
       RONOR_OPENHANDS_BRIDGE_TOKEN_FILE: /run/secrets/openhands_bridge_token
       RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
     secrets: [openhands_session_key, openhands_bridge_token, automation_capability_key]
+    volumes:
+      - type: volume
+        source: openhands_nonce_store
+        target: /var/lib/ronor-nonces
+        read_only: false
     ports: ["127.0.0.1:3001:3001"]
 
   codex-verifier:
@@ -119,6 +125,9 @@ networks:
   model-egress:
     name: ronor-model-egress
     external: true
+
+volumes:
+  openhands_nonce_store:
 
 secrets:
   langgraph_token:

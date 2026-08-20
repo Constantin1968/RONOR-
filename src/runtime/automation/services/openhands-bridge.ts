@@ -1,6 +1,10 @@
 import express from 'express';
+import crypto from 'crypto';
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, writeFileSync } from 'fs';
+import path from 'path';
 import { isAutomationAction, type AdapterResult, type OpenHandsExecutionEnvelope } from '../contracts';
 import { verifyExecutionCapability } from '../capability';
+import { assertAutomationOutputSafe } from '../output-safety';
 
 export interface NativeOpenHandsPort {
   execute(envelope: OpenHandsExecutionEnvelope): Promise<AdapterResult>;
@@ -21,6 +25,35 @@ export class MemoryCapabilityNonceStore implements CapabilityNonceStore {
     if (!Number.isFinite(expiry) || expiry <= now) return false;
     this.consumed.set(nonce, expiry);
     return true;
+  }
+}
+
+/** Cross-process, restart-safe single-use store using atomic O_EXCL creation. */
+export class FileCapabilityNonceStore implements CapabilityNonceStore {
+  private readonly root: string;
+  constructor(directory: string, private readonly now: () => number = Date.now) {
+    const requested = path.resolve(directory);
+    if (!existsSync(requested)) mkdirSync(requested, { recursive: true, mode: 0o700 });
+    if (lstatSync(requested).isSymbolicLink()) throw new Error('nonce_store_link_refused');
+    this.root = realpathSync.native(requested);
+  }
+  consume(nonce: string, expiresAt: string): boolean {
+    const expiry = Date.parse(expiresAt);
+    if (!nonce || nonce.length > 512 || !Number.isFinite(expiry) || expiry <= this.now()) return false;
+    const name = `${crypto.createHash('sha256').update(nonce).digest('hex')}.nonce`;
+    const target = path.join(this.root, name);
+    let descriptor: number | undefined;
+    try {
+      descriptor = openSync(target, 'wx', 0o600);
+      writeFileSync(descriptor, JSON.stringify({ expires_at: expiresAt }), { encoding: 'utf8' });
+      fsyncSync(descriptor);
+      return true;
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') return false;
+      throw error;
+    } finally {
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
   }
 }
 
@@ -65,11 +98,15 @@ export function createOpenHandsBridgeApp(config: {
         claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0')) {
       res.status(403).json({ ok: false, error: 'capability_mismatch' }); return;
     }
-    if (!nonces.consume(claims.nonce, claims.expires_at)) {
+    let consumed = false;
+    try { consumed = nonces.consume(claims.nonce, claims.expires_at); }
+    catch { res.status(503).json({ ok: false, error: 'nonce_store_unavailable' }); return; }
+    if (!consumed) {
       res.status(409).json({ ok: false, error: 'capability_replayed' }); return;
     }
     try {
       const result = await config.client.execute(envelope);
+      assertAutomationOutputSafe(result);
       res.status(result.ok ? 200 : 422).json(result);
     } catch {
       res.status(502).json({ ok: false, error: 'openhands_execution_failed' });

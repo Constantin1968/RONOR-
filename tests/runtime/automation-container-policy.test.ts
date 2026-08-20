@@ -8,6 +8,7 @@ type Service = Record<string, any>;
 
 describe('isolated automation composition', () => {
   const source = readFileSync(join(process.cwd(), 'docker-compose.automation.yml'), 'utf8');
+  const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
   const compose = load(source) as { services: Record<string, Service>; networks: Record<string, any> };
 
   it('pins external images and never grants host control surfaces', () => {
@@ -33,16 +34,17 @@ describe('isolated automation composition', () => {
     }
   });
 
-  it('gives write access only to the OpenHands worktree', () => {
+  it('limits writes to the OpenHands worktree and bridge nonce ledger', () => {
     const writable: Array<[string, string]> = [];
     for (const [name, service] of Object.entries(compose.services)) {
       for (const volume of service.volumes ?? []) {
         if (typeof volume === 'object' && volume.read_only !== true) writable.push([name, volume.target]);
       }
     }
-    expect(writable).toEqual([['openhands-agent', '/workspace/project']]);
+    expect(writable).toEqual([['openhands-agent', '/workspace/project'], ['openhands-bridge', '/var/lib/ronor-nonces']]);
     expect(compose.services['codex-verifier'].volumes[0].read_only).toBe(true);
     expect(compose.services['victoria-assurance'].volumes[0].read_only).toBe(true);
+    expect(dockerfile).toContain('chown -R 10001:10001 /app/data /var/lib/ronor-nonces');
   });
 
   it('uses an internal control plane and explicit model egress', () => {

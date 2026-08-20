@@ -27,6 +27,13 @@ export interface ExecutionMandate {
 }
 
 export interface PlannedAssignment { id: string; instruction: string; actions: AutomationAction[]; }
+export interface OpenHandsExecutionEnvelope {
+  assignment_id: string;
+  instruction: string;
+  allowed_actions: AutomationAction[];
+  objective_hash: string;
+  deadline: string;
+}
 export interface EvidenceArtifact {
   kind: 'git_diff' | 'git_status' | 'test_report' | 'event_log';
   sha256: string;

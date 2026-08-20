@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment, type VerificationVerdict } from '../contracts';
+import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 
 type Fetcher = typeof fetch;
@@ -76,7 +76,7 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
       assignment_id: assignment.id, objective_hash: mandate.objective_hash,
       allowed_actions: assignment.actions, expires_at: mandate.expires_at, nonce: crypto.randomUUID(),
     }, config.capabilityKey);
-    const envelope = {
+    const envelope: OpenHandsExecutionEnvelope = {
       assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
     };

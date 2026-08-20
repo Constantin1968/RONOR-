@@ -636,7 +636,7 @@ describe('L0 · read surfaces', () => {
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
     expect(res.status).toBe(200);
     expect(res.body.architect).toBe('merlin');
-    expect(res.body.automation.adapters.langgraph).toBe('configured-not-verified');
+    expect(res.body.automation.adapters.langgraph).toBe('invalid-endpoint');
     expect(res.body.automation.adapters.openhands).toBe('not-connected');
     expect(res.body.automation.runner).toBe('implemented-disabled');
   });

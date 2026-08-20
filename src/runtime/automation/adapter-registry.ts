@@ -3,30 +3,34 @@ import { createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdap
 
 export interface AutomationAdapterStatus { enabled: boolean; ready: boolean; runner: string; adapters: Record<'langgraph' | 'openhands' | 'codex', string>; }
 
-function endpointConfigured(urlValue: string | undefined, tokenValue: string | undefined): boolean {
-  if (!urlValue) return false;
+function endpointState(urlValue: string | undefined, tokenValue: string | undefined): string {
+  if (!urlValue) return 'not-connected';
   try {
     const url = new URL(urlValue);
     const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
-    return loopback || Boolean(tokenValue);
-  } catch { return false; }
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) return 'invalid-endpoint';
+    if (!loopback && !tokenValue) return 'authentication-required';
+    return 'configured-not-verified';
+  } catch { return 'invalid-endpoint'; }
 }
 
 export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapterStatus {
   const enabled = env.RONOR_AUTOMATION_ENABLED === 'true';
-  const configured = {
-    langgraph: endpointConfigured(env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN),
-    openhands: endpointConfigured(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN) && Boolean(env.RONOR_AUTOMATION_CAPABILITY_KEY),
-    codex: endpointConfigured(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
+  const states = {
+    langgraph: endpointState(env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN),
+    openhands: endpointState(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN),
+    codex: endpointState(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
   };
+  if (states.openhands === 'configured-not-verified' && !env.RONOR_AUTOMATION_CAPABILITY_KEY) states.openhands = 'capability-key-required';
+  const configured = Object.fromEntries(Object.entries(states).map(([name, state]) => [name, state === 'configured-not-verified'])) as Record<keyof typeof states, boolean>;
   return {
     enabled,
     ready: enabled && Object.values(configured).every(Boolean),
     runner: enabled ? 'enabled' : 'implemented-disabled',
     adapters: {
-      langgraph: configured.langgraph ? 'configured-not-verified' : 'not-connected',
-      openhands: configured.openhands ? 'configured-not-verified' : 'not-connected',
-      codex: configured.codex ? 'configured-not-verified' : 'not-connected',
+      langgraph: states.langgraph,
+      openhands: states.openhands,
+      codex: states.codex,
     },
   };
 }

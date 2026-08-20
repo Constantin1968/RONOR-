@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { appendMissionFabricEvent, getMission, getMissionFabric } from '../mission/store';
 import { actionPermitted, validateMandate } from './policy';
 import type { AutomationAdapters, AutomationRun, ExecutionMandate } from './contracts';
+import type { WorkspaceArtifactCollector } from './artifacts';
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
@@ -15,6 +16,7 @@ export async function runExecutiveMission(params: {
   adapters: AutomationAdapters;
   now?: () => Date;
   signal?: AbortSignal;
+  artifactCollector?: WorkspaceArtifactCollector;
 }): Promise<AutomationRun> {
   const now = params.now ?? (() => new Date());
   const startedAt = now().getTime();
@@ -72,10 +74,15 @@ export async function runExecutiveMission(params: {
       append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.ok ? 'cost_limit_exceeded' : result.summary }, 'openhands');
       return { ...run, status: 'failed', reason: result.ok ? 'cost_limit_exceeded' : result.summary };
     }
+    let authoritativeArtifacts = result.artifacts ?? [];
+    if (params.artifactCollector) {
+      try { authoritativeArtifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id); }
+      catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return { ...run, status: 'failed', reason: 'artifact_collection_failed' }; }
+    }
     run.completed_assignments += 1;
-    workerEvidence.push(...result.evidence, ...(result.artifacts ?? []).map((artifact) =>
+    workerEvidence.push(...result.evidence, ...authoritativeArtifacts.map((artifact) =>
       `artifact:${artifact.kind}:${artifact.sha256}:${artifact.reference}:${artifact.bytes}`));
-    append('task.status_changed', { id: assignment.id, run_id: runId, status: 'complete', evidence: result.evidence }, 'openhands');
+    append('task.status_changed', { id: assignment.id, run_id: runId, status: 'complete', evidence: result.evidence, artifacts: authoritativeArtifacts }, 'openhands');
   }
 
   run.status = 'verifying';

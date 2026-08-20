@@ -73,6 +73,7 @@ import { executionRunId, runExecutiveMission } from '../automation/runner';
 import { cancelAutomationRun, registerAutomationRun } from '../automation/run-control';
 import type { ExecutionMandate } from '../automation/contracts';
 import { inspectAndValidateWorkspace } from '../automation/workspace';
+import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 
 /**
@@ -508,6 +509,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(503).json({ ok: false, error: 'workspace_policy_not_configured' });
         return;
       }
+      if (!env.RONOR_AUTOMATION_ARTIFACT_ROOT) {
+        res.status(503).json({ ok: false, error: 'artifact_policy_not_configured' });
+        return;
+      }
       const workspace = inspectAndValidateWorkspace(workspaceRoot, {
         approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
         branch_prefix: mandate.branch_prefix,
@@ -523,7 +528,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       const control = registerAutomationRun(runId, mandate.mission_id);
       if (!control) { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
       try {
-        const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters, signal: control.signal });
+        const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
+        const run = await runExecutiveMission({ objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector });
         res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
       } finally { control.finish(); }
     }),

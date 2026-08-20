@@ -40,6 +40,7 @@ RONOR_OPENHANDS_URL=
 RONOR_OPENHANDS_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_AUTOMATION_WORKSPACE_ROOT=
+RONOR_AUTOMATION_ARTIFACT_ROOT=
 RONOR_AUTOMATION_EXPECTED_ORIGIN=https://github.com/Constantin1968/RONOR-.git
 RONOR_AUTOMATION_EXPECTED_HEAD=
 RONOR_CODEX_VERIFIER_URL=
@@ -88,6 +89,14 @@ An active run can be cancelled only through the architect route
 mission and produces an `AbortSignal` that propagates to LangGraph, OpenHands
 and Codex HTTP calls. Cancellation is distinct from adapter timeout and never
 claims to roll back local effects that completed before the signal arrived.
+
+After every completed OpenHands assignment, RONOR independently invokes Git in
+the validated worktree and captures the binary diff and porcelain status. The
+files are written atomically beneath the pre-existing artifact root, bounded to
+2 MiB each, and represented in Mission Fabric and the Codex request only by
+relative reference, byte count and SHA-256 digest. Existing evidence is reused
+only when its digest matches; collisions, symlinks, path escapes and oversized
+outputs fail the run before verification.
 
 ## Local model cabinet
 

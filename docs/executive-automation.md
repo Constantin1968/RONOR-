@@ -105,6 +105,13 @@ next assignment. A Victoria PASS is returned idempotently without invoking any
 adapter. Failed attempts are counted against `max_fix_cycles`; exceeding the
 ceiling blocks further resume attempts.
 
+Immediately before Codex verification, every artifact is reopened from the
+authoritative artifact root. RONOR rechecks reference containment, symlink
+status, byte count, SHA-256 and DLP policy. Codex receives a typed manifest with
+separate worker claims and verified artifact descriptors; concatenated evidence
+strings and unverified worker paths are not accepted by the live route. Any
+post-capture modification terminates the run with `artifact_integrity_failed`.
+
 ## Local model cabinet
 
 Ollama is a first-class, fail-closed local provider. Set `OLLAMA_ENABLED=true`

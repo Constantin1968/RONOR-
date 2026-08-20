@@ -81,14 +81,16 @@ export async function runExecutiveMission(params: {
     append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignments }, 'langgraph');
   }
   let run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
-  const workerEvidence: string[] = [];
+  const workerClaims: string[] = [];
+  const workerArtifacts: EvidenceArtifact[] = [];
   for (const assignment of assignments) {
     const completed = getMissionFabric(params.mandate.mission_id)!.tasks[assignment.id];
     if (completed?.run_id === runId && completed.status === 'complete') {
       let artifacts = storedArtifacts(completed.artifacts);
       if (params.artifactCollector) artifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id);
       const evidence = Array.isArray(completed.evidence) ? completed.evidence.filter((item): item is string => typeof item === 'string') : [];
-      workerEvidence.push(...evidence, ...artifacts.map((artifact) => `artifact:${artifact.kind}:${artifact.sha256}:${artifact.reference}:${artifact.bytes}`));
+      workerClaims.push(...evidence);
+      workerArtifacts.push(...artifacts);
       run.completed_assignments += 1;
       continue;
     }
@@ -118,8 +120,8 @@ export async function runExecutiveMission(params: {
       catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return { ...run, status: 'failed', reason: 'artifact_collection_failed' }; }
     }
     run.completed_assignments += 1;
-    workerEvidence.push(...result.evidence, ...authoritativeArtifacts.map((artifact) =>
-      `artifact:${artifact.kind}:${artifact.sha256}:${artifact.reference}:${artifact.bytes}`));
+    workerClaims.push(...result.evidence);
+    workerArtifacts.push(...authoritativeArtifacts);
     append('task.status_changed', { id: assignment.id, run_id: runId, status: 'complete', evidence: result.evidence, artifacts: authoritativeArtifacts }, 'openhands');
   }
 
@@ -127,7 +129,10 @@ export async function runExecutiveMission(params: {
   if (cancelled()) return { ...run, status: 'failed', reason: 'cancelled' };
   if (expired()) return { ...run, status: 'failed', reason: 'runtime_limit_exceeded' };
   let codex;
-  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, workerEvidence, params.signal); }
+  let verifiedArtifacts = workerArtifacts;
+  try { if (params.artifactCollector) verifiedArtifacts = params.artifactCollector.verify(workerArtifacts); }
+  catch { append('failure.recorded', { id: `${runId}-artifact-integrity-failed`, run_id: runId, reason: 'artifact_integrity_failed' }, 'codex'); return { ...run, status: 'failed', reason: 'artifact_integrity_failed' }; }
+  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, { claims: workerClaims, artifacts: verifiedArtifacts }, params.signal); }
   catch { const reason = cancelled() ? 'cancelled' : 'codex_adapter_failed'; append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason }, 'codex'); return { ...run, status: 'failed', reason }; }
   run.cost_usd += codex.cost_usd;
   append('checkpoint.created', { id: `${runId}-codex`, run_id: runId, verdict: codex.verdict, evidence: codex.evidence }, 'codex');

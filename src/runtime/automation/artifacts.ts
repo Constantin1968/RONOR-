@@ -9,6 +9,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 
 export interface WorkspaceArtifactCollector {
   collect(workspaceRoot: string, runId: string, assignmentId: string): EvidenceArtifact[];
+  verify(artifacts: EvidenceArtifact[]): EvidenceArtifact[];
 }
 
 function digest(content: Buffer): string {
@@ -75,6 +76,20 @@ export function createWorkspaceArtifactCollector(artifactRoot: string): Workspac
         persist(runId, assignmentId, 'git.diff', 'git_diff', diff),
         persist(runId, assignmentId, 'git.status', 'git_status', status),
       ];
+    },
+    verify(artifacts) {
+      if (artifacts.length > 100) throw new Error('artifact_manifest_too_large');
+      return artifacts.map((artifact) => {
+        if (!/^[a-f0-9]{64}$/.test(artifact.sha256) || !Number.isSafeInteger(artifact.bytes) || artifact.bytes < 0 ||
+            !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/.test(artifact.reference) || artifact.reference.includes('..')) throw new Error('artifact_manifest_invalid');
+        const target = path.resolve(canonicalRoot, ...artifact.reference.split('/'));
+        const relative = path.relative(canonicalRoot, target);
+        if (relative.startsWith('..') || path.isAbsolute(relative) || lstatSync(target).isSymbolicLink()) throw new Error('artifact_path_escape');
+        const content = readFileSync(target);
+        if (content.byteLength !== artifact.bytes || digest(content) !== artifact.sha256) throw new Error('artifact_integrity_failed');
+        assertNoSecretMaterial(content);
+        return { ...artifact };
+      });
     },
   };
 }

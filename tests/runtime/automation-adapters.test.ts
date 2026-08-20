@@ -73,8 +73,10 @@ describe('live automation adapter boundary', () => {
     expect(request[1].body).not.toContain('workspace_root');
     expect(request[1].body).not.toContain('mandate_id');
 
-    const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass' })) });
-    await expect(codex.verify('mission1', ['diff'])).resolves.toMatchObject({ verdict: 'pass' });
+    const codexFetch = jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass' }));
+    const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: codexFetch });
+    await expect(codex.verify('mission1', { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
+    expect((codexFetch.mock.calls[0] as unknown as [URL, RequestInit])[1].body).toContain('"artifacts":[]');
   });
 
   it('rejects malformed results without leaking response bodies', async () => {

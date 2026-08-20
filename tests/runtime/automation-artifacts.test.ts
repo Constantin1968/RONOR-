@@ -27,6 +27,9 @@ describe('authoritative workspace artifacts', () => {
     expect(readFileSync(path.join(artifacts, result[0].reference), 'utf8')).toContain('-before');
     expect(readFileSync(path.join(artifacts, result[1].reference), 'utf8')).toContain('new.txt');
     expect(collector.collect(workspace, 'run-1', 'task-1')).toEqual(result);
+    expect(collector.verify(result)).toEqual(result);
+    writeFileSync(path.join(artifacts, result[0].reference), 'tampered\n');
+    expect(() => collector.verify(result)).toThrow('artifact_integrity_failed');
   });
 
   it('refuses secret-like material before persisting a diff', () => {

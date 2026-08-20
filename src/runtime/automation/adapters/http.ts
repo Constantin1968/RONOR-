@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationVerdict } from '../contracts';
+import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 
 type Fetcher = typeof fetch;
@@ -90,7 +90,7 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
 }
 
 export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
-  return { async verify(missionId: string, evidence: string[], signal?: AbortSignal): Promise<VerificationVerdict> {
+  return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
     const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');

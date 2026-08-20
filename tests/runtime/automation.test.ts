@@ -152,14 +152,17 @@ describe('Executive Mission Runner · governed execution', () => {
       ok: true, summary: 'implemented', evidence: ['tests:pass'], cost_usd: 0,
       artifacts: [{ kind: 'git_diff', sha256: 'a'.repeat(64), reference: 'run/task-evidence/diff.patch', bytes: 42 }],
     });
-    let received: string[] = [];
+    let received: unknown = null;
     a.codex.verify = async (_missionId, evidence) => {
       received = evidence;
       return { ok: true, verdict: 'pass', summary: 'verified', evidence: ['codex:pass'], cost_usd: 0 };
     };
     const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
     expect(result.status).toBe('complete');
-    expect(received).toEqual(['tests:pass', `artifact:git_diff:${'a'.repeat(64)}:run/task-evidence/diff.patch:42`]);
+    expect(received).toEqual({
+      claims: ['tests:pass'],
+      artifacts: [{ kind: 'git_diff', sha256: 'a'.repeat(64), reference: 'run/task-evidence/diff.patch', bytes: 42 }],
+    });
   });
 
   it('enforces the wall-clock deadline before invoking OpenHands', async () => {

@@ -42,11 +42,12 @@ export interface EvidenceArtifact {
 }
 export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
 export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; }
+export interface VerificationEvidence { claims: string[]; artifacts: EvidenceArtifact[]; }
 
 export interface AutomationAdapters {
   langgraph: { plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> };
   openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> };
-  codex: { verify(missionId: string, evidence: string[], signal?: AbortSignal): Promise<VerificationVerdict> };
+  codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
   assurance: { accept(missionId: string, verdict: VerificationVerdict): Promise<VerificationVerdict> };
 }
 

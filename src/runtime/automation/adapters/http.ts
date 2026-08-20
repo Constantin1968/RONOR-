@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import { isAutomationAction, type AdapterResult, type ExecutionMandate, type PlannedAssignment, type VerificationVerdict } from '../contracts';
+import { signExecutionCapability } from '../capability';
 
 type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
@@ -21,7 +23,7 @@ function cleanStrings(value: unknown, maximum = 50): string[] {
   return value.filter((item): item is string => typeof item === 'string').slice(0, maximum).map((item) => item.slice(0, 2000));
 }
 
-async function postJson(params: { baseUrl: string; path: string; token?: string; body: unknown; fetcher: Fetcher; timeoutMs: number }): Promise<Record<string, unknown>> {
+async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher: Fetcher; timeoutMs: number }): Promise<Record<string, unknown>> {
   const base = safeBaseUrl(params.baseUrl);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   if (!loopback && !params.token) throw new AutomationAdapterError('adapter_auth_required');
@@ -30,7 +32,7 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   try {
     const response = await params.fetcher(new URL(base.pathname + params.path, base.origin), {
       method: 'POST', signal: controller.signal, redirect: 'error',
-      headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}) },
+      headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}), ...(params.capability ? { 'x-ronor-capability': params.capability } : {}) },
       body: JSON.stringify(params.body),
     });
     if (!response.ok) throw new AutomationAdapterError(`adapter_http_${response.status}`);
@@ -66,9 +68,19 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
   }};
 }
 
-export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number }) {
   return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate): Promise<AdapterResult> {
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, body: { assignment, mandate }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000 });
+    if (!config.capabilityKey) throw new AutomationAdapterError('capability_key_required');
+    const capability = signExecutionCapability({
+      audience: 'openhands-bridge', mandate_id: mandate.mandate_id, mission_id: mandate.mission_id,
+      assignment_id: assignment.id, objective_hash: mandate.objective_hash,
+      allowed_actions: assignment.actions, expires_at: mandate.expires_at, nonce: crypto.randomUUID(),
+    }, config.capabilityKey);
+    const envelope = {
+      assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
+      objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
+    };
+    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000 });
     return parseAdapterResult(body);
   }};
 }

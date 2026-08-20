@@ -14,6 +14,7 @@ describe('live automation adapter boundary', () => {
       RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
+      RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
     };
     expect(automationAdapterStatus(env).ready).toBe(true);
     expect(configuredAutomationAdapters(env)).not.toBeNull();
@@ -54,15 +55,20 @@ describe('live automation adapter boundary', () => {
     expect(assignments[0].actions).toEqual(['read_repo', 'run_tests']);
     expect(graphFetch).toHaveBeenCalledTimes(1);
 
-    const hands = createOpenHandsAdapter({ baseUrl: 'http://127.0.0.1:3000', fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: ['diff'], cost_usd: 0.01 })) });
+    const handsFetch = jest.fn(() => response({ ok: true, summary: 'done', evidence: ['diff'], cost_usd: 0.01 }));
+    const hands = createOpenHandsAdapter({ baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32), fetcher: handsFetch });
     await expect(hands.execute(assignments[0], mandate)).resolves.toMatchObject({ ok: true, evidence: ['diff'] });
+    const request = handsFetch.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(request[1].headers).toHaveProperty('x-ronor-capability');
+    expect(request[1].body).not.toContain('workspace_root');
+    expect(request[1].body).not.toContain('mandate_id');
 
     const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass' })) });
     await expect(codex.verify('mission1', ['diff'])).resolves.toMatchObject({ verdict: 'pass' });
   });
 
   it('rejects malformed results without leaking response bodies', async () => {
-    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'session-token', fetcher: jest.fn(() => response({ token: 'secret' })) });
+    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'session-token', capabilityKey: 'k'.repeat(32), fetcher: jest.fn(() => response({ token: 'secret' })) });
     await expect(adapter.execute({ id: 'a', instruction: 'x', actions: [] }, mandate)).rejects.toBeInstanceOf(AutomationAdapterError);
   });
 });

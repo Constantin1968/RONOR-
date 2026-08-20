@@ -16,7 +16,7 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
   const enabled = env.RONOR_AUTOMATION_ENABLED === 'true';
   const configured = {
     langgraph: endpointConfigured(env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN),
-    openhands: endpointConfigured(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN),
+    openhands: endpointConfigured(env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN) && Boolean(env.RONOR_AUTOMATION_CAPABILITY_KEY),
     codex: endpointConfigured(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
   };
   return {
@@ -37,7 +37,7 @@ export function configuredAutomationAdapters(env: NodeJS.ProcessEnv): Automation
   const token = (name: string) => env[name] || undefined;
   return {
     langgraph: createLangGraphAdapter({ baseUrl: env.RONOR_LANGGRAPH_URL!, token: token('RONOR_LANGGRAPH_TOKEN') }),
-    openhands: createOpenHandsAdapter({ baseUrl: env.RONOR_OPENHANDS_URL!, token: token('RONOR_OPENHANDS_TOKEN') }),
+    openhands: createOpenHandsAdapter({ baseUrl: env.RONOR_OPENHANDS_URL!, token: token('RONOR_OPENHANDS_TOKEN'), capabilityKey: env.RONOR_AUTOMATION_CAPABILITY_KEY }),
     codex: createCodexVerifierAdapter({ baseUrl: env.RONOR_CODEX_VERIFIER_URL!, token: token('RONOR_CODEX_VERIFIER_TOKEN') }),
     assurance: { async accept(_missionId: string, verdict: VerificationVerdict): Promise<VerificationVerdict> {
       return verdict.verdict === 'pass'

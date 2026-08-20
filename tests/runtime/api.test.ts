@@ -646,6 +646,92 @@ describe('L0 · mission lifecycle', () => {
     expect(res.status).toBe(400);
     expect(res.body.allowed).toContain('complete');
   });
+
+  it('shares an append-only mission fabric across agent surfaces', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Agent collaboration', objective: 'Coordinate a governed implementation' });
+    const missionId = created.body.mission.mission_id;
+
+    const task = await request(app)
+      .post(`/api/runtime/missions/${missionId}/fabric/events`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'langgraph', id: 'control-plane' },
+        type: 'task.upserted',
+        payload: { id: 'task-1', title: 'Implement adapter', status: 'ready' },
+      });
+    expect(task.status).toBe(201);
+    expect(task.body.fabric.version).toBe(1);
+    expect(task.body.fabric.tasks['task-1'].status).toBe('ready');
+    expect(task.body.integrity.valid).toBe(true);
+
+    const message = await request(app)
+      .post(`/api/runtime/missions/${missionId}/fabric/events`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        actor: { kind: 'openhands', id: 'worker-1' },
+        type: 'message.recorded',
+        payload: { id: 'message-1', channel: 'implementation', text: 'Worktree prepared.' },
+      });
+    expect(message.status).toBe(201);
+    expect(message.body.fabric.messages).toHaveLength(1);
+
+    const read = await request(app)
+      .get(`/api/runtime/missions/${missionId}/fabric`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`);
+    expect(read.status).toBe(200);
+    expect(read.body.fabric.version).toBe(2);
+    expect(read.body.fabric.event_head).toMatch(/^[a-f0-9]{64}$/);
+    expect(read.body.integrity).toEqual({ valid: true, events: 2, broken_at: null });
+  });
+
+  it('prevents lost updates and secret-bearing mission events', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Concurrency', objective: 'Protect shared state' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+    const first = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'codex', id: 'verifier' },
+        type: 'checkpoint.created',
+        payload: { id: 'checkpoint-1', commit: 'abc123' },
+      });
+    expect(first.status).toBe(201);
+
+    const stale = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'openhands', id: 'worker' },
+        type: 'failure.recorded',
+        payload: { id: 'failure-1', message: 'stale write' },
+      });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toBe('version_conflict');
+
+    const secret = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        actor: { kind: 'human', id: 'operator' },
+        type: 'message.recorded',
+        payload: { id: 'message-secret', api_key: 'must-not-persist' },
+      });
+    expect(secret.status).toBe(400);
+    expect(secret.body.error).toBe('invalid_event');
+  });
 });
 
 describe('L0 · query validation', () => {

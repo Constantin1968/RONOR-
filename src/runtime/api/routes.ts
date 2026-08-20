@@ -51,10 +51,16 @@ import { attemptsFor, getWork, listWork } from '../ledgers/work-ledger';
 import { getCostSummary, getValueSummary } from '../ledgers/cost-ledger';
 import {
   appendToMission,
+  appendMissionFabricEvent,
   createMission,
+  getMissionFabric,
   getMission,
   listMissions,
+  MissionFabricConflictError,
+  MissionFabricValidationError,
   setMissionStatus,
+  verifyMissionFabric,
+  type MissionFabricEventType,
 } from '../mission/store';
 import { ingestDocuments, knowledgeStatus } from '../knowledge/bridge';
 import { dispatchMission, type MissionDispatchRequest } from '../agents/coordinator';
@@ -305,6 +311,74 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         if (note) appendToMission({ missionId: id, notes: { operator: note } });
       }
       res.json({ ok: true, mission: getMission(id) });
+    }),
+  );
+
+  router.get(
+    '/missions/:id/fabric',
+    requireAuth('read'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      const fabric = id ? getMissionFabric(id) : null;
+      if (!fabric) {
+        res.status(404).json({ ok: false, error: 'not_found', message: 'No such mission.' });
+        return;
+      }
+      res.json({ ok: true, fabric, integrity: verifyMissionFabric(id!) });
+    }),
+  );
+
+  router.post(
+    '/missions/:id/fabric/events',
+    requireAuth('query'),
+    rateLimit,
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      if (!id || !getMission(id)) {
+        res.status(404).json({ ok: false, error: 'not_found' });
+        return;
+      }
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const actorBody = body.actor && typeof body.actor === 'object'
+        ? body.actor as Record<string, unknown>
+        : {};
+      const actorId = sanitiseIdentifier(actorBody.id) ?? req.apiKey?.label ?? null;
+      const actorKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'human';
+      const eventType = typeof body.type === 'string' ? body.type as MissionFabricEventType : null;
+      const expectedVersion = typeof body.expected_version === 'number' && Number.isInteger(body.expected_version)
+        ? body.expected_version
+        : null;
+      const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
+        ? body.payload as Record<string, unknown>
+        : null;
+      if (!actorId || !eventType || expectedVersion === null || expectedVersion < 0 || !payload) {
+        res.status(400).json({
+          ok: false,
+          error: 'invalid_request',
+          message: '`type`, non-negative integer `expected_version`, `actor` and object `payload` are required.',
+        });
+        return;
+      }
+      try {
+        const fabric = appendMissionFabricEvent({
+          missionId: id,
+          expectedVersion,
+          actor: { kind: actorKind as 'human', id: actorId },
+          type: eventType,
+          payload,
+        });
+        res.status(201).json({ ok: true, fabric, integrity: verifyMissionFabric(id) });
+      } catch (error) {
+        if (error instanceof MissionFabricConflictError) {
+          res.status(409).json({ ok: false, error: 'version_conflict', message: error.message });
+          return;
+        }
+        if (error instanceof MissionFabricValidationError) {
+          res.status(400).json({ ok: false, error: 'invalid_event', message: error.message });
+          return;
+        }
+        throw error;
+      }
     }),
   );
 

@@ -1,0 +1,7 @@
+ARG RONOR_OPENHANDS_AGENT_IMAGE=ghcr.io/openhands/agent-server:1.42.1-python
+FROM ${RONOR_OPENHANDS_AGENT_IMAGE}
+
+COPY --chmod=0555 scripts/openhands-secret-entrypoint.sh /usr/local/bin/ronor-openhands-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/ronor-openhands-entrypoint"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]

@@ -142,6 +142,8 @@ required value is provided. It binds to loopback by default:
 ```text
 RONOR_OPENHANDS_AGENT_SERVER_URL=http://127.0.0.1:8000
 RONOR_OPENHANDS_SESSION_API_KEY=
+RONOR_OPENHANDS_LLM_MODEL=
+RONOR_OPENHANDS_LLM_BASE_URL=
 RONOR_OPENHANDS_BRIDGE_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_OPENHANDS_NONCE_DIR=/var/lib/ronor-nonces
@@ -149,6 +151,15 @@ RONOR_AUTOMATION_NONCE_DIR=/absolute/host/path/owned-by-10001
 RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
 RONOR_OPENHANDS_BRIDGE_PORT=3001
 ```
+
+The Agent Server receives its session credential, model-gateway credential and
+persistence-encryption key only from Docker secret files named
+`openhands_session_key`, `openhands_llm_api_key` and `openhands_secret_key`.
+The wrapper refuses startup when any file is missing or empty, exports the
+official `SESSION_API_KEY`, `LLM_API_KEY` and `OH_SECRET_KEY` variables only
+inside the container process, and then starts the pinned Agent Server. Secret
+values are never placed in Compose environment declarations or committed env
+files. `LLM_MODEL` and the restricted gateway URL are non-secret routing data.
 
 The native client permits plaintext only for loopback and the exact
 `openhands-agent` service name on the internal Compose network. Every other

@@ -14,7 +14,8 @@ describe('isolated automation composition', () => {
     expect(source).not.toMatch(/:\s*latest(?:\s|$)/m);
     expect(source).not.toContain('/var/run/docker.sock');
     expect(source).not.toMatch(/(?:\.ssh|tailscale|SSH_AUTH_SOCK|github_token)/i);
-    expect(compose.services['openhands-agent'].image).toBe('ghcr.io/openhands/agent-server:1.42.1-python');
+    expect(compose.services['openhands-agent'].image).toBe('ronor-openhands-agent:${RONOR_AUTOMATION_IMAGE_TAG:-local}');
+    expect(compose.services['openhands-agent'].build.args.RONOR_OPENHANDS_AGENT_IMAGE).toBe('ghcr.io/openhands/agent-server:1.42.1-python');
   });
 
   it('applies least privilege to every service', () => {
@@ -43,6 +44,25 @@ describe('isolated automation composition', () => {
     expect(String(compose.services.langgraph.healthcheck.test)).toContain('/run/secrets/langgraph_token');
     expect(String(compose.services['codex-verifier'].healthcheck.test)).toContain('/run/secrets/codex_verifier_token');
     expect(String(compose.services['victoria-assurance'].healthcheck.test)).toContain('/run/secrets/assurance_token');
+  });
+
+  it('injects OpenHands credentials through mounted secrets and fails closed', () => {
+    const agent = compose.services['openhands-agent'];
+    expect(agent.environment).not.toHaveProperty('SESSION_API_KEY');
+    expect(agent.environment).not.toHaveProperty('LLM_API_KEY');
+    expect(agent.environment).not.toHaveProperty('OH_SECRET_KEY');
+    expect(agent.secrets).toEqual(['openhands_session_key', 'openhands_llm_api_key', 'openhands_secret_key']);
+    expect(agent.environment).toMatchObject({
+      RONOR_OPENHANDS_SESSION_API_KEY_FILE: '/run/secrets/openhands_session_key',
+      RONOR_OPENHANDS_LLM_API_KEY_FILE: '/run/secrets/openhands_llm_api_key',
+      RONOR_OPENHANDS_SECRET_KEY_FILE: '/run/secrets/openhands_secret_key',
+    });
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile.openhands-agent'), 'utf8');
+    const entrypoint = readFileSync(join(process.cwd(), 'scripts/openhands-secret-entrypoint.sh'), 'utf8');
+    expect(dockerfile).toContain('ENTRYPOINT ["/usr/local/bin/ronor-openhands-entrypoint"]');
+    expect(entrypoint).toContain('OpenHands startup refused');
+    expect(entrypoint).toContain('export LLM_API_KEY=');
+    expect(entrypoint).toContain('export OH_SECRET_KEY=');
   });
 
   it('limits writes to the OpenHands worktree and bridge nonce ledger', () => {

@@ -75,13 +75,13 @@ describe('independent verification authorities', () => {
     expect((await request(app).get('/health').set('Authorization', 'Bearer codex-token')).status).toBe(401);
     const receipt = signVerificationReceipt({ privateKeyPem: receiptPrivateKey, missionId: 'mission-1', verdict: 'pass', evidence, now });
     const accepted = await request(app).post('/v1/assure').set('Authorization', 'Bearer victoria-token').send({ mission_id: 'mission-1', verification: { verdict: 'pass', summary: 'verified', evidence: ['codex:pass'], receipt }, evidence });
-    expect(accepted.status).toBe(200); expect(accepted.body.evidence).toEqual(['assurance:policy-pass']); expect(store.verify).toHaveBeenCalledWith(artifacts);
+    expect(accepted.status).toBe(200); expect(accepted.body.evidence).toEqual(['assurance:policy-pass']); expect(store.read).toHaveBeenCalledWith(artifacts);
     const rejected = await request(app).post('/v1/assure').set('Authorization', 'Bearer victoria-token').send({ mission_id: 'mission-1', verification: { verdict: 'fail' }, evidence });
     expect(rejected.status).toBe(422); expect(rejected.body.verdict).toBe('fail');
   });
 
   it('Victoria fails closed on a digest mismatch before policy evaluation', async () => {
-    const store = collector({ verify: jest.fn(() => { throw new Error('artifact_integrity_failed'); }) });
+    const store = collector({ read: jest.fn(() => { throw new Error('artifact_integrity_failed'); }) });
     const app = createAssuranceAuthorityApp({ serviceToken: 'victoria-token', receiptPublicKey, artifacts: store, now: () => now });
     const receipt = signVerificationReceipt({ privateKeyPem: receiptPrivateKey, missionId: 'mission-1', verdict: 'pass', evidence, now });
     const response = await request(app).post('/v1/assure').set('Authorization', 'Bearer victoria-token').send({ mission_id: 'mission-1', verification: { verdict: 'pass', receipt }, evidence });
@@ -97,5 +97,20 @@ describe('independent verification authorities', () => {
     expect((await verify({ ...valid, evidence_digest: 'f'.repeat(64) })).status).toBe(422);
     const stale = signVerificationReceipt({ privateKeyPem: receiptPrivateKey, missionId: 'mission-1', verdict: 'pass', evidence, now: new Date('2026-08-21T11:00:00.000Z') });
     expect((await verify(stale)).status).toBe(422);
+  });
+
+  it('Victoria independently rejects a valid Codex receipt over a failed test report', async () => {
+    const failedReport = JSON.stringify({
+      schema: 'ronor-test-report/v1', passed: false, command_count: 1,
+      results: [{ id: 'jest', passed: false, exit_code: 1, signal: null }],
+    });
+    const store = collector({ read: jest.fn((items) => items.map((artifact) => ({ artifact, content: artifact.kind === 'test_report' ? failedReport : 'safe' }))) });
+    const app = createAssuranceAuthorityApp({ serviceToken: 'victoria-token', receiptPublicKey, artifacts: store, now: () => now });
+    const receipt = signVerificationReceipt({ privateKeyPem: receiptPrivateKey, missionId: 'mission-1', verdict: 'pass', evidence, now });
+    const response = await request(app).post('/v1/assure').set('Authorization', 'Bearer victoria-token').send({
+      mission_id: 'mission-1', verification: { verdict: 'pass', receipt }, evidence,
+    });
+    expect(response.status).toBe(422);
+    expect(response.body.evidence).toEqual(['assurance:policy-fail']);
   });
 });

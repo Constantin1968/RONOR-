@@ -88,12 +88,13 @@ export function createAssuranceAuthorityApp(config: { serviceToken: string; rece
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     const missionId = req.body?.mission_id; const verification = req.body?.verification as Record<string, unknown> | undefined; const evidence = parseEvidence(req.body?.evidence);
     if (typeof missionId !== 'string' || !SAFE_ID.test(missionId) || !verification || !evidence) { res.status(400).json({ ok: false, error: 'invalid_assurance_request' }); return; }
-    try { config.artifacts.verify(evidence.artifacts); } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Evidence integrity could not be independently assured.', evidence: ['assurance:integrity-failed'], cost_usd: 0 }); return; }
+    let materials: VerifiedMaterial[];
+    try { materials = config.artifacts.read(evidence.artifacts); } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Evidence integrity could not be independently assured.', evidence: ['assurance:integrity-failed'], cost_usd: 0 }); return; }
     const receipt = verification.receipt as VerificationVerdict['receipt'];
     const receiptValid = Boolean(receipt && verifyVerificationReceipt({
       publicKeyPem: config.receiptPublicKey, receipt, missionId, verdict: verification.verdict as 'pass' | 'fail', evidence, now: config.now?.(),
     }));
-    const accepted = verification.verdict === 'pass' && receiptValid && hasRequiredEvidence(evidence) && evidence.claims.some((claim) => /test/i.test(claim));
+    const accepted = verification.verdict === 'pass' && receiptValid && hasRequiredEvidence(evidence) && testMaterialsProvePass(evidence, materials);
     const verdict: VerificationVerdict = { ok: accepted, verdict: accepted ? 'pass' : 'fail', summary: accepted ? 'Victoria independently accepted the verified evidence envelope.' : 'Victoria refused an incomplete or failed evidence envelope.', evidence: [accepted ? 'assurance:policy-pass' : 'assurance:policy-fail'], cost_usd: 0 };
     res.status(accepted ? 200 : 422).json(verdict);
   });

@@ -642,6 +642,8 @@ describe('L0 · read surfaces', () => {
     expect(res.body.automation.adapters.langgraph).toBe('invalid-endpoint');
     expect(res.body.automation.adapters.openhands).toBe('not-connected');
     expect(res.body.automation.runner).toBe('implemented-disabled');
+    expect(res.body.automation.recovery).toMatchObject({ enabled: false, state: 'disabled', active_runs: 0 });
+    expect(JSON.stringify(res.body.automation.recovery)).not.toContain('owner');
   });
 
   it('rejects an architect-scoped credential that is not the Merlin identity', async () => {

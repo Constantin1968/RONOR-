@@ -15,7 +15,9 @@ describe('automation recovery supervisor', () => {
     const supervisor = startAutomationRecoverySupervisor({ enabled: false, owner: 'supervisor', discover, execute: jest.fn() });
     expect(await supervisor.sweepNow()).toBe(0);
     expect(discover).not.toHaveBeenCalled();
+    expect(supervisor.snapshot()).toMatchObject({ enabled: false, state: 'disabled', active_runs: 0, leases_reclaimed_total: 0 });
     supervisor.stop();
+    expect(supervisor.snapshot().state).toBe('stopped');
   });
 
   it('atomically reclaims and executes an interrupted run under the stored mandate', async () => {
@@ -32,6 +34,10 @@ describe('automation recovery supervisor', () => {
     expect(execute).toHaveBeenCalledWith('run_1', mandate, expect.any(AbortSignal));
     expect(recoveredLease.startHeartbeat).toHaveBeenCalledTimes(1);
     expect(recoveredLease.finish).toHaveBeenCalledWith('complete');
+    expect(supervisor.snapshot()).toMatchObject({
+      state: 'idle', active_runs: 0, last_candidate_count: 1,
+      leases_reclaimed_total: 1, completions_total: 1, failures_total: 0,
+    });
     supervisor.stop();
   });
 
@@ -55,6 +61,7 @@ describe('automation recovery supervisor', () => {
     expect(await supervisor.sweepNow()).toBe(0);
     expect(claim).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
+    expect(supervisor.snapshot().preflight_refusals_total).toBe(1);
     supervisor.stop();
   });
 
@@ -74,6 +81,7 @@ describe('automation recovery supervisor', () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(observedSignal?.aborted).toBe(true);
     expect(recoveredLease.finish).toHaveBeenCalledWith('failed');
+    expect(supervisor.snapshot()).toMatchObject({ state: 'stopped', active_runs: 0, failures_total: 1 });
   });
 
   it('refuses unsafe polling and batch limits', () => {

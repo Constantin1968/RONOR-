@@ -11,6 +11,8 @@ describe('CONTROL direct automation switchboard', () => {
     expect(script).toContain("target === 'langgraph'");
     expect(script).toContain("target === 'codex'");
     expect(script).not.toContain('nu are încă un adapter live conectat');
+    expect(script).toContain("card('RECOVERY'");
+    expect(script).toContain('recovery.leases_reclaimed_total');
   });
 
   it('keeps Codex in the independent verifier role', () => {

@@ -8,7 +8,20 @@ import {
 
 export interface AutomationRecoverySupervisor {
   sweepNow(): Promise<number>;
+  snapshot(): AutomationRecoverySnapshot;
   stop(): void;
+}
+
+export interface AutomationRecoverySnapshot {
+  enabled: boolean;
+  state: 'disabled' | 'idle' | 'sweeping' | 'stopped';
+  active_runs: number;
+  last_sweep_at: string | null;
+  last_candidate_count: number;
+  leases_reclaimed_total: number;
+  completions_total: number;
+  failures_total: number;
+  preflight_refusals_total: number;
 }
 
 type RecoveryClaim = Extract<RunClaimResult, { outcome: 'resumed' }>;
@@ -43,15 +56,22 @@ export function startAutomationRecoverySupervisor(params: {
   const active = new Map<string, AbortController>();
   let stopped = false;
   let sweep: Promise<number> | null = null;
+  let lastSweepAt: string | null = null;
+  let lastCandidateCount = 0;
+  let leasesReclaimed = 0;
+  let completions = 0;
+  let failures = 0;
+  let preflightRefusals = 0;
 
   const recover = async (candidate: InterruptedAutomationRun): Promise<boolean> => {
     if (params.preflight) {
-      try { if (!await params.preflight(candidate)) return false; }
-      catch { return false; }
+      try { if (!await params.preflight(candidate)) { preflightRefusals += 1; return false; } }
+      catch { preflightRefusals += 1; return false; }
     }
     const now = (params.now ?? (() => new Date()))();
     const result = claim(candidate, params.owner, now, leaseMs);
     if (result.outcome !== 'resumed') return false;
+    leasesReclaimed += 1;
     const recovered = result as RecoveryClaim;
     const controller = new AbortController();
     active.set(candidate.run_id, controller);
@@ -63,6 +83,7 @@ export function startAutomationRecoverySupervisor(params: {
       recovered.lease.finish(status);
       active.delete(candidate.run_id);
     }
+    if (status === 'complete') completions += 1; else failures += 1;
     return true;
   };
 
@@ -71,6 +92,8 @@ export function startAutomationRecoverySupervisor(params: {
     if (sweep) return sweep;
     sweep = (async () => {
       const candidates = discover((params.now ?? (() => new Date()))(), batchSize);
+      lastSweepAt = (params.now ?? (() => new Date()))().toISOString();
+      lastCandidateCount = candidates.length;
       let recovered = 0;
       for (const candidate of candidates) {
         if (stopped) break;
@@ -87,6 +110,19 @@ export function startAutomationRecoverySupervisor(params: {
 
   return {
     sweepNow,
+    snapshot() {
+      return {
+        enabled: params.enabled,
+        state: stopped ? 'stopped' : !params.enabled ? 'disabled' : sweep ? 'sweeping' : 'idle',
+        active_runs: active.size,
+        last_sweep_at: lastSweepAt,
+        last_candidate_count: lastCandidateCount,
+        leases_reclaimed_total: leasesReclaimed,
+        completions_total: completions,
+        failures_total: failures,
+        preflight_refusals_total: preflightRefusals,
+      };
+    },
     stop() {
       stopped = true;
       if (timer) clearInterval(timer);

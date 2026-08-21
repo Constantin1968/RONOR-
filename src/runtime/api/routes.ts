@@ -496,7 +496,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         failed: integrity.filter((item) => item?.valid === false).length,
       },
       council: { members: managementAgents().length },
-      automation: automationAdapterStatus(env),
+      automation: { ...automationAdapterStatus(env), recovery: recoverySupervisor.snapshot() },
     });
   });
 

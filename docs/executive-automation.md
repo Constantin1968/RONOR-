@@ -51,6 +51,10 @@ The runner connects through four small HTTP contracts: LangGraph `POST /v1/plan`
 OpenHands `POST /v1/execute`, the independent Codex verifier `POST /v1/verify`,
 and Victoria assurance `POST /v1/assure`.
 Remote endpoints require HTTPS; plaintext HTTP is accepted only on loopback.
+The sole production exception is an exact service identity on the pre-created
+internal Docker network: `langgraph`, `openhands-bridge`, `codex-verifier` and
+`victoria-assurance`. Each adapter accepts only its own hostname; arbitrary
+container names and private-network addresses remain invalid.
 Credentials are read from environment variables and are never returned by the
 status API. The registry fails closed unless automation is explicitly enabled
 and all four endpoints are configured. OpenHands, Codex and Assurance must use
@@ -138,6 +142,8 @@ required value is provided. It binds to loopback by default:
 ```text
 RONOR_OPENHANDS_AGENT_SERVER_URL=http://127.0.0.1:8000
 RONOR_OPENHANDS_SESSION_API_KEY=
+RONOR_OPENHANDS_LLM_MODEL=
+RONOR_OPENHANDS_LLM_BASE_URL=
 RONOR_OPENHANDS_BRIDGE_TOKEN=
 RONOR_AUTOMATION_CAPABILITY_KEY=
 RONOR_OPENHANDS_NONCE_DIR=/var/lib/ronor-nonces
@@ -145,6 +151,15 @@ RONOR_AUTOMATION_NONCE_DIR=/absolute/host/path/owned-by-10001
 RONOR_OPENHANDS_BRIDGE_HOST=127.0.0.1
 RONOR_OPENHANDS_BRIDGE_PORT=3001
 ```
+
+The Agent Server receives its session credential, model-gateway credential and
+persistence-encryption key only from Docker secret files named
+`openhands_session_key`, `openhands_llm_api_key` and `openhands_secret_key`.
+The wrapper refuses startup when any file is missing or empty, exports the
+official `SESSION_API_KEY`, `LLM_API_KEY` and `OH_SECRET_KEY` variables only
+inside the container process, and then starts the pinned Agent Server. Secret
+values are never placed in Compose environment declarations or committed env
+files. `LLM_MODEL` and the restricted gateway URL are non-secret routing data.
 
 The native client permits plaintext only for loopback and the exact
 `openhands-agent` service name on the internal Compose network. Every other
@@ -296,6 +311,33 @@ The `automation-control` network is internal. Only OpenHands and Codex also
 join a pre-created `ronor-model-egress` network, which the host firewall/proxy
 must restrict to approved model gateways. A generic Internet-connected bridge
 does not meet this policy.
+
+Every automation service has an authenticated in-container healthcheck. The
+OpenHands bridge starts only after Agent Server is healthy, eliminating the
+one-shot startup race without enabling automatic restart loops. Health probes
+read their identities from mounted secret files or the Agent Server process
+environment and never embed credential values in the Compose definition.
+
+The runtime and automation projects share only the externally declared
+`ronor-automation-control` network. It must be created explicitly with Docker's
+`--internal` flag; Compose never creates a broadly routed substitute. Production
+joins it only when the separate `docker-compose.automation-runtime.yml` override
+is supplied. That override mounts the dedicated repository clone read-only for
+policy inspection/diff capture and the artifact directory read-write; it never
+mounts credentials or the Docker socket. Use a self-contained clone rather than
+a linked Git worktree whose `.git` file points outside the mounted boundary.
+`Dockerfile.automation-runtime` derives from an explicitly pinned, already
+verified RONOR image and adds the Git CLI only for fixed-argument workspace
+inspection and artifact capture. The constitutional production Dockerfile is
+unchanged, and the opt-in derivative receives no Git credentials.
+Use service DNS inside the runtime:
+
+```text
+RONOR_LANGGRAPH_URL=http://langgraph:2024
+RONOR_OPENHANDS_URL=http://openhands-bridge:3001
+RONOR_CODEX_VERIFIER_URL=http://codex-verifier:3002
+RONOR_ASSURANCE_URL=http://victoria-assurance:3003
+```
 
 Safe static validation (nothing is started):
 

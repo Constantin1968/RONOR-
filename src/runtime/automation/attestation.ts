@@ -22,6 +22,9 @@ const EXPECTED_IDENTITY: Record<AdapterName, { service_id: string; capabilities:
   codex: { service_id: 'codex-verifier', capabilities: ['verify'] },
   assurance: { service_id: 'victoria-assurance', capabilities: ['assure'] },
 };
+const INTERNAL_SERVICE_HOST: Record<AdapterName, string> = {
+  langgraph: 'langgraph', openhands: 'openhands-bridge', codex: 'codex-verifier', assurance: 'victoria-assurance',
+};
 const cache = new Map<string, AutomationAttestation>();
 
 function fingerprint(env: NodeJS.ProcessEnv): string {
@@ -42,10 +45,11 @@ export function currentAutomationAttestation(env: NodeJS.ProcessEnv, now = new D
 
 export function clearAutomationAttestations(): void { cache.clear(); }
 
-function endpoint(baseUrl: string): URL {
+function endpoint(name: AdapterName, baseUrl: string): URL {
   const base = new URL(baseUrl);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
-  if (base.protocol !== 'https:' && !(base.protocol === 'http:' && loopback)) throw new AutomationAdapterError('attestation_endpoint_invalid');
+  const internal = base.hostname.toLowerCase() === INTERNAL_SERVICE_HOST[name];
+  if (base.username || base.password || base.search || base.hash || (base.protocol !== 'https:' && !(base.protocol === 'http:' && (loopback || internal)))) throw new AutomationAdapterError('attestation_endpoint_invalid');
   const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
   return new URL(`${prefix}/health`, base.origin);
 }
@@ -66,7 +70,7 @@ export async function attestAutomationAdapters(env: NodeJS.ProcessEnv, fetcher: 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5_000);
     try {
-      const response = await fetcher(endpoint(url), { method: 'GET', redirect: 'error', signal: controller.signal, headers: { authorization: `Bearer ${token}` } });
+      const response = await fetcher(endpoint(name, url), { method: 'GET', redirect: 'error', signal: controller.signal, headers: { authorization: `Bearer ${token}` } });
       if (!response.ok) throw new AutomationAdapterError(`attestation_${name}_http_${response.status}`);
       const declared = Number(response.headers.get('content-length') ?? 0);
       if (declared > 8_192) throw new AutomationAdapterError(`attestation_${name}_response_too_large`);

@@ -9,10 +9,12 @@ const MAX_ASSIGNMENTS = 25;
 
 export class AutomationAdapterError extends Error {}
 
-function safeBaseUrl(value: string): URL {
+function safeBaseUrl(value: string, plaintextServiceHosts: readonly string[] = []): URL {
   const url = new URL(value);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+  const internal = plaintextServiceHosts.some((host) => host.toLowerCase() === url.hostname.toLowerCase());
+  if (url.username || url.password || url.search || url.hash) throw new AutomationAdapterError('adapter_url_invalid');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && (loopback || internal))) {
     throw new AutomationAdapterError('adapter_url_requires_https_or_loopback');
   }
   return url;
@@ -23,8 +25,8 @@ function cleanStrings(value: unknown, maximum = 50): string[] {
   return value.filter((item): item is string => typeof item === 'string').slice(0, maximum).map((item) => item.slice(0, 2000));
 }
 
-async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher: Fetcher; timeoutMs: number; signal?: AbortSignal }): Promise<Record<string, unknown>> {
-  const base = safeBaseUrl(params.baseUrl);
+async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher: Fetcher; timeoutMs: number; signal?: AbortSignal; plaintextServiceHosts?: readonly string[] }): Promise<Record<string, unknown>> {
+  const base = safeBaseUrl(params.baseUrl, params.plaintextServiceHosts);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   if (!loopback && !params.token) throw new AutomationAdapterError('adapter_auth_required');
   const controller = new AbortController();
@@ -55,9 +57,9 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   } finally { clearTimeout(timer); params.signal?.removeEventListener('abort', cancel); }
 }
 
-export function createLangGraphAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+export function createLangGraphAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
   return { async plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> {
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/plan', token: config.token, body: { objective }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 30_000, signal });
+    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/plan', token: config.token, body: { objective }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 30_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
     if (!Array.isArray(body.assignments)) throw new AutomationAdapterError('langgraph_assignments_missing');
     if (body.assignments.length === 0 || body.assignments.length > MAX_ASSIGNMENTS) throw new AutomationAdapterError('langgraph_assignment_count_invalid');
     const seen = new Set<string>();
@@ -73,7 +75,7 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
   }};
 }
 
-export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
   return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> {
     if (!config.capabilityKey) throw new AutomationAdapterError('capability_key_required');
     const capability = signExecutionCapability({
@@ -86,14 +88,14 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
     };
     try {
-      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
+      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
       return parseAdapterResult(body);
     } catch (error) {
       if (error instanceof AutomationAdapterError && error.message === 'adapter_cancelled') {
         try {
           await postJson({
             baseUrl: config.baseUrl, path: '/v1/cancel', token: config.token, capability,
-            body: { assignment_id: assignment.id }, fetcher: config.fetcher ?? fetch, timeoutMs: 5_000,
+            body: { assignment_id: assignment.id }, fetcher: config.fetcher ?? fetch, timeoutMs: 5_000, plaintextServiceHosts: config.plaintextServiceHosts,
           });
         } catch { /* cancellation is best-effort at this boundary and still fails closed */ }
       }
@@ -102,21 +104,21 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
   }};
 }
 
-export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
   return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
+    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');
     return { ...result, verdict: body.verdict };
   }};
 }
 
-export function createAssuranceAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number }) {
+export function createAssuranceAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
   return { async accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
     const body = await postJson({
       baseUrl: config.baseUrl, path: '/v1/assure', token: config.token,
       body: { mission_id: missionId, verification: { verdict: verdict.verdict, summary: verdict.summary, evidence: verdict.evidence }, evidence },
-      fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal,
+      fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts,
     });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('assurance_verdict_invalid');

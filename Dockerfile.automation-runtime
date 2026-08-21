@@ -1,0 +1,8 @@
+ARG RONOR_AUTOMATION_RUNTIME_BASE_IMAGE
+FROM ${RONOR_AUTOMATION_RUNTIME_BASE_IMAGE}
+
+# Opt-in controller tooling. The image receives no Git credentials and the
+# repository clone is mounted read-only by docker-compose.automation-runtime.
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*

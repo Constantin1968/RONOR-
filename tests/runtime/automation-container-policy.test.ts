@@ -14,7 +14,8 @@ describe('isolated automation composition', () => {
     expect(source).not.toMatch(/:\s*latest(?:\s|$)/m);
     expect(source).not.toContain('/var/run/docker.sock');
     expect(source).not.toMatch(/(?:\.ssh|tailscale|SSH_AUTH_SOCK|github_token)/i);
-    expect(compose.services['openhands-agent'].image).toBe('ghcr.io/openhands/agent-server:1.42.1-python');
+    expect(compose.services['openhands-agent'].image).toBe('ronor-openhands-agent:${RONOR_AUTOMATION_IMAGE_TAG:-local}');
+    expect(compose.services['openhands-agent'].build.args.RONOR_OPENHANDS_AGENT_IMAGE).toBe('ghcr.io/openhands/agent-server:1.42.1-python');
   });
 
   it('applies least privilege to every service', () => {
@@ -33,6 +34,37 @@ describe('isolated automation composition', () => {
     }
   });
 
+  it('health-attests every service and waits for OpenHands before starting its bridge', () => {
+    for (const service of Object.values(compose.services)) {
+      expect(service.healthcheck).toMatchObject({ interval: '10s', timeout: '5s' });
+      expect(service.healthcheck.test).toBeTruthy();
+      expect(JSON.stringify(service.healthcheck.test)).not.toMatch(/Bearer\s+[A-Za-z0-9._-]{12,}/i);
+    }
+    expect(compose.services['openhands-bridge'].depends_on).toEqual({ 'openhands-agent': { condition: 'service_healthy' } });
+    expect(String(compose.services.langgraph.healthcheck.test)).toContain('/run/secrets/langgraph_token');
+    expect(String(compose.services['codex-verifier'].healthcheck.test)).toContain('/run/secrets/codex_verifier_token');
+    expect(String(compose.services['victoria-assurance'].healthcheck.test)).toContain('/run/secrets/assurance_token');
+  });
+
+  it('injects OpenHands credentials through mounted secrets and fails closed', () => {
+    const agent = compose.services['openhands-agent'];
+    expect(agent.environment).not.toHaveProperty('SESSION_API_KEY');
+    expect(agent.environment).not.toHaveProperty('LLM_API_KEY');
+    expect(agent.environment).not.toHaveProperty('OH_SECRET_KEY');
+    expect(agent.secrets).toEqual(['openhands_session_key', 'openhands_llm_api_key', 'openhands_secret_key']);
+    expect(agent.environment).toMatchObject({
+      RONOR_OPENHANDS_SESSION_API_KEY_FILE: '/run/secrets/openhands_session_key',
+      RONOR_OPENHANDS_LLM_API_KEY_FILE: '/run/secrets/openhands_llm_api_key',
+      RONOR_OPENHANDS_SECRET_KEY_FILE: '/run/secrets/openhands_secret_key',
+    });
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile.openhands-agent'), 'utf8');
+    const entrypoint = readFileSync(join(process.cwd(), 'scripts/openhands-secret-entrypoint.sh'), 'utf8');
+    expect(dockerfile).toContain('ENTRYPOINT ["/usr/local/bin/ronor-openhands-entrypoint"]');
+    expect(entrypoint).toContain('OpenHands startup refused');
+    expect(entrypoint).toContain('export LLM_API_KEY=');
+    expect(entrypoint).toContain('export OH_SECRET_KEY=');
+  });
+
   it('limits writes to the OpenHands worktree and bridge nonce ledger', () => {
     const writable: Array<[string, string]> = [];
     for (const [name, service] of Object.entries(compose.services)) {
@@ -48,10 +80,26 @@ describe('isolated automation composition', () => {
   });
 
   it('uses an internal control plane and explicit model egress', () => {
-    expect(compose.networks['automation-control'].internal).toBe(true);
+    expect(compose.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
     expect(compose.networks['model-egress']).toMatchObject({ external: true, name: 'ronor-model-egress' });
     const egress = Object.entries(compose.services).filter(([, s]) => s.networks?.includes('model-egress')).map(([n]) => n).sort();
     expect(egress).toEqual(['codex-verifier', 'openhands-agent']);
+  });
+
+  it('attaches production only through an explicit opt-in override', () => {
+    const runtimeSource = readFileSync(join(process.cwd(), 'docker-compose.automation-runtime.yml'), 'utf8');
+    const runtime = load(runtimeSource) as { services: Record<string, Service>; networks: Record<string, any> };
+    expect(runtime.services.ronor.networks).toEqual(['automation-control']);
+    expect(runtime.services.ronor.volumes).toEqual([
+      expect.objectContaining({ target: '/automation-worktrees/project', read_only: true }),
+      expect.objectContaining({ target: '/automation-artifacts', read_only: false }),
+    ]);
+    expect(runtime.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
+    expect(source).toContain('network reaching only');
+    expect(runtimeSource).toContain('docker network create --internal ronor-automation-control');
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile.automation-runtime'), 'utf8');
+    expect(dockerfile).toMatch(/ARG RONOR_AUTOMATION_RUNTIME_BASE_IMAGE[\s\S]*FROM \$\{RONOR_AUTOMATION_RUNTIME_BASE_IMAGE\}[\s\S]*\bgit\b/);
+    expect(runtime.services.ronor.build.args.RONOR_AUTOMATION_RUNTIME_BASE_IMAGE).toContain('RONOR_AUTOMATION_RUNTIME_BASE_IMAGE');
   });
 });
 

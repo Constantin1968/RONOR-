@@ -53,6 +53,19 @@ describe('live automation adapter boundary', () => {
     await expect(adapter.plan('objective')).rejects.toThrow('adapter_url_requires_https_or_loopback');
   });
 
+  it('admits only the fixed plaintext service identity on the internal network', async () => {
+    const fetcher = jest.fn(() => response({ assignments: [{ id: 'a1', instruction: 'read', actions: ['read_repo'] }] }));
+    const internal = createLangGraphAdapter({
+      baseUrl: 'http://langgraph:2024', token: 'service-token', plaintextServiceHosts: ['langgraph'], fetcher,
+    });
+    await expect(internal.plan('objective')).resolves.toHaveLength(1);
+    await expect(createLangGraphAdapter({
+      baseUrl: 'http://not-langgraph:2024', token: 'service-token', plaintextServiceHosts: ['langgraph'], fetcher,
+    }).plan('objective')).rejects.toThrow('adapter_url_requires_https_or_loopback');
+    expect(automationAdapterStatus({ RONOR_LANGGRAPH_URL: 'http://langgraph:2024', RONOR_LANGGRAPH_TOKEN: 'token' }).adapters.langgraph).toBe('configured-not-verified');
+    expect(automationAdapterStatus({ RONOR_LANGGRAPH_URL: 'http://wrong:2024', RONOR_LANGGRAPH_TOKEN: 'token' }).adapters.langgraph).toBe('invalid-endpoint');
+  });
+
   it('requires service authentication on loopback before reporting readiness', () => {
     expect(automationAdapterStatus({ RONOR_LANGGRAPH_URL: 'http://127.0.0.1:2024' }).adapters.langgraph).toBe('authentication-required');
   });

@@ -1,0 +1,26 @@
+# Opt-in attachment for the production runtime. The operator must first create
+# this network with: docker network create --internal ronor-automation-control
+services:
+  ronor:
+    build:
+      context: .
+      dockerfile: Dockerfile.automation-runtime
+      args:
+        RONOR_AUTOMATION_RUNTIME_BASE_IMAGE: ${RONOR_AUTOMATION_RUNTIME_BASE_IMAGE:?pin the already verified RONOR image}
+    image: ronor-automation-runtime:${RONOR_AUTOMATION_IMAGE_TAG:?pin the automation image tag}
+    networks:
+      - automation-control
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_WORKTREE:?absolute dedicated clone required}
+        target: /automation-worktrees/project
+        read_only: true
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
+        target: /automation-artifacts
+        read_only: false
+
+networks:
+  automation-control:
+    name: ronor-automation-control
+    external: true

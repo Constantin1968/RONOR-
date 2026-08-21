@@ -347,6 +347,10 @@ Secrets live outside Git under `RONOR_AUTOMATION_SECRET_DIR`; RONOR services
 consume Docker secret files through `*_FILE`. The upstream Agent Server's
 session key is supplied from ignored, permission-restricted `.env.automation`,
 never Compose or Mission Fabric. Each service identity must be distinct.
+OpenHands and Codex authenticate to the egress proxy with separate client
+tokens. A third `model_gateway_upstream_token` is used only from proxy to the
+approved provider; it is never accepted as a client identity or returned to an
+agent container.
 
 The `automation-control` and `ronor-model-egress` networks are internal.
 OpenHands and Codex join only `ronor-model-egress`; neither receives a general

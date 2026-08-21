@@ -92,6 +92,13 @@ describe('isolated automation composition', () => {
     expect(isolated).toEqual(['codex-verifier', 'model-egress-proxy', 'openhands-agent']);
     expect(uplink).toEqual(['model-egress-proxy']);
     expect(compose.networks['model-uplink']).toMatchObject({ external: true, name: 'ronor-model-uplink' });
+    const proxy = compose.services['model-egress-proxy'];
+    expect(proxy.environment).toMatchObject({
+      RONOR_MODEL_GATEWAY_OPENHANDS_TOKEN_FILE: '/run/secrets/openhands_llm_api_key',
+      RONOR_MODEL_GATEWAY_CODEX_TOKEN_FILE: '/run/secrets/codex_api_key',
+      RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE: '/run/secrets/model_gateway_upstream_token',
+    });
+    expect(proxy.secrets).toEqual(expect.arrayContaining(['openhands_llm_api_key', 'codex_api_key', 'model_gateway_upstream_token']));
   });
 
   it('attaches production only through an explicit opt-in override', () => {

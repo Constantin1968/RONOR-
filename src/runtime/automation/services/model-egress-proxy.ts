@@ -5,11 +5,14 @@ import express, { type Request } from 'express';
 type Fetcher = typeof fetch;
 const ALLOWED_PATHS = new Set(['/v1/responses', '/v1/chat/completions', '/v1/models']);
 
-function authorised(req: Request, token: string): boolean {
+function authorised(req: Request, tokens: readonly string[]): boolean {
   const candidate = req.header('authorization');
   if (!candidate?.startsWith('Bearer ')) return false;
-  const supplied = Buffer.from(candidate.slice(7)); const expected = Buffer.from(token);
-  return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+  const supplied = Buffer.from(candidate.slice(7));
+  return tokens.some((token) => {
+    const expected = Buffer.from(token);
+    return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+  });
 }
 
 function isTailscaleIpv4(host: string): boolean {
@@ -29,17 +32,21 @@ export function modelGatewayBaseUrl(value: string, allowTailscale = false): URL 
   return url;
 }
 
-export function createModelEgressProxy(config: { gatewayBaseUrl: string; gatewayToken: string; allowTailscale?: boolean; fetcher?: Fetcher }) {
-  if (!config.gatewayToken || config.gatewayToken.length < 16) throw new Error('model_gateway_token_invalid');
+export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientTokens: string[]; upstreamToken: string; allowTailscale?: boolean; fetcher?: Fetcher }) {
+  if (config.clientTokens.length < 1 || config.clientTokens.some((token) => token.length < 16) ||
+      new Set(config.clientTokens).size !== config.clientTokens.length) throw new Error('model_gateway_client_tokens_invalid');
+  if (!config.upstreamToken || config.upstreamToken.length < 16 || config.clientTokens.includes(config.upstreamToken)) {
+    throw new Error('model_gateway_upstream_token_invalid');
+  }
   const upstream = modelGatewayBaseUrl(config.gatewayBaseUrl, config.allowTailscale);
   const fetcher = config.fetcher ?? fetch;
   const app = express(); app.disable('x-powered-by'); app.use(express.raw({ type: 'application/json', limit: '1mb' }));
-  app.get('/health', (req, res) => authorised(req, config.gatewayToken)
+  app.get('/health', (req, res) => authorised(req, config.clientTokens)
     ? res.json({ ok: true, protocol: 'ronor-model-egress/v1', service_id: 'model-egress-proxy', capabilities: ['responses', 'chat-completions', 'models'] })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.use('/v1', async (req, res) => {
     const path = `/v1${req.path === '/' ? '' : req.path}`;
-    if (!authorised(req, config.gatewayToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
+    if (!authorised(req, config.clientTokens)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     if (req.url.includes('?') || !ALLOWED_PATHS.has(path) || (path === '/v1/models' ? req.method !== 'GET' : req.method !== 'POST')) {
       res.status(403).json({ ok: false, error: 'model_egress_path_refused' }); return;
     }
@@ -47,7 +54,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; gateway
     try {
       const response = await fetcher(target, {
         method: req.method, redirect: 'error',
-        headers: { authorization: req.header('authorization')!, accept: 'application/json', 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${config.upstreamToken}`, accept: 'application/json', 'content-type': 'application/json' },
         body: req.method === 'POST' ? new Uint8Array(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)) : undefined,
       });
       const declared = Number(response.headers.get('content-length') ?? 0);

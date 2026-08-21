@@ -2,25 +2,39 @@ import request from 'supertest';
 import { createModelEgressProxy, modelGatewayBaseUrl } from '../../src/runtime/automation/services/model-egress-proxy';
 
 const token = 'gateway-token-for-tests-0123456789';
+const codexToken = 'codex-client-token-tests-0123456789';
+const upstreamToken = 'upstream-provider-token-0123456789';
+const config = { gatewayBaseUrl: 'https://models.example/api/v1', clientTokens: [token, codexToken], upstreamToken };
 
 describe('automation model egress proxy', () => {
   it('forwards only the three model API routes to the configured HTTPS gateway', async () => {
     const fetcher = jest.fn(async () => new Response(JSON.stringify({ id: 'safe-response' }), { status: 200 }));
-    const app = createModelEgressProxy({ gatewayBaseUrl: 'https://models.example/api/v1', gatewayToken: token, fetcher });
+    const app = createModelEgressProxy({ ...config, fetcher });
     const result = await request(app).post('/v1/responses').set('Authorization', `Bearer ${token}`).send({ model: 'approved' });
     expect(result.status).toBe(200); expect(result.body.id).toBe('safe-response');
     const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toBe('https://models.example/api/v1/responses');
     expect(init.redirect).toBe('error');
+    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${upstreamToken}`);
+    expect(JSON.stringify(init)).not.toContain(token);
     expect(JSON.stringify(init)).not.toContain('models.example/api/v1/responses?');
   });
 
   it('refuses missing authentication and arbitrary network paths before fetch', async () => {
-    const fetcher = jest.fn(); const app = createModelEgressProxy({ gatewayBaseUrl: 'https://models.example/v1', gatewayToken: token, fetcher });
+    const fetcher = jest.fn(); const app = createModelEgressProxy({ ...config, gatewayBaseUrl: 'https://models.example/v1', fetcher });
     expect((await request(app).post('/v1/responses').send({})).status).toBe(401);
     expect((await request(app).post('/v1/files').set('Authorization', `Bearer ${token}`).send({})).status).toBe(403);
     expect((await request(app).get('/v1/responses').set('Authorization', `Bearer ${token}`)).status).toBe(403);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('accepts distinct OpenHands and Codex identities but never an upstream credential as a client', async () => {
+    const fetcher = jest.fn(async () => new Response('{}'));
+    const app = createModelEgressProxy({ ...config, fetcher });
+    expect((await request(app).post('/v1/responses').set('Authorization', `Bearer ${token}`).send({})).status).toBe(200);
+    expect((await request(app).post('/v1/responses').set('Authorization', `Bearer ${codexToken}`).send({})).status).toBe(200);
+    expect((await request(app).post('/v1/responses').set('Authorization', `Bearer ${upstreamToken}`).send({})).status).toBe(401);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it('rejects plaintext, credentials, IP literals and non-v1 upstreams', () => {
@@ -37,7 +51,7 @@ describe('automation model egress proxy', () => {
   });
 
   it('fails closed without relaying upstream error bodies', async () => {
-    const app = createModelEgressProxy({ gatewayBaseUrl: 'https://models.example/v1', gatewayToken: token, fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
+    const app = createModelEgressProxy({ ...config, gatewayBaseUrl: 'https://models.example/v1', fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
     const result = await request(app).post('/v1/chat/completions').set('Authorization', `Bearer ${token}`).send({});
     expect(result.status).toBe(502); expect(JSON.stringify(result.body)).not.toContain('secret upstream detail');
   });

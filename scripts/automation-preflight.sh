@@ -27,9 +27,9 @@ repo_root="$(git rev-parse --show-toplevel)"
 required_secrets=(
   langgraph_token openhands_session_key openhands_llm_api_key openhands_secret_key
   openhands_bridge_token automation_capability_key codex_verifier_token codex_api_key
-  assurance_token evidence_runner_token codex_receipt_private_key assurance_receipt_public_key
+  model_gateway_upstream_token assurance_token evidence_runner_token codex_receipt_private_key assurance_receipt_public_key
 )
-token_secrets=(langgraph_token openhands_session_key openhands_secret_key openhands_bridge_token automation_capability_key codex_verifier_token assurance_token evidence_runner_token)
+token_secrets=(langgraph_token openhands_session_key openhands_llm_api_key openhands_secret_key openhands_bridge_token automation_capability_key codex_verifier_token codex_api_key model_gateway_upstream_token assurance_token evidence_runner_token)
 
 declare -A token_digests=()
 for name in "${required_secrets[@]}"; do

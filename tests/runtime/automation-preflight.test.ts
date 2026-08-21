@@ -15,7 +15,7 @@ describe('automation activation preflight', () => {
   });
 
   it('validates every secret identity and never prints or sources secret values', () => {
-    for (const name of ['langgraph_token', 'openhands_session_key', 'openhands_llm_api_key', 'openhands_secret_key', 'openhands_bridge_token', 'automation_capability_key', 'codex_verifier_token', 'codex_api_key', 'assurance_token', 'evidence_runner_token', 'codex_receipt_private_key', 'assurance_receipt_public_key']) {
+    for (const name of ['langgraph_token', 'openhands_session_key', 'openhands_llm_api_key', 'openhands_secret_key', 'openhands_bridge_token', 'automation_capability_key', 'codex_verifier_token', 'codex_api_key', 'model_gateway_upstream_token', 'assurance_token', 'evidence_runner_token', 'codex_receipt_private_key', 'assurance_receipt_public_key']) {
       expect(source).toContain(name);
     }
     expect(source).toContain("stat -c '%a'");

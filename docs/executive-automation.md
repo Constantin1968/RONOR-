@@ -212,6 +212,11 @@ and its deterministic `run_id` after the durable lease and initial `queued`
 Fabric event exist. Execution then continues under that lease independently of
 the browser request. CONTROL follows the mission Fabric, allowing Merlin to
 observe or cancel a live run without keeping one long HTTP connection open.
+`GET /control/automation/runs/:runId?mission_id=...` returns a safe durable
+projection without mandate JSON, lease tokens or owner identity. Cancellation
+is committed to the run ledger before the in-memory `AbortSignal` is fired;
+the active lease is revoked and the same mandate can never resurrect that run
+after a process restart.
 
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The

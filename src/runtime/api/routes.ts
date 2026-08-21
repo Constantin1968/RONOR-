@@ -77,7 +77,7 @@ import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
 import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
 import { issueArchitectMandate } from '../automation/mandate-issuer';
-import { claimAutomationRun } from '../automation/run-lease';
+import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
 import { launchAutomationRun } from '../automation/background-run';
 import type { AutomationRun } from '../automation/contracts';
 
@@ -605,6 +605,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
       if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
       if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
+      if (claim.outcome === 'cancelled') { res.status(409).json({ ok: false, error: 'automation_run_cancelled' }); return; }
       mandate = claim.mandate;
       if (claim.outcome === 'completed') {
         const run = completedExecutionRun(mandate);
@@ -667,12 +668,24 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     }),
   );
 
+  router.get('/control/automation/runs/:runId', requireArchitect, rateLimit, (req, res) => {
+    const runId = sanitiseIdentifier(req.params.runId, 120);
+    const missionId = sanitiseIdentifier(req.query.mission_id, 120);
+    if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_run_status_request' }); return; }
+    const record = getAutomationRunRecord(runId, missionId);
+    const fabric = getMissionFabric(missionId);
+    if (!record || !fabric) { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    res.json({ ok: true, run: record, fabric_run: fabric.runs[runId] ?? null });
+  });
+
   router.post('/control/automation/runs/:runId/cancel', requireArchitect, rateLimit, (req, res) => {
     const runId = sanitiseIdentifier(req.params.runId, 120);
     const missionId = sanitiseIdentifier((req.body as Record<string, unknown> | undefined)?.mission_id, 120);
     if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_cancel_request' }); return; }
-    const result = cancelAutomationRun(runId, missionId);
-    if (result !== 'cancelled') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    const durable = requestAutomationRunCancellation(runId, missionId);
+    if (durable === 'not_found' || durable === 'mission_mismatch') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    if (durable === 'not_active') { res.status(409).json({ ok: false, error: 'automation_run_not_active' }); return; }
+    cancelAutomationRun(runId, missionId);
     const fabric = getMissionFabric(missionId);
     if (fabric) appendMissionFabricEvent({
       missionId, expectedVersion: fabric.version, type: 'run.cancel_requested',

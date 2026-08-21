@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { claimAutomationRun } from '../../src/runtime/automation/run-lease';
+import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../../src/runtime/automation/run-lease';
 import { objectiveHash, ALWAYS_DENIED_ACTIONS } from '../../src/runtime/automation/policy';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
@@ -49,5 +49,31 @@ describe('persistent automation run lease', () => {
     if (second.outcome !== 'resumed') throw new Error('resume failed');
     second.lease.finish('failed');
     expect(claimAutomationRun({ runId, mandate: m, owner: 'three', now: new Date('2026-08-20T12:00:02Z'), leaseMs: 3_000 }).outcome).toBe('fix_cycle_limit_exceeded');
+  });
+
+  it('persists cancellation, revokes the lease and refuses resurrection', () => {
+    const m = mandate(); const runId = `run_${crypto.randomUUID()}`;
+    const claimed = claimAutomationRun({ runId, mandate: m, owner: 'worker-a', now: new Date('2026-08-20T12:00:00Z'), leaseMs: 30_000 });
+    expect(claimed.outcome).toBe('acquired');
+    expect(requestAutomationRunCancellation(runId, 'wrong-mission')).toBe('mission_mismatch');
+    expect(requestAutomationRunCancellation(runId, m.mission_id)).toBe('cancelled');
+    expect(getAutomationRunRecord(runId, m.mission_id, new Date('2026-08-20T12:00:01Z'))).toMatchObject({
+      status: 'cancelled', cancellation_requested: true, lease_active: false, attempt_count: 1,
+    });
+    if (claimed.outcome !== 'acquired') throw new Error('claim failed');
+    expect(claimed.lease.renew(new Date('2026-08-20T12:00:02Z'))).toBe(false);
+    expect(claimed.lease.finish('failed')).toBe(false);
+    expect(claimAutomationRun({ runId, mandate: m, owner: 'worker-b', now: new Date('2026-08-20T12:01:00Z'), leaseMs: 3_000 }).outcome).toBe('cancelled');
+  });
+
+  it('returns only a safe status projection without lease owner, token or mandate JSON', () => {
+    const m = mandate(); const runId = `run_${crypto.randomUUID()}`;
+    claimAutomationRun({ runId, mandate: m, owner: 'sensitive-owner', now: new Date('2026-08-20T12:00:00Z'), leaseMs: 30_000 });
+    const record = getAutomationRunRecord(runId, m.mission_id, new Date('2026-08-20T12:00:01Z'))!;
+    expect(record).toMatchObject({ run_id: runId, mission_id: m.mission_id, status: 'running', lease_active: true });
+    const serialised = JSON.stringify(record);
+    expect(serialised).not.toContain('sensitive-owner');
+    expect(serialised).not.toContain('lease_token');
+    expect(serialised).not.toContain('mandate_json');
   });
 });

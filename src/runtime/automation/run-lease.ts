@@ -7,6 +7,7 @@ export type RunClaimResult =
   | { outcome: 'acquired'; lease: AutomationRunLease; attempt: number; mandate: ExecutionMandate }
   | { outcome: 'resumed'; lease: AutomationRunLease; attempt: number; mandate: ExecutionMandate }
   | { outcome: 'completed'; mandate: ExecutionMandate }
+  | { outcome: 'cancelled'; mandate: ExecutionMandate }
   | { outcome: 'busy' }
   | { outcome: 'conflict' }
   | { outcome: 'fix_cycle_limit_exceeded' };
@@ -37,7 +38,7 @@ export class AutomationRunLease {
     const expires = new Date(now.getTime() + this.leaseMs).toISOString();
     const result = getDb().prepare(
       `UPDATE runtime_automation_runs SET lease_expires_at = ?, updated_at = datetime('now')
-       WHERE run_id = ? AND lease_token = ? AND status = 'running'`,
+       WHERE run_id = ? AND lease_token = ? AND status = 'running' AND cancel_requested_at IS NULL`,
     ).run(expires, this.runId, this.token);
     return result.changes === 1;
   }
@@ -64,6 +65,56 @@ export class AutomationRunLease {
     ).run(terminal, terminal, this.runId, this.token);
     return result.changes === 1;
   }
+}
+
+export interface AutomationRunRecord {
+  run_id: string;
+  mission_id: string;
+  status: 'running' | 'complete' | 'failed' | 'cancelled';
+  attempt_count: number;
+  cancellation_requested: boolean;
+  lease_active: boolean;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export function getAutomationRunRecord(runId: string, missionId: string, now = new Date()): AutomationRunRecord | null {
+  ensureRuntimeLedgerSchema();
+  const row = getDb().prepare(
+    `SELECT run_id, mission_id, status, attempt_count, cancel_requested_at, lease_expires_at,
+            created_at, updated_at, completed_at
+     FROM runtime_automation_runs WHERE run_id = ? AND mission_id = ?`,
+  ).get(runId, missionId) as (Omit<AutomationRunRecord, 'cancellation_requested' | 'lease_active'> & {
+    cancel_requested_at: string | null; lease_expires_at: string | null;
+  }) | undefined;
+  if (!row) return null;
+  const { cancel_requested_at, lease_expires_at, ...safe } = row;
+  return {
+    ...safe,
+    cancellation_requested: cancel_requested_at !== null,
+    lease_active: safe.status === 'running' && lease_expires_at !== null && Date.parse(lease_expires_at) > now.getTime(),
+  };
+}
+
+export function requestAutomationRunCancellation(runId: string, missionId: string):
+  'cancelled' | 'not_found' | 'mission_mismatch' | 'not_active' {
+  ensureRuntimeLedgerSchema();
+  const db = getDb();
+  return db.transaction(() => {
+    const row = db.prepare(`SELECT mission_id, status FROM runtime_automation_runs WHERE run_id = ?`).get(runId) as
+      | { mission_id: string; status: string } | undefined;
+    if (!row) return 'not_found' as const;
+    if (row.mission_id !== missionId) return 'mission_mismatch' as const;
+    if (row.status !== 'running') return 'not_active' as const;
+    const result = db.prepare(
+      `UPDATE runtime_automation_runs
+       SET status = 'cancelled', cancel_requested_at = datetime('now'), lease_token = NULL,
+           lease_owner = NULL, lease_expires_at = NULL, updated_at = datetime('now')
+       WHERE run_id = ? AND mission_id = ? AND status = 'running'`,
+    ).run(runId, missionId);
+    return result.changes === 1 ? 'cancelled' as const : 'not_active' as const;
+  }).immediate();
 }
 
 export function claimAutomationRun(params: {
@@ -101,6 +152,7 @@ export function claimAutomationRun(params: {
       if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint) return { outcome: 'conflict' };
     } catch { return { outcome: 'conflict' }; }
     if (row.status === 'complete') return { outcome: 'completed', mandate: storedMandate };
+    if (row.status === 'cancelled') return { outcome: 'cancelled', mandate: storedMandate };
     if (row.status === 'running' && row.lease_expires_at && Date.parse(row.lease_expires_at) > now.getTime()) return { outcome: 'busy' };
     if (row.attempt_count >= storedMandate.max_fix_cycles + 1) return { outcome: 'fix_cycle_limit_exceeded' };
     const attempt = row.attempt_count + 1;

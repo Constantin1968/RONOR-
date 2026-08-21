@@ -8,7 +8,8 @@ import type { OpenHandsExecutionEnvelope } from '../../src/runtime/automation/co
 
 const key = 'k'.repeat(32);
 const serviceToken = 'bridge-service-token';
-const deadline = '2026-08-21T00:00:00.000Z';
+// Far-future expiry keeps replay tests independent of the calendar date on CI.
+const deadline = '2099-08-21T00:00:00.000Z';
 const envelope: OpenHandsExecutionEnvelope = {
   assignment_id: 'task-1', instruction: 'Run declared tests only.', allowed_actions: ['read_repo', 'run_tests'],
   objective_hash: 'a'.repeat(64), deadline,

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 describe('automation activation preflight', () => {
   const source = readFileSync(join(process.cwd(), 'scripts/automation-preflight.sh'), 'utf8');
+  const workflow = readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
 
   it('is read-only and never starts, creates or removes infrastructure', () => {
     expect(source).toContain('READ-ONLY automation activation audit');
@@ -31,5 +32,12 @@ describe('automation activation preflight', () => {
     expect(source).toContain('remote get-url origin');
     expect(source).toContain('rev-parse HEAD');
     expect(source).toContain('status --porcelain=v1');
+  });
+
+  it('is syntax-checked and exercised fail-closed by Linux CI', () => {
+    expect(workflow).toContain('name: Automation Activation Preflight Contract');
+    expect(workflow).toContain('bash -n scripts/automation-preflight.sh');
+    expect(workflow).toContain('env -i PATH="$PATH" HOME="$HOME" bash scripts/automation-preflight.sh');
+    expect(workflow).not.toMatch(/automation-preflight\.sh[^\n]*(?:up|start|run|exec|create|deploy)/);
   });
 });

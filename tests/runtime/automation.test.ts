@@ -1,4 +1,9 @@
-import { appendMissionFabricEvent, createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import {
+  appendMissionFabricEvent,
+  createMission,
+  getMissionFabric,
+  MissionFabricIntegrityError,
+} from '../../src/runtime/mission/store';
 import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
 import { runExecutiveMission } from '../../src/runtime/automation/runner';
@@ -121,6 +126,29 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(result).toMatchObject({ status: 'blocked', reason: 'mission_fabric_integrity_failed', cost_usd: 0 });
     expect(plan).not.toHaveBeenCalled();
     expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses every append over corrupted Mission Fabric history', () => {
+    const mission = createMission({ title: 'Corrupted writer', objective, operatorId: 'merlin' });
+    appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 0, type: 'checkpoint.created',
+      actor: { kind: 'langgraph', id: 'langgraph' }, payload: { id: 'writer-integrity-seed', status: 'valid' },
+    });
+    const db = getDb();
+    const row = db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?').get(mission.mission_id) as { state_json: string };
+    const state = JSON.parse(row.state_json) as { fabric: { events: Array<{ payload: Record<string, unknown> }> } };
+    state.fabric.events[0].payload.status = 'tampered-without-rehash';
+    db.prepare('UPDATE runtime_missions SET state_json = ? WHERE mission_id = ?').run(JSON.stringify(state), mission.mission_id);
+
+    expect(() => appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 1, type: 'checkpoint.created',
+      actor: { kind: 'codex', id: 'codex' }, payload: { id: 'must-not-append', status: 'blocked' },
+    })).toThrow(MissionFabricIntegrityError);
+
+    const persisted = JSON.parse((db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?')
+      .get(mission.mission_id) as { state_json: string }).state_json) as { fabric: { version: number; events: unknown[] } };
+    expect(persisted.fabric.version).toBe(1);
+    expect(persisted.fabric.events).toHaveLength(1);
   });
 
   it('returns a completed mandate idempotently without adapter reinvocation', async () => {

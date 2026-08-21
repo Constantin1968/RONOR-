@@ -51,6 +51,9 @@ describe('isolated automation composition', () => {
 
   it('injects OpenHands credentials through mounted secrets and fails closed', () => {
     const agent = compose.services['openhands-agent'];
+    expect(agent.tmpfs).toContain('/tmp:rw,exec,nosuid,nodev,size=512m');
+    expect(agent.tmpfs).toContain('/workspace/conversations:rw,nosuid,nodev,size=1g');
+    expect(agent.environment).toMatchObject({ HOME: '/tmp/openhands-home', XDG_CONFIG_HOME: '/tmp/openhands-config' });
     expect(agent.environment).not.toHaveProperty('SESSION_API_KEY');
     expect(agent.environment).not.toHaveProperty('LLM_API_KEY');
     expect(agent.environment).not.toHaveProperty('OH_SECRET_KEY');

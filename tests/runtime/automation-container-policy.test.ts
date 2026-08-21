@@ -75,11 +75,13 @@ describe('isolated automation composition', () => {
         if (typeof volume === 'object' && volume.read_only !== true) writable.push([name, volume.target]);
       }
     }
-    expect(writable).toEqual([['openhands-agent', '/workspace/project'], ['openhands-bridge', '/var/lib/ronor-nonces']]);
+    expect(writable).toEqual([['openhands-agent', '/workspace/project'], ['openhands-bridge', '/var/lib/ronor-nonces'], ['automation-evidence-runner', '/artifacts']]);
     expect(compose.services['openhands-bridge'].volumes[0]).toMatchObject({ type: 'bind', read_only: false });
     expect(String(compose.services['openhands-bridge'].volumes[0].source)).toContain('RONOR_AUTOMATION_NONCE_DIR');
     expect(compose.services['codex-verifier'].volumes[0].read_only).toBe(true);
     expect(compose.services['victoria-assurance'].volumes[0].read_only).toBe(true);
+    expect(compose.services['automation-evidence-runner'].volumes[0]).toMatchObject({ target: '/workspace/project', read_only: true });
+    expect(compose.services['automation-evidence-runner'].networks).toEqual(['automation-control']);
   });
 
   it('uses an internal control plane and explicit model egress', () => {

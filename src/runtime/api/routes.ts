@@ -75,11 +75,11 @@ import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
-import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
 import { issueArchitectMandate } from '../automation/mandate-issuer';
 import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
 import { launchAutomationRun } from '../automation/background-run';
 import type { AutomationRun } from '../automation/contracts';
+import { createHttpPostExecutionVerifier } from '../automation/post-execution-verifier';
 
 /**
  * Build the runtime router.
@@ -575,13 +575,16 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(503).json({ ok: false, error: 'artifact_policy_not_configured' });
         return;
       }
-      const approvedWorkspaceRoot = env.RONOR_AUTOMATION_WORKSPACE_ROOT;
       const artifactRoot = env.RONOR_AUTOMATION_ARTIFACT_ROOT;
-      const testCommands = parseAllowedTestCommands(env.RONOR_AUTOMATION_TEST_COMMANDS_JSON);
-      if (!testCommands) {
-        res.status(503).json({ ok: false, error: 'test_policy_not_configured' });
+      if (!env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) {
+        res.status(503).json({ ok: false, error: 'isolated_evidence_runner_not_configured' });
         return;
       }
+      let postExecutionVerifier;
+      try {
+        postExecutionVerifier = createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN });
+        await postExecutionVerifier.attest();
+      } catch { res.status(503).json({ ok: false, error: 'isolated_evidence_runner_attestation_failed' }); return; }
       const workspace = inspectAndValidateWorkspace(workspaceRoot, {
         approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
         branch_prefix: mandate.branch_prefix,
@@ -639,9 +642,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         control,
         execute: async () => {
           const artifactCollector = createWorkspaceArtifactCollector(artifactRoot);
-          const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
-          const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: approvedWorkspaceRoot, baseEnv });
-          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
+          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, postExecutionVerifier });
         },
         onUnhandledFailure: () => {
           const current = getMissionFabric(mandate.mission_id);

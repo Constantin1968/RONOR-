@@ -91,6 +91,8 @@ RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 RONOR_ASSURANCE_URL=
 RONOR_ASSURANCE_TOKEN=
+RONOR_EVIDENCE_RUNNER_URL=http://automation-evidence-runner:3005
+RONOR_EVIDENCE_RUNNER_TOKEN=
 RONOR_CODEX_API_KEY=
 RONOR_CODEX_MODEL=
 RONOR_CODEX_INPUT_USD_PER_MTOK=
@@ -225,6 +227,16 @@ after independently validating that receipt and re-reading the artifact hashes.
 Only Codex receives `codex_receipt_private_key`; Victoria receives the matching
 `assurance_receipt_public_key`, so Victoria can verify but cannot forge a Codex
 verdict. Neither key is exposed to CONTROL, LangGraph, OpenHands or the runtime.
+
+Post-OpenHands Git inspection and allowlisted tests execute in the dedicated
+`automation-evidence-runner`, not in the production runtime. Its worktree mount
+is read-only, its root filesystem is read-only, it has no model, GitHub, SSH,
+cloud or runtime credential, and it joins only the internal automation-control
+network. The runtime sends only opaque run/assignment ids and a `run_tests`
+boolean; workspace paths and command definitions remain server-side. The
+sidecar returns bounded artifact references and SHA-256 digests, which the
+runtime independently re-reads from the artifact volume before Codex receives
+them.
 
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The

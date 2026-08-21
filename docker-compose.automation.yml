@@ -182,6 +182,46 @@ services:
       start_period: 10s
       retries: 12
 
+  automation-evidence-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: evidence-runner
+    image: ronor-evidence-runner:${RONOR_AUTOMATION_IMAGE_TAG:-local}
+    user: "10001:10001"
+    read_only: true
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    environment:
+      RONOR_EVIDENCE_WORKSPACE: /workspace/project
+      RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
+      RONOR_AUTOMATION_TEST_COMMANDS_JSON: ${RONOR_AUTOMATION_TEST_COMMANDS_JSON:?bounded test commands required}
+      RONOR_EVIDENCE_RUNNER_TOKEN_FILE: /run/secrets/evidence_runner_token
+    secrets: [evidence_runner_token]
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_WORKTREE:?absolute dedicated worktree required}
+        target: /workspace/project
+        read_only: true
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
+        target: /artifacts
+        read_only: false
+    networks: [automation-control]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/evidence_runner_token','utf8').trim();http.get({host:'127.0.0.1',port:3005,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+
 networks:
   automation-control:
     name: ronor-automation-control
@@ -220,3 +260,5 @@ secrets:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_receipt_private_key
   assurance_receipt_public_key:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_receipt_public_key
+  evidence_runner_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/evidence_runner_token

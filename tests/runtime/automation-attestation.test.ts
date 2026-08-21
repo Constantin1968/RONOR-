@@ -42,6 +42,17 @@ describe('automation endpoint attestation', () => {
     await expect(attestAutomationAdapters({ ...env, RONOR_LANGGRAPH_URL: 'http://127.0.0.1:2024', RONOR_LANGGRAPH_TOKEN: '' }, jest.fn())).rejects.toThrow('attestation_langgraph_not_configured');
   });
 
+  it('attests the exact internal service host but refuses any other plaintext host', async () => {
+    const internalEnv = { ...env, RONOR_LANGGRAPH_URL: 'http://langgraph:2024' };
+    const fetcher = jest.fn((url: string | URL | Request) => {
+      expect(String(url)).toBe('http://langgraph:2024/health');
+      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol: 'wrong/v1' })));
+    });
+    await expect(attestAutomationAdapters(internalEnv, fetcher)).rejects.toThrow('attestation_langgraph_protocol_mismatch');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await expect(attestAutomationAdapters({ ...env, RONOR_LANGGRAPH_URL: 'http://other:2024' }, jest.fn())).rejects.toThrow('attestation_endpoint_invalid');
+  });
+
   it('refuses a service identity or capability mismatch and caches no readiness', async () => {
     const fetcher = jest.fn(() => Promise.resolve(new Response(JSON.stringify({
       ok: true, protocol: 'ronor-langgraph/v1', service_id: 'openhands-bridge', capabilities: ['plan'],

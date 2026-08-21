@@ -48,10 +48,25 @@ describe('isolated automation composition', () => {
   });
 
   it('uses an internal control plane and explicit model egress', () => {
-    expect(compose.networks['automation-control'].internal).toBe(true);
+    expect(compose.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
     expect(compose.networks['model-egress']).toMatchObject({ external: true, name: 'ronor-model-egress' });
     const egress = Object.entries(compose.services).filter(([, s]) => s.networks?.includes('model-egress')).map(([n]) => n).sort();
     expect(egress).toEqual(['codex-verifier', 'openhands-agent']);
+  });
+
+  it('attaches production only through an explicit opt-in override', () => {
+    const runtimeSource = readFileSync(join(process.cwd(), 'docker-compose.automation-runtime.yml'), 'utf8');
+    const runtime = load(runtimeSource) as { services: Record<string, Service>; networks: Record<string, any> };
+    expect(runtime.services.ronor.networks).toEqual(['automation-control']);
+    expect(runtime.services.ronor.volumes).toEqual([
+      expect.objectContaining({ target: '/automation-worktrees/project', read_only: true }),
+      expect.objectContaining({ target: '/automation-artifacts', read_only: false }),
+    ]);
+    expect(runtime.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
+    expect(source).toContain('network reaching only');
+    expect(runtimeSource).toContain('docker network create --internal ronor-automation-control');
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+    expect(dockerfile).toMatch(/FROM node:20-bookworm-slim AS runtime[\s\S]*apt-get install[\s\S]*\bgit\b/);
   });
 });
 

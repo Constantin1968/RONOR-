@@ -119,7 +119,8 @@ services:
 
 networks:
   automation-control:
-    internal: true
+    name: ronor-automation-control
+    external: true
   # Must be a pre-created, firewall-restricted network reaching only the
   # approved model gateway. Compose will fail rather than create broad egress.
   model-egress:

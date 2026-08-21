@@ -44,6 +44,9 @@ describe('isolated automation composition', () => {
     expect(String(compose.services.langgraph.healthcheck.test)).toContain('/run/secrets/langgraph_token');
     expect(String(compose.services['codex-verifier'].healthcheck.test)).toContain('/run/secrets/codex_verifier_token');
     expect(String(compose.services['victoria-assurance'].healthcheck.test)).toContain('/run/secrets/assurance_token');
+    expect(String(compose.services['model-egress-proxy'].healthcheck.test)).toContain('/run/secrets/openhands_llm_api_key');
+    expect(compose.services['openhands-agent'].depends_on).toEqual({ 'model-egress-proxy': { condition: 'service_healthy' } });
+    expect(compose.services['codex-verifier'].depends_on).toEqual({ 'model-egress-proxy': { condition: 'service_healthy' } });
   });
 
   it('injects OpenHands credentials through mounted secrets and fails closed', () => {
@@ -82,8 +85,11 @@ describe('isolated automation composition', () => {
   it('uses an internal control plane and explicit model egress', () => {
     expect(compose.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
     expect(compose.networks['model-egress']).toMatchObject({ external: true, name: 'ronor-model-egress' });
-    const egress = Object.entries(compose.services).filter(([, s]) => s.networks?.includes('model-egress')).map(([n]) => n).sort();
-    expect(egress).toEqual(['codex-verifier', 'openhands-agent']);
+    const isolated = Object.entries(compose.services).filter(([, s]) => s.networks?.includes('model-egress')).map(([n]) => n).sort();
+    const uplink = Object.entries(compose.services).filter(([, s]) => s.networks?.includes('model-uplink')).map(([n]) => n).sort();
+    expect(isolated).toEqual(['codex-verifier', 'model-egress-proxy', 'openhands-agent']);
+    expect(uplink).toEqual(['model-egress-proxy']);
+    expect(compose.networks['model-uplink']).toMatchObject({ external: true, name: 'ronor-model-uplink' });
   });
 
   it('attaches production only through an explicit opt-in override', () => {

@@ -39,6 +39,23 @@ services:
       start_period: 10s
       retries: 12
 
+  model-egress-proxy:
+    <<: *ronor-service
+    command: [node, dist/runtime/automation/services/model-egress-proxy-server.js]
+    environment:
+      RONOR_MODEL_EGRESS_HOST: 0.0.0.0
+      RONOR_MODEL_EGRESS_PORT: "3004"
+      RONOR_MODEL_GATEWAY_BASE_URL: ${RONOR_MODEL_GATEWAY_BASE_URL:?set the approved HTTPS model gateway in .env.automation}
+      RONOR_MODEL_GATEWAY_TOKEN_FILE: /run/secrets/openhands_llm_api_key
+    secrets: [openhands_llm_api_key]
+    networks: [model-egress, model-uplink]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/openhands_llm_api_key','utf8').trim();http.get({host:'127.0.0.1',port:3004,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+
   openhands-agent:
     build:
       context: .
@@ -60,11 +77,14 @@ services:
     command: [--host, 0.0.0.0, --port, "8000"]
     environment:
       LLM_MODEL: ${RONOR_OPENHANDS_LLM_MODEL:?set in .env.automation}
-      LLM_BASE_URL: ${RONOR_OPENHANDS_LLM_BASE_URL:?set in .env.automation}
+      LLM_BASE_URL: http://model-egress-proxy:3004/v1
       RONOR_OPENHANDS_SESSION_API_KEY_FILE: /run/secrets/openhands_session_key
       RONOR_OPENHANDS_LLM_API_KEY_FILE: /run/secrets/openhands_llm_api_key
       RONOR_OPENHANDS_SECRET_KEY_FILE: /run/secrets/openhands_secret_key
     secrets: [openhands_session_key, openhands_llm_api_key, openhands_secret_key]
+    depends_on:
+      model-egress-proxy:
+        condition: service_healthy
     volumes:
       - type: bind
         source: ${RONOR_AUTOMATION_WORKTREE:?absolute dedicated worktree required}
@@ -116,10 +136,13 @@ services:
       RONOR_CODEX_VERIFIER_TOKEN_FILE: /run/secrets/codex_verifier_token
       RONOR_CODEX_API_KEY_FILE: /run/secrets/codex_api_key
       RONOR_CODEX_MODEL: ${RONOR_CODEX_MODEL:?set in .env.automation}
-      RONOR_CODEX_BASE_URL: ${RONOR_CODEX_BASE_URL:-https://api.openai.com/v1}
+      RONOR_CODEX_BASE_URL: http://model-egress-proxy:3004/v1
       RONOR_CODEX_INPUT_USD_PER_MTOK: ${RONOR_CODEX_INPUT_USD_PER_MTOK:?set current rate}
       RONOR_CODEX_OUTPUT_USD_PER_MTOK: ${RONOR_CODEX_OUTPUT_USD_PER_MTOK:?set current rate}
     secrets: [codex_verifier_token, codex_api_key]
+    depends_on:
+      model-egress-proxy:
+        condition: service_healthy
     volumes:
       - type: bind
         source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
@@ -164,6 +187,11 @@ networks:
   # approved model gateway. Compose will fail rather than create broad egress.
   model-egress:
     name: ronor-model-egress
+    external: true
+  # Only the narrow reverse proxy is dual-homed. Agent containers never join
+  # this network and therefore have no general Internet route.
+  model-uplink:
+    name: ronor-model-uplink
     external: true
 
 secrets:

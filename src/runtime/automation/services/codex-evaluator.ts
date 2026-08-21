@@ -4,7 +4,8 @@ type Fetcher = typeof fetch;
 
 function responsesEndpoint(baseUrl?: string): URL {
   const url = new URL(baseUrl || 'https://api.openai.com/v1');
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('codex_evaluator_base_url_invalid');
+  const internalProxy = url.protocol === 'http:' && url.hostname.toLowerCase() === 'model-egress-proxy';
+  if ((url.protocol !== 'https:' && !internalProxy) || url.username || url.password || url.search || url.hash) throw new Error('codex_evaluator_base_url_invalid');
   const path = url.pathname.replace(/\/+$/, '');
   if (path && !path.endsWith('/v1')) throw new Error('codex_evaluator_base_url_invalid');
   url.pathname = `${path || '/v1'}/responses`;

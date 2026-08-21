@@ -40,7 +40,38 @@
   el('connect').addEventListener('click', function () { state.key = el('apiKey').value.trim(); sessionStorage.setItem('ronor.control.key', state.key); refresh(); });
   el('forget').addEventListener('click', function () { state.key = ''; sessionStorage.removeItem('ronor.control.key'); el('apiKey').value = ''; el('sessionState').textContent = 'NEAUTENTIFICAT'; stopPolling(); });
   el('refresh').addEventListener('click', refresh); document.querySelectorAll('nav button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
-  el('delegateForm').addEventListener('submit', async function (ev) { ev.preventDefault(); var target = el('target').value, mode = el('mode').value; if (target !== 'richard' || mode !== 'delegate') { el('result').textContent = target + ' nu are încă un adapter live conectat. Nicio acțiune nu a fost simulată.'; return; } try { var data = await api('/executive/delegate', { method: 'POST', body: JSON.stringify({ objective: el('objective').value }) }); el('result').textContent = 'MANDAT CREAT\nMisiune: ' + data.delegation.mission_id + '\nStatus: draft · fără trimitere externă'; await refresh(); } catch (err) { el('result').textContent = 'EROARE: ' + err.message; } });
+  el('delegateForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var target = el('target').value, mode = el('mode').value, objective = el('objective').value.trim();
+    if (!objective) { el('result').textContent = 'EROARE: obiectivul este obligatoriu.'; return; }
+    el('result').textContent = 'RONOR procesează mandatul…';
+    try {
+      if (target === 'codex') {
+        el('result').textContent = 'Codex este autoritatea independentă de verificare. Primește automat dovezile produse de OpenHands; nu acceptă instrucțiuni de implementare directă.';
+        return;
+      }
+      if (target === 'langgraph' || mode !== 'delegate') {
+        var planningObjective = mode === 'explain' ? 'READ-ONLY. Explain and plan without modifying files: ' + objective : objective;
+        var plan = await api('/automation/plan', { method: 'POST', body: JSON.stringify({ objective: planningObjective }) });
+        state.missionId = plan.mission_id;
+        el('result').textContent = 'LANGGRAPH · PLAN ACCEPTAT\nMisiune: ' + plan.mission_id + '\n' + plan.assignments.map(function (a) { return '• ' + a.id + ': ' + a.instruction + ' [' + a.actions.join(', ') + ']'; }).join('\n');
+        await refresh();
+        return;
+      }
+      var delegated = await api('/executive/delegate', { method: 'POST', body: JSON.stringify({ objective: objective }) });
+      state.missionId = delegated.delegation.mission_id;
+      if (target === 'richard') {
+        el('result').textContent = 'RICHARD · MANDAT CREAT\nMisiune: ' + state.missionId + '\nStatus: draft · fără trimitere externă';
+        await refresh();
+        return;
+      }
+      var key = 'control-' + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()));
+      var execution = await api('/automation/run', { method: 'POST', body: JSON.stringify({ approved: true, mission_id: state.missionId, idempotency_key: key }) });
+      state.runId = execution.run.run_id;
+      el('result').textContent = 'OPENHANDS · EXECUȚIE FINALIZATĂ\nMisiune: ' + state.missionId + '\nRun: ' + state.runId + '\nStatus: ' + execution.run.status + '\nCost: $' + execution.run.cost_usd;
+      show('missions'); await loadMission(state.missionId); await refresh();
+    } catch (err) { el('result').textContent = 'EROARE: ' + err.message; }
+  });
   document.addEventListener('keydown', function (ev) { if (ev.ctrlKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); show('switchboard'); el('objective').focus(); } if (ev.key === 'Escape') el('objective').blur(); });
   if (state.key) { el('apiKey').value = state.key; refresh(); }
 }());

@@ -352,3 +352,24 @@ verify network policy and secret-file permissions, then require authenticated
 health attestation. On failure, stop the composition, rotate its identities and
 retain artifacts for audit. Production, `main`, releases and deployments remain
 outside this composition.
+
+### Direct contact in CONTROL
+
+The Architect uses **CONTROL → Switchboard** rather than service ports or SSH:
+
+- **LangGraph + PLANIFICĂ/EXPLICĂ** calls the authenticated planning adapter,
+  creates an auditable Mission Fabric record and returns the exact assignments
+  and action classes. It never grants execution authority.
+- **OpenHands + DELEGĂ** creates the mission and one bounded execution mandate,
+  then runs the isolated implementer, allowlisted tests, independent Codex
+  verification and Victoria assurance. Submitting the form is the architect
+  approval for that envelope; there are no repeated prompts for actions already
+  inside it.
+- **Codex** remains evidence-driven and independent. CONTROL deliberately does
+  not turn the verifier into an implementation chatbot.
+
+Workspace path and branch come from server policy
+(`RONOR_AUTOMATION_WORKTREE` and `RONOR_AUTOMATION_BRANCH`), not browser input.
+The UI never receives service tokens, model keys, host credentials or raw
+artifact contents. Push, merge, release, deployment, production access,
+external send, secret reads and destructive actions remain outside the mandate.

@@ -46,6 +46,18 @@ describe('automation recovery supervisor', () => {
     supervisor.stop();
   });
 
+  it('does not consume a lease while external preflight is unavailable', async () => {
+    const claim = jest.fn(); const execute = jest.fn();
+    const supervisor = startAutomationRecoverySupervisor({
+      enabled: true, owner: 'runtime-preflight', intervalMs: 60_000,
+      discover: () => [candidate], preflight: async () => false, claim, execute,
+    });
+    expect(await supervisor.sweepNow()).toBe(0);
+    expect(claim).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    supervisor.stop();
+  });
+
   it('aborts active recovery on shutdown and records failure', async () => {
     const recoveredLease = lease();
     let observedSignal: AbortSignal | undefined;

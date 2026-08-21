@@ -21,6 +21,7 @@ type RecoveryClaim = Extract<RunClaimResult, { outcome: 'resumed' }>;
 export function startAutomationRecoverySupervisor(params: {
   enabled: boolean;
   owner: string;
+  preflight?(candidate: InterruptedAutomationRun): Promise<boolean>;
   execute(runId: string, mandate: ExecutionMandate, signal: AbortSignal): Promise<AutomationRunStatus>;
   intervalMs?: number;
   leaseMs?: number;
@@ -44,6 +45,10 @@ export function startAutomationRecoverySupervisor(params: {
   let sweep: Promise<number> | null = null;
 
   const recover = async (candidate: InterruptedAutomationRun): Promise<boolean> => {
+    if (params.preflight) {
+      try { if (!await params.preflight(candidate)) return false; }
+      catch { return false; }
+    }
     const now = (params.now ?? (() => new Date()))();
     const result = claim(candidate, params.owner, now, leaseMs);
     if (result.outcome !== 'resumed') return false;

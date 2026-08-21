@@ -242,7 +242,8 @@ async function bootstrap(): Promise<void> {
   // existing /api/v1 contracts and their 594 tests are untouched. A shared
   // middleware stack would have coupled the two surfaces and made every future
   // runtime change a regression risk for Core Active.
-  app.use('/api/runtime', provenanceMiddleware, createRuntimeRouter(), runtimeErrorHandler);
+  const runtimeRouter = createRuntimeRouter();
+  app.use('/api/runtime', provenanceMiddleware, runtimeRouter, runtimeErrorHandler);
 
   // Mount API routes
   app.use('/api/v1', createRouter(orchestrator));
@@ -309,6 +310,7 @@ async function bootstrap(): Promise<void> {
   // recorded that the ledger exists to prevent.
   const shutdown = (signal: string) => {
     logger.info(`${signal} received — draining connections before exit.`);
+    runtimeRouter.stopAutomationRecovery();
     server.close(() => {
       logger.info('HTTP server closed. Exiting.');
       process.exit(0);

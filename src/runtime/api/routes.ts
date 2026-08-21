@@ -78,8 +78,11 @@ import { attestAutomationAdapters } from '../automation/attestation';
 import { issueArchitectMandate } from '../automation/mandate-issuer';
 import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
 import { launchAutomationRun } from '../automation/background-run';
-import type { AutomationRun } from '../automation/contracts';
+import type { AutomationRun, ExecutionMandate } from '../automation/contracts';
 import { createHttpPostExecutionVerifier } from '../automation/post-execution-verifier';
+import { startAutomationRecoverySupervisor } from '../automation/recovery-supervisor';
+
+export type RuntimeRouter = Router & { stopAutomationRecovery(): void };
 
 /**
  * Build the runtime router.
@@ -91,8 +94,63 @@ import { createHttpPostExecutionVerifier } from '../automation/post-execution-ve
  * surface whose behaviour changes between a developer machine and CI. It
  * defaults to `process.env`, so production wiring is unchanged.
  */
-export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Router {
+export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): RuntimeRouter {
   const router = Router();
+
+  const recoveryPreflight = async (mandate: ExecutionMandate): Promise<{
+    objective: string; branch: string;
+  } | null> => {
+    if (env.RONOR_AUTOMATION_ENABLED !== 'true' || env.RONOR_AUTOMATION_RECOVERY_ENABLED !== 'true') return null;
+    const mission = getMission(mandate.mission_id);
+    if (!mission || !env.RONOR_AUTOMATION_WORKSPACE_ROOT || !env.RONOR_AUTOMATION_ARTIFACT_ROOT ||
+        !env.RONOR_AUTOMATION_EXPECTED_ORIGIN || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) return null;
+    const workspace = inspectAndValidateWorkspace(mandate.workspace_root, {
+      approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
+      branch_prefix: mandate.branch_prefix,
+      expected_origin: env.RONOR_AUTOMATION_EXPECTED_ORIGIN,
+      require_clean: false,
+    });
+    if (!workspace.valid || !workspace.snapshot) return null;
+    try {
+      await attestAutomationAdapters(env);
+      const verifier = createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN });
+      await verifier.attest();
+      createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
+    } catch { return null; }
+    return { objective: mission.objective, branch: workspace.snapshot.branch };
+  };
+
+  const recoveryOwner = sanitiseIdentifier(env.RONOR_AUTOMATION_RECOVERY_OWNER, 120);
+  if (env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true' && !recoveryOwner) {
+    throw new Error('automation_recovery_owner_required');
+  }
+  const recoverySupervisor = startAutomationRecoverySupervisor({
+    enabled: env.RONOR_AUTOMATION_ENABLED === 'true' && env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true',
+    owner: recoveryOwner ?? 'automation-recovery-disabled',
+    intervalMs: Number(env.RONOR_AUTOMATION_RECOVERY_INTERVAL_MS ?? 30_000),
+    leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
+    batchSize: Number(env.RONOR_AUTOMATION_RECOVERY_BATCH_SIZE ?? 5),
+    preflight: async (candidate) => Boolean(await recoveryPreflight(candidate.mandate)),
+    execute: async (_runId, mandate, signal) => {
+      const prepared = await recoveryPreflight(mandate);
+      const adapters = configuredAutomationAdapters(env);
+      if (!prepared || !adapters || !env.RONOR_AUTOMATION_ARTIFACT_ROOT || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) throw new Error('automation_recovery_preflight_lost');
+      const run = await runExecutiveMission({
+        objective: prepared.objective,
+        workspaceRoot: mandate.workspace_root,
+        branch: prepared.branch,
+        mandate,
+        adapters,
+        signal,
+        artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
+        postExecutionVerifier: createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN }),
+      });
+      return run.status;
+    },
+  });
+  Object.defineProperty(router, 'stopAutomationRecovery', {
+    enumerable: false, configurable: false, value: () => recoverySupervisor.stop(),
+  });
 
   // -------------------------------------------------------------------------
   // Health — unauthenticated by design
@@ -1061,7 +1119,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     }),
   );
 
-  return router;
+  return router as RuntimeRouter;
 }
 
 // ---------------------------------------------------------------------------

@@ -677,6 +677,18 @@ describe('L0 · read surfaces', () => {
     expect(unavailable.body.automation.ready).toBe(false);
   });
 
+  it('requires an explicit runtime identity before recovery can be enabled', () => {
+    expect(() => createRuntimeRouter({
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_RECOVERY_ENABLED: 'true',
+    })).toThrow('automation_recovery_owner_required');
+  });
+
+  it('exposes a graceful-shutdown hook without enabling recovery by default', () => {
+    const router = createRuntimeRouter({});
+    expect(typeof router.stopAutomationRecovery).toBe('function');
+    expect(() => router.stopAutomationRecovery()).not.toThrow();
+  });
+
   it('reports automation ready only after authenticated identity and capability attestation', async () => {
     const env: NodeJS.ProcessEnv = {
       RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),

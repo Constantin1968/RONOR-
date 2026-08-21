@@ -102,7 +102,7 @@ services:
         read_only: false
     networks: [automation-control, model-egress]
     healthcheck:
-      test: [CMD, python, -c, "import os,urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health',headers={'X-Session-API-Key':os.environ['SESSION_API_KEY']}),timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
+      test: [CMD, python, -c, "import pathlib,urllib.request; t=pathlib.Path('/run/secrets/openhands_session_key').read_text().strip(); r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health',headers={'X-Session-API-Key':t}),timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
       interval: 10s
       timeout: 5s
       start_period: 30s

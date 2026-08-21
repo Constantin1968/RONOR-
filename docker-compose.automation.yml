@@ -185,8 +185,7 @@ services:
   automation-evidence-runner:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: evidence-runner
+      dockerfile: Dockerfile.evidence-runner
     image: ronor-evidence-runner:${RONOR_AUTOMATION_IMAGE_TAG:-local}
     user: "10001:10001"
     read_only: true

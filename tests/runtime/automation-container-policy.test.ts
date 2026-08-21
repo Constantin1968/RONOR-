@@ -86,6 +86,7 @@ describe('isolated automation composition', () => {
     expect(compose.services['codex-verifier'].volumes[0].read_only).toBe(true);
     expect(compose.services['victoria-assurance'].volumes[0].read_only).toBe(true);
     expect(compose.services['automation-evidence-runner'].volumes[0]).toMatchObject({ target: '/workspace/project', read_only: true });
+    expect(compose.services['automation-evidence-runner'].environment.AUDIT_DB_PATH).toBe('/tmp/ronor-automation-test-audit.sqlite');
     expect(compose.services['automation-evidence-runner'].networks).toEqual(['automation-control']);
   });
 

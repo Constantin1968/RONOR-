@@ -183,6 +183,10 @@ An active run can be cancelled only through the architect route
 mission and produces an `AbortSignal` that propagates to LangGraph, OpenHands
 and Codex HTTP calls. Cancellation is distinct from adapter timeout and never
 claims to roll back local effects that completed before the signal arrived.
+The propagated signal also includes the mandate deadline, so an in-flight
+adapter or allowlisted test is interrupted when approved runtime expires. A zero
+or exhausted cost envelope stops OpenHands or Codex before invocation; reported
+spend is checked again after every paid stage.
 
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The

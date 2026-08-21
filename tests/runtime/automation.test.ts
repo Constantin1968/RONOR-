@@ -24,7 +24,7 @@ function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): 
     max_runtime_minutes: 60,
     max_fix_cycles: 3,
     issued_at: '2026-08-20T00:00:00.000Z',
-    expires_at: '2026-08-21T00:00:00.000Z',
+    expires_at: '2099-08-21T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -211,5 +211,24 @@ describe('Executive Mission Runner · governed execution', () => {
     const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_cost_usd: 0.5 }), adapters: a });
     expect(result.reason).toBe('cost_limit_exceeded');
     expect(assuranceCalls).toBe(0);
+  });
+
+  it('aborts an in-flight OpenHands call when the mandate runtime expires', async () => {
+    const mission = createMission({ title: 'In-flight deadline', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-slow', instruction: 'Wait forever', actions: ['edit_worktree'] }]);
+    a.openhands.execute = async (_assignment, _mandate, signal) => new Promise((_resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(new Error('deadline')), { once: true });
+    });
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_runtime_minutes: 0.0002 }), adapters: a });
+    expect(result.status).toBe('failed');
+    expect(result.reason).toBe('runtime_limit_exceeded');
+  });
+
+  it('does not invoke OpenHands when no cost budget was approved', async () => {
+    const mission = createMission({ title: 'Zero budget', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'task-no-budget', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_cost_usd: 0 }), adapters: a });
+    expect(result.reason).toBe('cost_budget_exhausted_before_execution');
+    expect(a.executeCount()).toBe(0);
   });
 });

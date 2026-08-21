@@ -1,4 +1,5 @@
-import { createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import { appendMissionFabricEvent, createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
 import { runExecutiveMission } from '../../src/runtime/automation/runner';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
@@ -99,6 +100,26 @@ describe('Executive Mission Runner · governed execution', () => {
     });
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('action_outside_mandate:push');
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses a corrupted Mission Fabric before invoking LangGraph or OpenHands', async () => {
+    const mission = createMission({ title: 'Corrupted automation', objective, operatorId: 'merlin' });
+    appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 0, type: 'checkpoint.created',
+      actor: { kind: 'langgraph', id: 'langgraph' }, payload: { id: 'integrity-seed', status: 'valid' },
+    });
+    const db = getDb();
+    const row = db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?').get(mission.mission_id) as { state_json: string };
+    const state = JSON.parse(row.state_json) as { fabric: { events: Array<{ payload: Record<string, unknown> }> } };
+    state.fabric.events[0].payload.status = 'tampered-without-rehash';
+    db.prepare('UPDATE runtime_missions SET state_json = ? WHERE mission_id = ?').run(JSON.stringify(state), mission.mission_id);
+
+    const a = adapters([{ id: 'must-not-plan', instruction: 'Do not run', actions: ['read_repo'] }]);
+    const plan = jest.fn(a.langgraph.plan); a.langgraph.plan = plan;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result).toMatchObject({ status: 'blocked', reason: 'mission_fabric_integrity_failed', cost_usd: 0 });
+    expect(plan).not.toHaveBeenCalled();
     expect(a.executeCount()).toBe(0);
   });
 

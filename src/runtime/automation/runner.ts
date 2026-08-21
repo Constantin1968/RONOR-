@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { appendMissionFabricEvent, getMission, getMissionFabric } from '../mission/store';
+import { appendMissionFabricEvent, getMission, getMissionFabric, verifyMissionFabric } from '../mission/store';
 import { actionPermitted, validateMandate } from './policy';
 import { isAutomationAction, type AutomationAdapters, type AutomationRun, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment } from './contracts';
 import type { WorkspaceArtifactCollector } from './artifacts';
@@ -70,6 +70,9 @@ export async function runExecutiveMission(params: {
     completed_assignments: 0, total_assignments: 0, reason: null,
   };
   if (!getMission(params.mandate.mission_id)) return { ...base, reason: 'mission_not_found' };
+  if (verifyMissionFabric(params.mandate.mission_id)?.valid !== true) {
+    return { ...base, reason: 'mission_fabric_integrity_failed' };
+  }
   const validation = validateMandate(params.mandate, {
     objective: params.objective, workspaceRoot: params.workspaceRoot, branch: params.branch, now: now(),
   });

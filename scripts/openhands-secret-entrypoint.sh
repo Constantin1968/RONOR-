@@ -20,4 +20,4 @@ export SESSION_API_KEY="$(read_secret session_api_key "${RONOR_OPENHANDS_SESSION
 export LLM_API_KEY="$(read_secret llm_api_key "${RONOR_OPENHANDS_LLM_API_KEY_FILE:-/run/secrets/openhands_llm_api_key}")"
 export OH_SECRET_KEY="$(read_secret persistence_encryption_key "${RONOR_OPENHANDS_SECRET_KEY_FILE:-/run/secrets/openhands_secret_key}")"
 
-exec tini -- /agent-server/.venv/bin/python -m openhands.agent_server "$@"
+exec tini -- openhands-agent-server "$@"

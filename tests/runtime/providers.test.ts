@@ -25,10 +25,11 @@ import {
   extractExpression,
   tokenise,
 } from '../../src/runtime/providers/deterministic';
-import { GoogleAdapter, sanitiseGeminiSchema } from '../../src/runtime/providers/google';
+import { GoogleAdapter, GOOGLE_MODELS, sanitiseGeminiSchema } from '../../src/runtime/providers/google';
 import { OpenAIAdapter } from '../../src/runtime/providers/openai';
 import { PerplexityAdapter } from '../../src/runtime/providers/perplexity';
 import { KimiAdapter, KIMI_MODELS } from '../../src/runtime/providers/kimi';
+import { XAIAdapter, XAI_MODELS } from '../../src/runtime/providers/xai';
 import {
   DEFAULT_GATEWAY_MODELS,
   gatewayServes,
@@ -74,6 +75,12 @@ describe('L1 · family conventions', () => {
 
   it('defaults an unknown model to the safe max_tokens convention', () => {
     expect(inferFamilyConventions('some-new-model-v9').tokenParam).toBe('max_tokens');
+  });
+
+  it('publishes the current stable Gemini Flash models', () => {
+    expect(GOOGLE_MODELS).toContain('gemini-3.7-flash');
+    expect(GOOGLE_MODELS).toContain('gemini-3.6-flash');
+    expect(GOOGLE_MODELS).not.toContain('gemini-3-flash-preview');
   });
 });
 
@@ -240,6 +247,12 @@ describe('L1 · credential resolution', () => {
     expect(new KimiAdapter().credentialState({ KIMI_API_KEY: 'x' })).toBe('live-native');
   });
 
+  it('publishes Grok 4.5 and activates only with an explicit xAI credential or route', () => {
+    expect(XAI_MODELS).toEqual(['grok-4.5']);
+    expect(new XAIAdapter().credentialState(EMPTY_ENV)).toBe('key-absent');
+    expect(new XAIAdapter().credentialState({ XAI_API_KEY: 'x' })).toBe('live-native');
+  });
+
   it('activates DeepSeek and Perplexity the moment a key appears — no code change', () => {
     expect(new DeepSeekAdapter().credentialState({ DEEPSEEK_API_KEY: 'x' })).toBe('live-native');
     expect(new PerplexityAdapter().credentialState({ PERPLEXITY_API_KEY: 'x' })).toBe('live-native');
@@ -294,7 +307,7 @@ describe('L1 · registry status surface', () => {
     // is defect D-3. The /status handler read `.invocable` off a provider the
     // status surface had not fully described and threw on undefined. The suite
     // was reporting the defect the whole time; nobody was running the suite.
-    expect(statuses).toHaveLength(7);
+    expect(statuses).toHaveLength(9);
     const det = statuses.find((s) => s.provider === 'deterministic');
     expect(det?.invocable).toBe(true);
     expect(det?.transport).toBe('local');

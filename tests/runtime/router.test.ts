@@ -132,8 +132,8 @@ describe('L1 · calibrator', () => {
   });
 
   it('lists telemetry only for models actually sampled', () => {
-    recordSample('google/gemini-3-flash-preview', 900, true);
-    expect(allTelemetry().map((t) => t.modelId)).toEqual(['google/gemini-3-flash-preview']);
+    recordSample('google/gemini-3.7-flash', 900, true);
+    expect(allTelemetry().map((t) => t.modelId)).toEqual(['google/gemini-3.7-flash']);
   });
 });
 

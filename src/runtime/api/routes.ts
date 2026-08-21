@@ -41,7 +41,7 @@ import {
 } from '../../audit/hash-chain';
 import { getPolicyVersion } from '../../governance/mi9-gate';
 import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
-import { asyncHandler, rateLimit, requireAuth } from './middleware';
+import { asyncHandler, rateLimit, requireArchitect, requireAuth } from './middleware';
 import { runQueryPipeline, type QueryRequest } from './pipeline';
 import { sanitiseFreeText, sanitiseIdentifier } from './sanitize';
 import { providerStatuses } from '../providers/registry';
@@ -51,15 +51,34 @@ import { attemptsFor, getWork, listWork } from '../ledgers/work-ledger';
 import { getCostSummary, getValueSummary } from '../ledgers/cost-ledger';
 import {
   appendToMission,
+  appendMissionFabricEvent,
   createMission,
+  getMissionFabric,
   getMission,
   listMissions,
+  MissionFabricConflictError,
+  MissionFabricValidationError,
   setMissionStatus,
+  verifyMissionFabric,
+  type MissionFabricEventType,
 } from '../mission/store';
 import { ingestDocuments, knowledgeStatus } from '../knowledge/bridge';
 import { dispatchMission, type MissionDispatchRequest } from '../agents/coordinator';
 import { agentPassports } from '../agents/registry';
 import { consumePendingExecution } from './approval-settlement';
+import { managementAgents, getManagementAgent } from '../management/registry';
+import { planExecutiveDelegation } from '../management/executive';
+import { automationAdapterStatus, configuredAutomationAdapters } from '../automation/adapter-registry';
+import { completedExecutionRun, executionRunId, runExecutiveMission } from '../automation/runner';
+import { cancelAutomationRun, registerAutomationRun } from '../automation/run-control';
+import { inspectAndValidateWorkspace } from '../automation/workspace';
+import { createWorkspaceArtifactCollector } from '../automation/artifacts';
+import { modelCabinet } from '../router/model-cabinet';
+import { attestAutomationAdapters } from '../automation/attestation';
+import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
+import { issueArchitectMandate } from '../automation/mandate-issuer';
+import { claimAutomationRun } from '../automation/run-lease';
+import type { AutomationRun } from '../automation/contracts';
 
 /**
  * Build the runtime router.
@@ -308,6 +327,81 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     }),
   );
 
+  router.get(
+    '/missions/:id/fabric',
+    requireAuth('read'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      const fabric = id ? getMissionFabric(id) : null;
+      if (!fabric) {
+        res.status(404).json({ ok: false, error: 'not_found', message: 'No such mission.' });
+        return;
+      }
+      res.json({ ok: true, fabric, integrity: verifyMissionFabric(id!) });
+    }),
+  );
+
+  router.post(
+    '/missions/:id/fabric/events',
+    requireAuth('query'),
+    rateLimit,
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      if (!id || !getMission(id)) {
+        res.status(404).json({ ok: false, error: 'not_found' });
+        return;
+      }
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const actorBody = body.actor && typeof body.actor === 'object'
+        ? body.actor as Record<string, unknown>
+        : {};
+      // Authorship is bound to the authenticated principal. Body actor fields are
+      // hints only and can never impersonate Merlin or another service.
+      const actorId = req.apiKey?.label ?? null;
+      const claimedKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'agent';
+      const actorKind = req.apiKey?.role === 'architect'
+        ? 'human'
+        : ['codex', 'langgraph', 'openhands'].includes(claimedKind) && actorId?.toLowerCase().startsWith(claimedKind)
+          ? claimedKind
+          : 'agent';
+      const eventType = typeof body.type === 'string' ? body.type as MissionFabricEventType : null;
+      const expectedVersion = typeof body.expected_version === 'number' && Number.isInteger(body.expected_version)
+        ? body.expected_version
+        : null;
+      const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
+        ? body.payload as Record<string, unknown>
+        : null;
+      if (!actorId || !eventType || expectedVersion === null || expectedVersion < 0 || !payload) {
+        res.status(400).json({
+          ok: false,
+          error: 'invalid_request',
+          message: '`type`, non-negative integer `expected_version`, `actor` and object `payload` are required.',
+        });
+        return;
+      }
+      try {
+        const fabric = appendMissionFabricEvent({
+          missionId: id,
+          expectedVersion,
+          actor: { kind: actorKind as 'human', id: actorId },
+          type: eventType,
+          payload,
+        });
+        res.status(201).json({ ok: true, fabric, integrity: verifyMissionFabric(id) });
+      } catch (error) {
+        if (error instanceof MissionFabricConflictError) {
+          res.status(409).json({ ok: false, error: 'version_conflict', message: error.message });
+          return;
+        }
+        if (error instanceof MissionFabricValidationError) {
+          res.status(400).json({ ok: false, error: 'invalid_event', message: error.message });
+          return;
+        }
+        throw error;
+      }
+    }),
+  );
+
   // -------------------------------------------------------------------------
   // Agents
   // -------------------------------------------------------------------------
@@ -316,6 +410,251 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     requireAuth('read'),
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, agents: agentPassports() });
+    }),
+  );
+
+  // -------------------------------------------------------------------------
+  // CONTROL · Executive Intelligence Council
+  // -------------------------------------------------------------------------
+  router.get('/control/session', requireArchitect, (_req, res) => {
+    res.json({ ok: true, interface: 'CONTROL', identity: 'merlin', role: 'architect' });
+  });
+
+  router.get('/control/overview', requireArchitect, (_req, res) => {
+    const missions = listMissions(100);
+    const integrity = missions.map((mission) => verifyMissionFabric(mission.mission_id));
+    res.json({
+      ok: true,
+      architect: 'merlin',
+      runtime: 'runtime-active',
+      missions: {
+        total: missions.length,
+        active: missions.filter((mission) => ['open', 'executing'].includes(mission.status)).length,
+        recent: missions.slice(0, 8),
+      },
+      fabric: {
+        verified: integrity.filter((item) => item?.valid === true).length,
+        failed: integrity.filter((item) => item?.valid === false).length,
+      },
+      council: { members: managementAgents().length },
+      automation: automationAdapterStatus(env),
+    });
+  });
+
+  router.get('/control/council', requireArchitect, (_req, res) => {
+    res.json({ ok: true, architect: 'merlin', management: managementAgents() });
+  });
+
+  router.get('/control/automation/readiness', requireArchitect, rateLimit, asyncHandler(async (_req, res) => {
+    const configured = automationAdapterStatus(env);
+    if (!configured.configured) { res.status(503).json({ ok: false, automation: configured }); return; }
+    try { await attestAutomationAdapters(env); }
+    catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed', automation: automationAdapterStatus(env) }); return; }
+    res.json({ ok: true, automation: automationAdapterStatus(env) });
+  }));
+
+  router.get('/control/models', requireArchitect, (_req, res) => {
+    res.json({ ok: true, cabinet: modelCabinet(env), providers: providerStatuses(env) });
+  });
+
+  router.get('/control/council/:id', requireArchitect, (req, res) => {
+    const id = sanitiseIdentifier(req.params.id);
+    const member = id ? getManagementAgent(id) : null;
+    if (!member) {
+      res.status(404).json({ ok: false, error: 'not_found' });
+      return;
+    }
+    res.json({ ok: true, management_agent: member });
+  });
+
+  router.get('/control/missions/:id/fabric', requireArchitect, (req, res) => {
+    const id = sanitiseIdentifier(req.params.id);
+    const fabric = id ? getMissionFabric(id) : null;
+    if (!id || !fabric) {
+      res.status(404).json({ ok: false, error: 'not_found' });
+      return;
+    }
+    res.json({ ok: true, fabric, integrity: verifyMissionFabric(id) });
+  });
+
+  router.post(
+    '/control/executive/delegate',
+    requireArchitect,
+    rateLimit,
+    asyncHandler(async (req, res) => {
+      const objective = sanitiseFreeText((req.body as Record<string, unknown> | undefined)?.objective, 8000);
+      if (!objective) {
+        res.status(400).json({ ok: false, error: 'invalid_request', message: '`objective` is required.' });
+        return;
+      }
+      const delegation = planExecutiveDelegation({ objective, operatorId: 'merlin' });
+      res.status(201).json({ ok: true, delegation });
+    }),
+  );
+
+  router.post(
+    '/control/automation/run',
+    requireArchitect,
+    rateLimit,
+    asyncHandler(async (req, res) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (body.approved !== true) {
+        res.status(409).json({ ok: false, error: 'mandate_approval_required' });
+        return;
+      }
+      if ('mandate' in body || 'objective' in body || 'issued_by' in body || 'allowed_actions' in body) {
+        res.status(400).json({ ok: false, error: 'client_authority_fields_forbidden' });
+        return;
+      }
+      const missionId = sanitiseIdentifier(body.mission_id, 120);
+      const idempotencyKey = sanitiseIdentifier(req.header('idempotency-key') ?? body.idempotency_key, 120);
+      const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
+      const branch = sanitiseIdentifier(body.branch, 200);
+      const mission = missionId ? getMission(missionId) : null;
+      if (!mission || !workspaceRoot || !branch || !idempotencyKey || !req.apiKey) {
+        res.status(400).json({ ok: false, error: 'invalid_automation_request' });
+        return;
+      }
+      const configured = automationAdapterStatus(env);
+      if (!configured.configured) {
+        res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
+        return;
+      }
+      let mandate;
+      try {
+        const optionalNumber = (value: unknown) => value === undefined ? undefined : Number(value);
+        mandate = issueArchitectMandate({
+          missionId: mission.mission_id, objective: mission.objective, workspaceRoot, branch,
+          architectKeyId: req.apiKey.key_id, idempotencyKey,
+          maxCostUsd: optionalNumber(body.max_cost_usd),
+          maxRuntimeMinutes: optionalNumber(body.max_runtime_minutes),
+          maxFixCycles: optionalNumber(body.max_fix_cycles),
+        }, {
+          maxCostUsd: Number(env.RONOR_AUTOMATION_MAX_COST_USD ?? 5),
+          maxRuntimeMinutes: Number(env.RONOR_AUTOMATION_MAX_RUNTIME_MINUTES ?? 60),
+          maxFixCycles: Number(env.RONOR_AUTOMATION_MAX_FIX_CYCLES ?? 3),
+        });
+      } catch {
+        res.status(422).json({ ok: false, error: 'mandate_policy_refused' });
+        return;
+      }
+      if (!env.RONOR_AUTOMATION_WORKSPACE_ROOT) {
+        res.status(503).json({ ok: false, error: 'workspace_policy_not_configured' });
+        return;
+      }
+      if (!env.RONOR_AUTOMATION_ARTIFACT_ROOT) {
+        res.status(503).json({ ok: false, error: 'artifact_policy_not_configured' });
+        return;
+      }
+      const testCommands = parseAllowedTestCommands(env.RONOR_AUTOMATION_TEST_COMMANDS_JSON);
+      if (!testCommands) {
+        res.status(503).json({ ok: false, error: 'test_policy_not_configured' });
+        return;
+      }
+      const workspace = inspectAndValidateWorkspace(workspaceRoot, {
+        approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
+        branch_prefix: mandate.branch_prefix,
+        expected_origin: env.RONOR_AUTOMATION_EXPECTED_ORIGIN,
+        expected_head: env.RONOR_AUTOMATION_EXPECTED_HEAD,
+        require_clean: true,
+      });
+      if (!workspace.valid || workspace.snapshot?.branch !== branch) {
+        res.status(422).json({ ok: false, error: 'workspace_policy_refused', reason: workspace.valid ? 'branch_request_mismatch' : workspace.reason });
+        return;
+      }
+      try { await attestAutomationAdapters(env); }
+      catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
+      const adapters = configuredAutomationAdapters(env);
+      if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
+      const runId = executionRunId(mandate.mandate_id);
+      const claim = claimAutomationRun({
+        runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,
+        leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
+      });
+      if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
+      if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
+      if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
+      mandate = claim.mandate;
+      if (claim.outcome === 'completed') {
+        const run = completedExecutionRun(mandate);
+        if (!run) { res.status(409).json({ ok: false, error: 'automation_terminal_state_inconsistent' }); return; }
+        res.status(200).json({ ok: true, run });
+        return;
+      }
+      const control = registerAutomationRun(runId, mandate.mission_id);
+      if (!control) {
+        claim.lease.finish('failed');
+        res.status(409).json({ ok: false, error: 'automation_run_already_active' });
+        return;
+      }
+      claim.lease.startHeartbeat(() => control.abort());
+      let run: AutomationRun | undefined;
+      try {
+        const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
+        const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
+        const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: env.RONOR_AUTOMATION_WORKSPACE_ROOT, baseEnv });
+        run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
+        res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
+      } finally {
+        claim.lease.finish(run?.status ?? 'failed');
+        control.finish();
+      }
+    }),
+  );
+
+  router.post('/control/automation/runs/:runId/cancel', requireArchitect, rateLimit, (req, res) => {
+    const runId = sanitiseIdentifier(req.params.runId, 120);
+    const missionId = sanitiseIdentifier((req.body as Record<string, unknown> | undefined)?.mission_id, 120);
+    if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_cancel_request' }); return; }
+    const result = cancelAutomationRun(runId, missionId);
+    if (result !== 'cancelled') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    const fabric = getMissionFabric(missionId);
+    if (fabric) appendMissionFabricEvent({
+      missionId, expectedVersion: fabric.version, type: 'run.cancel_requested',
+      actor: { kind: 'human', id: 'merlin' },
+      payload: { id: runId, run_id: runId, mission_id: missionId, status: 'cancel_requested', rollback: false },
+    });
+    res.status(202).json({ ok: true, status: 'cancellation_requested', rollback: false });
+  });
+
+  router.get(
+    '/management',
+    requireArchitect,
+    asyncHandler(async (_req: Request, res: Response) => {
+      res.json({ ok: true, architect: 'merlin', management: managementAgents() });
+    }),
+  );
+
+  router.get(
+    '/management/:id',
+    requireArchitect,
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = sanitiseIdentifier(req.params.id);
+      const member = id ? getManagementAgent(id) : null;
+      if (!member) {
+        res.status(404).json({ ok: false, error: 'not_found' });
+        return;
+      }
+      res.json({ ok: true, management_agent: member });
+    }),
+  );
+
+  router.post(
+    '/management/executive/delegate',
+    requireArchitect,
+    rateLimit,
+    asyncHandler(async (req: Request, res: Response) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const objective = sanitiseFreeText(body.objective, 8000);
+      if (!objective) {
+        res.status(400).json({ ok: false, error: 'invalid_request', message: '`objective` is required.' });
+        return;
+      }
+      const delegation = planExecutiveDelegation({
+        objective,
+        operatorId: req.apiKey?.label ?? 'merlin',
+      });
+      res.status(201).json({ ok: true, delegation });
     }),
   );
 

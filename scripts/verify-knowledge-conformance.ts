@@ -90,9 +90,9 @@ function main(): number {
   // MIP-015 requirement 2 directs the installation of @qdrant/js-client-rest.
   record(
     'CONF-2',
-    'Dependency surface: 10 production, 16 development after ESLint 9 integration',
+    'Dependency surface: 12 production, 16 development after governed LangGraph integration',
     true,
-    depCount === 10 && devCount === 16,
+    depCount === 12 && devCount === 16,
     { production: depCount, development: devCount }
   );
 

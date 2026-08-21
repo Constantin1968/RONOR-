@@ -12,6 +12,7 @@
 
 import express from 'express';
 import request from 'supertest';
+import { createMission } from '../../src/runtime/mission/store';
 import {
   INSECURE_DEFAULT_KEY,
   authenticate,
@@ -50,18 +51,22 @@ import {
 } from '../../src/runtime/api/middleware';
 import { createRuntimeRouter } from '../../src/runtime/api/routes';
 import { loadPolicy } from '../../src/governance/mi9-gate';
+import { clearAutomationAttestations } from '../../src/runtime/automation/attestation';
 
 const TEST_SECRET = 'test-operator-secret-key-0123456789';
 const ADMIN_SECRET = 'test-admin-secret-key-9876543210abc';
+const ARCHITECT_SECRET = 'test-architect-secret-key-0123456789abc';
 
 beforeAll(() => {
   loadPolicy();
   upsertApiKey({ secret: TEST_SECRET, label: 'test-operator', role: 'operator', scopes: ['query', 'read', 'agent'] });
   upsertApiKey({ secret: ADMIN_SECRET, label: 'test-admin', role: 'admin', scopes: ['admin'] });
+  upsertApiKey({ secret: ARCHITECT_SECRET, label: 'merlin', role: 'architect', scopes: ['architect'] });
 });
 
 beforeEach(() => {
   resetRateLimiter();
+  clearAutomationAttestations();
 });
 
 /**
@@ -159,6 +164,14 @@ describe('L0 · authentication', () => {
     // Admin holds only the 'admin' scope explicitly, yet must reach 'query'.
     expect(hasScope(admin!, 'query')).toBe(true);
     expect(hasScope(admin!, 'anything-at-all')).toBe(true);
+    expect(hasScope(admin!, 'architect')).toBe(false);
+  });
+
+  it('reserves constitutional authority for the architect identity', () => {
+    const architect = authenticate(ARCHITECT_SECRET);
+    expect(architect?.label).toBe('merlin');
+    expect(hasScope(architect!, 'architect')).toBe(true);
+    expect(hasScope(architect!, 'admin')).toBe(true);
   });
 
   it('does not grant an operator an unlisted scope', () => {
@@ -598,6 +611,151 @@ describe('L0 · read surfaces', () => {
       .set('Authorization', `Bearer ${TEST_SECRET}`);
     expect(res.status).toBe(404);
   });
+
+  it('exposes the architect-governed AI management registry without send authority', async () => {
+    const res = await request(makeApp())
+      .get('/api/runtime/management')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+    expect(res.status).toBe(200);
+    expect(res.body.architect).toBe('merlin');
+    const richard = res.body.management.find((a: { agent_id: string }) => a.agent_id === 'richard');
+    expect(richard.role).toBe('AI Chief Executive Adviser');
+    expect(richard.external_send_authority).toBe(false);
+    expect(richard.email_status).toBe('proposed');
+  });
+
+  it('denies CONTROL management data to operators and technical administrators', async () => {
+    for (const secret of [TEST_SECRET, ADMIN_SECRET]) {
+      const res = await request(makeApp())
+        .get('/api/runtime/management')
+        .set('Authorization', `Bearer ${secret}`);
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('exposes a truthful CONTROL overview only to verified Merlin', async () => {
+    const res = await request(makeApp({ RONOR_LANGGRAPH_URL: 'http://configured.invalid' }))
+      .get('/api/runtime/control/overview')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+    expect(res.status).toBe(200);
+    expect(res.body.architect).toBe('merlin');
+    expect(res.body.automation.adapters.langgraph).toBe('invalid-endpoint');
+    expect(res.body.automation.adapters.openhands).toBe('not-connected');
+    expect(res.body.automation.runner).toBe('implemented-disabled');
+  });
+
+  it('rejects an architect-scoped credential that is not the Merlin identity', async () => {
+    const impostor = 'test-architect-impostor-secret-012345';
+    upsertApiKey({ secret: impostor, label: 'not-merlin', role: 'architect', scopes: ['architect'] });
+    const res = await request(makeApp())
+      .get('/api/runtime/control/session')
+      .set('Authorization', `Bearer ${impostor}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('architect_identity_required');
+  });
+
+  it('keeps live automation fail-closed and requires one explicit mandate approval', async () => {
+    const app = makeApp();
+    const unapproved = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({});
+    expect(unapproved.status).toBe(409);
+    const forged = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ approved: true, mandate: { issued_by: 'merlin' } });
+    expect(forged.status).toBe(400);
+    expect(forged.body.error).toBe('client_authority_fields_forbidden');
+    const mission = createMission({ title: 'Automation readiness', objective: 'Verify fail-closed readiness.', operatorId: 'merlin' });
+    const unavailable = await request(app)
+      .post('/api/runtime/control/automation/run')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .set('Idempotency-Key', 'readiness-attempt-1')
+      .send({ approved: true, mission_id: mission.mission_id, workspace_root: '/isolated/worktree', branch: 'agent/readiness' });
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.body.automation.ready).toBe(false);
+  });
+
+  it('reports automation ready only after authenticated identity and capability attestation', async () => {
+    const env: NodeJS.ProcessEnv = {
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
+      RONOR_LANGGRAPH_URL: 'https://graph.invalid', RONOR_LANGGRAPH_TOKEN: 'graph-token',
+      RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
+      RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
+      RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+    };
+    const declarations: Record<string, [string, string, string]> = {
+      'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
+      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute'],
+      'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
+      'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+    };
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
+      return new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities: [capability] }));
+    });
+    try {
+      const before = await request(makeApp(env)).get('/api/runtime/control/overview').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+      expect(before.body.automation).toMatchObject({ configured: true, ready: false });
+      const probe = await request(makeApp(env)).get('/api/runtime/control/automation/readiness').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+      expect(probe.status).toBe(200);
+      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+      expect(JSON.stringify(probe.body)).not.toContain('graph-token');
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally { fetchMock.mockRestore(); }
+  });
+
+  it('exposes the governed model cabinet without exposing endpoint URLs', async () => {
+    const res = await request(makeApp({ OLLAMA_ENABLED: 'true', OLLAMA_CONTABO_BASE_URL: 'http://100.87.14.42:11434' }))
+      .get('/api/runtime/control/models')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
+    expect(res.status).toBe(200);
+    expect(res.body.cabinet.find((route: { role: string }) => route.role === 'qwen-moe-primary').status).toBe('available');
+    expect(JSON.stringify(res.body)).not.toContain('100.87.14.42');
+  });
+});
+
+describe('CONTROL · executive delegation', () => {
+  it('turns Merlin\'s objective into a RACI mission and an unsent email draft', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ objective: 'Resolve the RONOR runtime security and deployment reliability situation.' });
+    expect(res.status).toBe(201);
+    const delegation = res.body.delegation;
+    expect(delegation.accountable).toBe('richard');
+    expect(delegation.responsible).toEqual(expect.arrayContaining(['oliver', 'christopher', 'james']));
+    expect(delegation.independent_verifier).toBe('victoria');
+    expect(delegation.communication.status).toBe('draft');
+    expect(delegation.communication.from).toBe('richard@ma11ai.com');
+    expect(delegation.requires_merlin_approval).toContain('deployment');
+
+    const fabric = await request(app)
+      .get(`/api/runtime/missions/${delegation.mission_id}/fabric`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`);
+    expect(fabric.status).toBe(200);
+    expect(fabric.body.fabric.tasks['executive-victoria'].status).toBe('awaiting-independent-verification');
+    expect(fabric.body.fabric.approvals['merlin-consequential-action']).toBeDefined();
+    expect(fabric.body.integrity.valid).toBe(true);
+  });
+
+  it('requires agent scope and refuses an empty objective', async () => {
+    const res = await request(makeApp())
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
+      .send({ objective: '   ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('denies executive delegation to a normal agent-scoped operator', async () => {
+    const res = await request(makeApp())
+      .post('/api/runtime/management/executive/delegate')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ objective: 'Pretend this came from Merlin.' });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('L0 · mission lifecycle', () => {
@@ -645,6 +803,132 @@ describe('L0 · mission lifecycle', () => {
       .send({ status: 'nonsense' });
     expect(res.status).toBe(400);
     expect(res.body.allowed).toContain('complete');
+  });
+
+  it('shares an append-only mission fabric across agent surfaces', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Agent collaboration', objective: 'Coordinate a governed implementation' });
+    const missionId = created.body.mission.mission_id;
+
+    const task = await request(app)
+      .post(`/api/runtime/missions/${missionId}/fabric/events`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'langgraph', id: 'control-plane' },
+        type: 'task.upserted',
+        payload: { id: 'task-1', title: 'Implement adapter', status: 'ready' },
+      });
+    expect(task.status).toBe(201);
+    expect(task.body.fabric.version).toBe(1);
+    expect(task.body.fabric.tasks['task-1'].status).toBe('ready');
+    expect(task.body.integrity.valid).toBe(true);
+
+    const message = await request(app)
+      .post(`/api/runtime/missions/${missionId}/fabric/events`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        actor: { kind: 'openhands', id: 'worker-1' },
+        type: 'message.recorded',
+        payload: { id: 'message-1', channel: 'implementation', text: 'Worktree prepared.' },
+      });
+    expect(message.status).toBe(201);
+    expect(message.body.fabric.messages).toHaveLength(1);
+
+    const read = await request(app)
+      .get(`/api/runtime/missions/${missionId}/fabric`)
+      .set('Authorization', `Bearer ${TEST_SECRET}`);
+    expect(read.status).toBe(200);
+    expect(read.body.fabric.version).toBe(2);
+    expect(read.body.fabric.event_head).toMatch(/^[a-f0-9]{64}$/);
+    expect(read.body.integrity).toEqual({ valid: true, events: 2, broken_at: null });
+  });
+
+  it('prevents lost updates and secret-bearing mission events', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Concurrency', objective: 'Protect shared state' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+    const first = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'codex', id: 'verifier' },
+        type: 'checkpoint.created',
+        payload: { id: 'checkpoint-1', commit: 'abc123' },
+      });
+    expect(first.status).toBe(201);
+
+    const stale = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'openhands', id: 'worker' },
+        type: 'failure.recorded',
+        payload: { id: 'failure-1', message: 'stale write' },
+      });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toBe('version_conflict');
+
+    const secret = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        actor: { kind: 'human', id: 'operator' },
+        type: 'message.recorded',
+        payload: { id: 'message-secret', api_key: 'must-not-persist' },
+      });
+    expect(secret.status).toBe(400);
+    expect(secret.body.error).toBe('invalid_event');
+  });
+
+  it('binds fabric authorship to the credential and rejects credential content', async () => {
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Identity binding', objective: 'Prevent actor impersonation' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+    const spoof = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 0,
+        actor: { kind: 'human', id: 'merlin' },
+        type: 'message.recorded',
+        payload: { id: 'message-bound', text: 'ordinary operator message' },
+      });
+    expect(spoof.status).toBe(201);
+    expect(spoof.body.fabric.messages[0].actor).toEqual({ kind: 'agent', id: 'test-operator' });
+
+    const credential = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        type: 'message.recorded',
+        payload: { id: 'message-credential', text: 'Bearer abcdefghijklmnopqrstuvwxyz' },
+      });
+    expect(credential.status).toBe(400);
+
+    const reserved = await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({
+        expected_version: 1,
+        type: 'task.upserted',
+        payload: { id: '__proto__', status: 'assigned' },
+      });
+    expect(reserved.status).toBe(400);
   });
 });
 

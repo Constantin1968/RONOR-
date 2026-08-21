@@ -48,6 +48,52 @@ export interface MissionState {
   notes: Record<string, string>;
   /** Request ids that contributed to this mission, in order. */
   request_ids: string[];
+  /** Vendor-neutral, append-only state shared by every agent surface. */
+  fabric: MissionFabricState;
+}
+
+export type MissionFabricEventType =
+  | 'task.upserted'
+  | 'task.status_changed'
+  | 'evidence.added'
+  | 'coverage.updated'
+  | 'failure.recorded'
+  | 'checkpoint.created'
+  | 'approval.required'
+  | 'approval.resolved'
+  | 'run.status_changed'
+  | 'run.cancel_requested'
+  | 'message.recorded';
+
+export interface MissionFabricEvent {
+  event_id: string;
+  sequence: number;
+  at: string;
+  actor: { kind: 'human' | 'ronor' | 'codex' | 'langgraph' | 'openhands' | 'agent'; id: string };
+  type: MissionFabricEventType;
+  payload: Record<string, unknown>;
+  previous_hash: string | null;
+  event_hash: string;
+}
+
+export interface MissionFabricState {
+  schema_version: 1;
+  version: number;
+  event_head: string | null;
+  events: MissionFabricEvent[];
+}
+
+export interface MissionFabricProjection {
+  version: number;
+  event_head: string | null;
+  tasks: Record<string, Record<string, unknown>>;
+  evidence: Record<string, Record<string, unknown>>;
+  coverage: Record<string, Record<string, unknown>>;
+  failures: MissionFabricEvent[];
+  checkpoints: MissionFabricEvent[];
+  approvals: Record<string, Record<string, unknown>>;
+  runs: Record<string, Record<string, unknown>>;
+  messages: MissionFabricEvent[];
 }
 
 export interface Mission {
@@ -63,7 +109,20 @@ export interface Mission {
   updated_at: string;
 }
 
-const EMPTY_STATE: MissionState = { findings: [], decisions: [], notes: {}, request_ids: [] };
+const emptyFabric = (): MissionFabricState => ({
+  schema_version: 1,
+  version: 0,
+  event_head: null,
+  events: [],
+});
+
+const emptyState = (): MissionState => ({
+  findings: [],
+  decisions: [],
+  notes: {},
+  request_ids: [],
+  fabric: emptyFabric(),
+});
 
 export function newMissionId(): string {
   return `msn_${Date.now().toString(36)}_${crypto.randomBytes(4).toString('hex')}`;
@@ -82,7 +141,7 @@ export function createMission(params: {
       `INSERT INTO runtime_missions (mission_id, title, objective, status, operator_id, state_json)
        VALUES (?,?,?,'open',?,?)`,
     )
-    .run(missionId, params.title, params.objective, params.operatorId ?? null, JSON.stringify(EMPTY_STATE));
+    .run(missionId, params.title, params.objective, params.operatorId ?? null, JSON.stringify(emptyState()));
   return getMission(missionId) as Mission;
 }
 
@@ -153,29 +212,26 @@ export function appendToMission(params: {
 }): Mission | null {
   ensureRuntimeLedgerSchema();
   const db = getDb();
-  const current = getMission(params.missionId);
-  if (!current) return null;
-
-  const state = current.state;
-  if (params.findings?.length) {
-    for (const f of params.findings) {
-      // Detect a direct contradiction of an existing finding and record it
-      // rather than replacing the earlier statement.
-      const contradiction = findContradiction(state.findings, f);
-      state.findings.push(contradiction ? { ...f, contradicts: contradiction } : f);
-    }
-  }
-  if (params.decision) {
-    state.decisions.push({ at: new Date().toISOString(), ...params.decision });
-  }
-  if (params.notes) {
-    state.notes = { ...state.notes, ...params.notes };
-  }
-  if (params.requestId && !state.request_ids.includes(params.requestId)) {
-    state.request_ids.push(params.requestId);
-  }
-
   const tx = db.transaction(() => {
+    // Read inside the write transaction. Mission Fabric writers update the same
+    // JSON document; reading before BEGIN would let this legacy projection write
+    // an older copy over a newly appended cross-agent event.
+    const row = db.prepare(`SELECT state_json FROM runtime_missions WHERE mission_id = ?`).get(params.missionId) as
+      | { state_json: string }
+      | undefined;
+    if (!row) return false;
+    const state = parseState(row.state_json);
+    if (params.findings?.length) {
+      for (const f of params.findings) {
+        const contradiction = findContradiction(state.findings, f);
+        state.findings.push(contradiction ? { ...f, contradicts: contradiction } : f);
+      }
+    }
+    if (params.decision) state.decisions.push({ at: new Date().toISOString(), ...params.decision });
+    if (params.notes) state.notes = { ...state.notes, ...params.notes };
+    if (params.requestId && !state.request_ids.includes(params.requestId)) {
+      state.request_ids.push(params.requestId);
+    }
     db.prepare(
       `UPDATE runtime_missions
           SET state_json = ?,
@@ -189,10 +245,181 @@ export function appendToMission(params: {
       params.costUsd ?? 0,
       params.missionId,
     );
+    return true;
   });
-  tx();
+  if (!tx.immediate()) return null;
 
   return getMission(params.missionId);
+}
+
+export class MissionFabricConflictError extends Error {}
+export class MissionFabricValidationError extends Error {}
+
+/**
+ * Append one vendor-neutral event using optimistic concurrency.
+ *
+ * LangGraph, OpenHands, Codex and human operators all write through this same
+ * contract. The expected version prevents two workers from silently replacing
+ * each other's state, while the event hash makes corruption detectable without
+ * exposing mission content outside the authorised read surface.
+ */
+export function appendMissionFabricEvent(params: {
+  missionId: string;
+  expectedVersion: number;
+  actor: MissionFabricEvent['actor'];
+  type: MissionFabricEventType;
+  payload: Record<string, unknown>;
+  at?: string;
+}): MissionFabricProjection | null {
+  ensureRuntimeLedgerSchema();
+  validateFabricInput(params.actor, params.type, params.payload);
+  const db = getDb();
+
+  const tx = db.transaction(() => {
+    const row = db.prepare(`SELECT state_json FROM runtime_missions WHERE mission_id = ?`).get(params.missionId) as
+      | { state_json: string }
+      | undefined;
+    if (!row) return null;
+    const state = parseState(row.state_json);
+    if (state.fabric.version !== params.expectedVersion) {
+      throw new MissionFabricConflictError(
+        `Mission fabric version conflict: expected ${params.expectedVersion}, current ${state.fabric.version}.`,
+      );
+    }
+
+    const sequence = state.fabric.version + 1;
+    const at = params.at ?? new Date().toISOString();
+    const previousHash = state.fabric.event_head;
+    const eventCore = {
+      sequence,
+      at,
+      actor: params.actor,
+      type: params.type,
+      payload: params.payload,
+      previous_hash: previousHash,
+    };
+    const eventHash = crypto.createHash('sha256').update(stableJson(eventCore)).digest('hex');
+    const event: MissionFabricEvent = {
+      event_id: `mfe_${eventHash.slice(0, 24)}`,
+      ...eventCore,
+      event_hash: eventHash,
+    };
+    state.fabric.events.push(event);
+    state.fabric.version = sequence;
+    state.fabric.event_head = eventHash;
+    db.prepare(
+      `UPDATE runtime_missions SET state_json = ?, updated_at = datetime('now') WHERE mission_id = ?`,
+    ).run(JSON.stringify(state), params.missionId);
+    return projectMissionFabric(state.fabric);
+  });
+
+  return tx.immediate();
+}
+
+export function getMissionFabric(missionId: string): MissionFabricProjection | null {
+  const mission = getMission(missionId);
+  return mission ? projectMissionFabric(mission.state.fabric) : null;
+}
+
+export function verifyMissionFabric(missionId: string): { valid: boolean; events: number; broken_at: number | null } | null {
+  const mission = getMission(missionId);
+  if (!mission) return null;
+  let previous: string | null = null;
+  for (let index = 0; index < mission.state.fabric.events.length; index += 1) {
+    const event = mission.state.fabric.events[index];
+    const core = {
+      sequence: event.sequence,
+      at: event.at,
+      actor: event.actor,
+      type: event.type,
+      payload: event.payload,
+      previous_hash: event.previous_hash,
+    };
+    const calculated = crypto.createHash('sha256').update(stableJson(core)).digest('hex');
+    if (event.sequence !== index + 1 || event.previous_hash !== previous || event.event_hash !== calculated) {
+      return { valid: false, events: mission.state.fabric.events.length, broken_at: event.sequence };
+    }
+    previous = event.event_hash;
+  }
+  return {
+    valid: previous === mission.state.fabric.event_head,
+    events: mission.state.fabric.events.length,
+    broken_at: previous === mission.state.fabric.event_head ? null : mission.state.fabric.version,
+  };
+}
+
+function projectMissionFabric(fabric: MissionFabricState): MissionFabricProjection {
+  const projection: MissionFabricProjection = {
+    version: fabric.version,
+    event_head: fabric.event_head,
+    tasks: {}, evidence: {}, coverage: {}, failures: [], checkpoints: [], approvals: {}, runs: {}, messages: [],
+  };
+  for (const event of fabric.events) {
+    const id = typeof event.payload.id === 'string' ? event.payload.id : event.event_id;
+    if (event.type === 'task.upserted' || event.type === 'task.status_changed') {
+      projection.tasks[id] = { ...(projection.tasks[id] ?? {}), ...event.payload };
+    } else if (event.type === 'evidence.added') {
+      projection.evidence[id] = { ...event.payload };
+    } else if (event.type === 'coverage.updated') {
+      projection.coverage[id] = { ...(projection.coverage[id] ?? {}), ...event.payload };
+    } else if (event.type === 'failure.recorded') projection.failures.push(event);
+    else if (event.type === 'checkpoint.created') projection.checkpoints.push(event);
+    else if (event.type === 'approval.required' || event.type === 'approval.resolved') {
+      projection.approvals[id] = { ...(projection.approvals[id] ?? {}), ...event.payload };
+    } else if (event.type === 'run.status_changed' || event.type === 'run.cancel_requested') {
+      const previous = projection.runs[id] ?? {};
+      const priorStages = previous.stage_statuses && typeof previous.stage_statuses === 'object' && !Array.isArray(previous.stage_statuses)
+        ? previous.stage_statuses as Record<string, unknown> : {};
+      const stage = typeof event.payload.stage === 'string' ? event.payload.stage : null;
+      projection.runs[id] = {
+        ...previous, ...event.payload,
+        stage_statuses: stage ? { ...priorStages, [stage]: event.payload.status } : priorStages,
+      };
+    } else if (event.type === 'message.recorded') projection.messages.push(event);
+  }
+  return projection;
+}
+
+function validateFabricInput(
+  actor: MissionFabricEvent['actor'],
+  type: MissionFabricEventType,
+  payload: Record<string, unknown>,
+): void {
+  const allowedActors = new Set(['human', 'ronor', 'codex', 'langgraph', 'openhands', 'agent']);
+  const allowedTypes = new Set<MissionFabricEventType>([
+    'task.upserted', 'task.status_changed', 'evidence.added', 'coverage.updated',
+    'failure.recorded', 'checkpoint.created', 'approval.required', 'approval.resolved',
+    'run.status_changed', 'run.cancel_requested', 'message.recorded',
+  ]);
+  if (!allowedActors.has(actor.kind) || !actor.id || actor.id.length > 120) {
+    throw new MissionFabricValidationError('Invalid mission fabric actor.');
+  }
+  if (!allowedTypes.has(type)) throw new MissionFabricValidationError('Invalid mission fabric event type.');
+  const json = JSON.stringify(payload);
+  if (json.length > 16_384) throw new MissionFabricValidationError('Mission fabric payload exceeds 16 KiB.');
+  if (/"(?:token|secret|password|private[_-]?key|api[_-]?key)"\s*:/i.test(json)) {
+    throw new MissionFabricValidationError('Secret-like fields are forbidden in mission fabric events.');
+  }
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,}|\b(?:ghp_|sk-)[A-Za-z0-9_-]{16,}|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i.test(json)) {
+    throw new MissionFabricValidationError('Credential-like content is forbidden in mission fabric events.');
+  }
+  if (!payload.id || typeof payload.id !== 'string' || payload.id.length > 160) {
+    throw new MissionFabricValidationError('Mission fabric payload requires a bounded string `id`.');
+  }
+  if (['__proto__', 'prototype', 'constructor'].includes(payload.id.toLowerCase())) {
+    throw new MissionFabricValidationError('Reserved mission fabric identifier.');
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
 }
 
 /**
@@ -240,10 +467,11 @@ function parseState(json: string): MissionState {
       decisions: parsed.decisions ?? [],
       notes: parsed.notes ?? {},
       request_ids: parsed.request_ids ?? [],
+      fabric: parsed.fabric?.schema_version === 1 ? parsed.fabric : emptyFabric(),
     };
   } catch {
     // A corrupt state blob must not make the mission unreadable; an operator
     // needs to see that the mission exists in order to investigate why.
-    return { ...EMPTY_STATE };
+    return emptyState();
   }
 }

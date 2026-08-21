@@ -1,0 +1,97 @@
+import { AutomationAdapterError } from './adapters/http';
+import crypto from 'crypto';
+
+type Fetcher = typeof fetch;
+export type AdapterName = 'langgraph' | 'openhands' | 'codex' | 'assurance';
+export interface AutomationAttestation {
+  verified: Record<AdapterName, 'verified'>;
+  verified_at: string;
+  expires_at: string;
+  fingerprint: string;
+}
+
+const EXPECTED_PROTOCOL: Record<AdapterName, string> = {
+  langgraph: 'ronor-langgraph/v1',
+  openhands: 'ronor-openhands-bridge/v1',
+  codex: 'ronor-codex-verifier/v1',
+  assurance: 'ronor-assurance/v1',
+};
+const EXPECTED_IDENTITY: Record<AdapterName, { service_id: string; capability: string }> = {
+  langgraph: { service_id: 'langgraph', capability: 'plan' },
+  openhands: { service_id: 'openhands-bridge', capability: 'execute' },
+  codex: { service_id: 'codex-verifier', capability: 'verify' },
+  assurance: { service_id: 'victoria-assurance', capability: 'assure' },
+};
+const cache = new Map<string, AutomationAttestation>();
+
+function fingerprint(env: NodeJS.ProcessEnv): string {
+  return crypto.createHash('sha256').update(JSON.stringify([
+    env.RONOR_AUTOMATION_ENABLED,
+    env.RONOR_LANGGRAPH_URL, env.RONOR_LANGGRAPH_TOKEN,
+    env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN,
+    env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN,
+    env.RONOR_ASSURANCE_URL, env.RONOR_ASSURANCE_TOKEN,
+  ])).digest('hex');
+}
+
+export function currentAutomationAttestation(env: NodeJS.ProcessEnv, now = new Date()): AutomationAttestation | null {
+  const item = cache.get(fingerprint(env));
+  if (!item || Date.parse(item.expires_at) <= now.getTime()) return null;
+  return { ...item, verified: { ...item.verified } };
+}
+
+export function clearAutomationAttestations(): void { cache.clear(); }
+
+function endpoint(baseUrl: string): URL {
+  const base = new URL(baseUrl);
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
+  if (base.protocol !== 'https:' && !(base.protocol === 'http:' && loopback)) throw new AutomationAdapterError('attestation_endpoint_invalid');
+  const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
+  return new URL(`${prefix}/health`, base.origin);
+}
+
+export async function attestAutomationAdapters(env: NodeJS.ProcessEnv, fetcher: Fetcher = fetch, options: { now?: () => Date; ttlMs?: number } = {}): Promise<AutomationAttestation> {
+  const configured: Record<AdapterName, { url?: string; token?: string }> = {
+    langgraph: { url: env.RONOR_LANGGRAPH_URL, token: env.RONOR_LANGGRAPH_TOKEN },
+    openhands: { url: env.RONOR_OPENHANDS_URL, token: env.RONOR_OPENHANDS_TOKEN },
+    codex: { url: env.RONOR_CODEX_VERIFIER_URL, token: env.RONOR_CODEX_VERIFIER_TOKEN },
+    assurance: { url: env.RONOR_ASSURANCE_URL, token: env.RONOR_ASSURANCE_TOKEN },
+  };
+  const key = fingerprint(env);
+  cache.delete(key);
+  const verified = {} as Record<AdapterName, 'verified'>;
+  for (const name of Object.keys(configured) as AdapterName[]) {
+    const { url, token } = configured[name];
+    if (!url || !token) throw new AutomationAdapterError(`attestation_${name}_not_configured`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      const response = await fetcher(endpoint(url), { method: 'GET', redirect: 'error', signal: controller.signal, headers: { authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new AutomationAdapterError(`attestation_${name}_http_${response.status}`);
+      const declared = Number(response.headers.get('content-length') ?? 0);
+      if (declared > 8_192) throw new AutomationAdapterError(`attestation_${name}_response_too_large`);
+      const raw = await response.text();
+      if (new TextEncoder().encode(raw).byteLength > 8_192) throw new AutomationAdapterError(`attestation_${name}_response_too_large`);
+      let body: unknown;
+      try { body = JSON.parse(raw); } catch { throw new AutomationAdapterError(`attestation_${name}_invalid`); }
+      const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
+      const identity = EXPECTED_IDENTITY[name];
+      if (!record || record.ok !== true || record.protocol !== EXPECTED_PROTOCOL[name] || record.service_id !== identity.service_id ||
+          !Array.isArray(record.capabilities) || !record.capabilities.includes(identity.capability)) {
+        throw new AutomationAdapterError(`attestation_${name}_protocol_mismatch`);
+      }
+      verified[name] = 'verified';
+    } catch (error) {
+      if (error instanceof AutomationAdapterError) throw error;
+      throw new AutomationAdapterError(`attestation_${name}_unreachable`);
+    } finally { clearTimeout(timer); }
+  }
+  const now = options.now?.() ?? new Date();
+  const ttlMs = options.ttlMs ?? 30_000;
+  if (!Number.isSafeInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 300_000) throw new AutomationAdapterError('attestation_ttl_invalid');
+  const result: AutomationAttestation = {
+    verified, verified_at: now.toISOString(), expires_at: new Date(now.getTime() + ttlMs).toISOString(), fingerprint: key,
+  };
+  cache.set(key, result);
+  return { ...result, verified: { ...verified } };
+}

@@ -77,13 +77,14 @@ export function gatewayServes(model: string, env: NodeJS.ProcessEnv = process.en
 }
 
 /** Vendor-native credential variable for each provider, stated in one place. */
-export const NATIVE_KEY_VARS: Record<Exclude<ProviderId, 'deterministic'>, string> = {
+export const NATIVE_KEY_VARS: Record<Exclude<ProviderId, 'deterministic' | 'ollama'>, string> = {
   openai: 'OPENAI_NATIVE_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   google: 'GEMINI_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
   perplexity: 'PERPLEXITY_API_KEY',
   kimi: 'KIMI_API_KEY',
+  xai: 'XAI_API_KEY',
 };
 
 /**
@@ -96,7 +97,7 @@ export const NATIVE_KEY_VARS: Record<Exclude<ProviderId, 'deterministic'>, strin
  * direct route, and `OPENAI_BASE_URL` may redirect it.
  */
 export function nativeKey(
-  provider: Exclude<ProviderId, 'deterministic'>,
+  provider: Exclude<ProviderId, 'deterministic' | 'ollama'>,
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
   const v = env[NATIVE_KEY_VARS[provider]];

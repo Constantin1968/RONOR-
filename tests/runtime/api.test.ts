@@ -692,7 +692,9 @@ describe('L0 · read surfaces', () => {
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
     };
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
-      const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
+      const parsed = new URL(String(url));
+      if (parsed.pathname === '/v1/plan') return new Response(JSON.stringify({ assignments: [{ id: 'langgraph-runtime-1', instruction: 'Inspect the runtime.', actions: ['read_repo'] }] }));
+      const [protocol, service_id, capability] = declarations[parsed.hostname];
       return new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities: capability.split(',') }));
     });
     try {
@@ -702,7 +704,12 @@ describe('L0 · read surfaces', () => {
       expect(probe.status).toBe(200);
       expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
       expect(JSON.stringify(probe.body)).not.toContain('graph-token');
-      expect(fetchMock).toHaveBeenCalledTimes(4);
+      const plan = await request(makeApp(env)).post('/api/runtime/control/automation/plan').set('Authorization', `Bearer ${ARCHITECT_SECRET}`).send({ objective: 'Plan the runtime inspection.' });
+      expect(plan.status).toBe(201);
+      expect(plan.body).toMatchObject({ ok: true, target: 'langgraph', assignments: [{ id: 'langgraph-runtime-1', actions: ['read_repo'] }] });
+      expect(plan.body.mission_id).toMatch(/^msn_/);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/v1/plan')).toHaveLength(1);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(8);
     } finally { fetchMock.mockRestore(); }
   });
 

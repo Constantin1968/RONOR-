@@ -457,6 +457,34 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     res.json({ ok: true, cabinet: modelCabinet(env), providers: providerStatuses(env) });
   });
 
+  router.post('/control/automation/plan', requireArchitect, rateLimit, asyncHandler(async (req, res) => {
+    const objective = sanitiseFreeText((req.body as Record<string, unknown> | undefined)?.objective, 8000);
+    if (!objective) { res.status(400).json({ ok: false, error: 'invalid_objective' }); return; }
+    const configured = automationAdapterStatus(env);
+    if (!configured.configured) { res.status(503).json({ ok: false, error: 'automation_not_ready', automation: configured }); return; }
+    try { await attestAutomationAdapters(env); }
+    catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
+    const adapters = configuredAutomationAdapters(env);
+    if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
+    const mission = createMission({ title: `LangGraph: ${objective.slice(0, 108)}`, objective, operatorId: 'merlin' });
+    try {
+      const assignments = await adapters.langgraph.plan(objective);
+      let version = 0;
+      for (const assignment of assignments) {
+        appendMissionFabricEvent({
+          missionId: mission.mission_id, expectedVersion: version++, type: 'task.upserted',
+          actor: { kind: 'langgraph', id: 'langgraph' },
+          payload: { id: assignment.id, assignee: 'openhands', role: 'isolated-implementer', status: 'planned', objective: assignment.instruction, actions: assignment.actions },
+        });
+      }
+      res.status(201).json({ ok: true, mission_id: mission.mission_id, target: 'langgraph', assignments });
+    } catch {
+      const fabric = getMissionFabric(mission.mission_id);
+      if (fabric) appendMissionFabricEvent({ missionId: mission.mission_id, expectedVersion: fabric.version, type: 'failure.recorded', actor: { kind: 'langgraph', id: 'langgraph' }, payload: { id: 'langgraph-plan-failed', reason: 'planning_failed_closed' } });
+      res.status(503).json({ ok: false, error: 'langgraph_planning_failed' });
+    }
+  }));
+
   router.get('/control/council/:id', requireArchitect, (req, res) => {
     const id = sanitiseIdentifier(req.params.id);
     const member = id ? getManagementAgent(id) : null;
@@ -508,8 +536,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       }
       const missionId = sanitiseIdentifier(body.mission_id, 120);
       const idempotencyKey = sanitiseIdentifier(req.header('idempotency-key') ?? body.idempotency_key, 120);
-      const workspaceRoot = typeof body.workspace_root === 'string' ? body.workspace_root : '';
-      const branch = sanitiseIdentifier(body.branch, 200);
+      const workspaceRoot = env.RONOR_AUTOMATION_WORKTREE || (typeof body.workspace_root === 'string' ? body.workspace_root : '');
+      const branch = sanitiseIdentifier(env.RONOR_AUTOMATION_BRANCH || body.branch, 200);
       const mission = missionId ? getMission(missionId) : null;
       if (!mission || !workspaceRoot || !branch || !idempotencyKey || !req.apiKey) {
         res.status(400).json({ ok: false, error: 'invalid_automation_request' });

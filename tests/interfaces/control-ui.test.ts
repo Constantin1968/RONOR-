@@ -25,7 +25,9 @@ describe('CONTROL architect interface', () => {
   it('supports keyboard-first access and honest adapter status', () => {
     expect(js).toContain("ev.ctrlKey");
     expect(js).toContain("ev.key === 'Escape'");
-    expect(js).toContain('nu are încă un adapter live conectat');
+    expect(js).toContain("api('/automation/plan'");
+    expect(js).toContain("api('/automation/run'");
+    expect(js).toContain('autoritatea independentă de verificare');
     expect(js).toContain("api('/models')");
   });
 

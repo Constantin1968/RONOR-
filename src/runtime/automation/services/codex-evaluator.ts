@@ -2,17 +2,27 @@ import type { CodexEvaluationPort } from './verification-authorities';
 
 type Fetcher = typeof fetch;
 
+function responsesEndpoint(baseUrl?: string): URL {
+  const url = new URL(baseUrl || 'https://api.openai.com/v1');
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('codex_evaluator_base_url_invalid');
+  const path = url.pathname.replace(/\/+$/, '');
+  if (path && !path.endsWith('/v1')) throw new Error('codex_evaluator_base_url_invalid');
+  url.pathname = `${path || '/v1'}/responses`;
+  return url;
+}
+
 export function createOpenAIResponsesCodexEvaluator(config: {
   apiKey: string; model: string; inputUsdPerMillionTokens: number; outputUsdPerMillionTokens: number;
-  fetcher?: Fetcher; timeoutMs?: number;
+  baseUrl?: string; fetcher?: Fetcher; timeoutMs?: number;
 }): CodexEvaluationPort {
   if (!config.apiKey || !config.model || !Number.isFinite(config.inputUsdPerMillionTokens) || config.inputUsdPerMillionTokens < 0 || !Number.isFinite(config.outputUsdPerMillionTokens) || config.outputUsdPerMillionTokens < 0) throw new Error('codex_evaluator_config_invalid');
+  const endpoint = responsesEndpoint(config.baseUrl);
   return { async evaluate(input) {
     const payload = JSON.stringify({ mission_id: input.missionId, claims: input.claims, artifacts: input.materials });
     if (new TextEncoder().encode(payload).byteLength > 400_000) throw new Error('codex_evidence_context_too_large');
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), config.timeoutMs ?? 120_000);
     try {
-      const response = await (config.fetcher ?? fetch)(new URL('https://api.openai.com/v1/responses'), {
+      const response = await (config.fetcher ?? fetch)(endpoint, {
         method: 'POST', redirect: 'error', signal: controller.signal,
         headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({

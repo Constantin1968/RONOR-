@@ -26,6 +26,21 @@ describe('OpenAI Responses Codex evaluator', () => {
     await expect(invalid.evaluate({ missionId: 'm1', claims: [], materials: [material] })).rejects.toThrow('codex_api_output_invalid');
   });
 
+  it('supports an explicitly configured HTTPS Responses-compatible gateway', async () => {
+    const fetcher = jest.fn(() => response(JSON.stringify({ verdict: 'pass', summary: 'verified', evidence: ['gateway:pass'] })));
+    const evaluator = createOpenAIResponsesCodexEvaluator({ apiKey: 'gateway-key', model: 'gateway-model', baseUrl: 'https://models.ma11ai.example/api/v1/', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1, fetcher });
+    await evaluator.evaluate({ missionId: 'm-gateway', claims: ['tests:pass'], materials: [material] });
+    const [url] = fetcher.mock.calls[0] as unknown as [URL];
+    expect(String(url)).toBe('https://models.ma11ai.example/api/v1/responses');
+  });
+
+  it('refuses plaintext, credential-bearing and path-confused gateway URLs', () => {
+    const common = { apiKey: 'key', model: 'model', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1 };
+    expect(() => createOpenAIResponsesCodexEvaluator({ ...common, baseUrl: 'http://models.invalid/v1' })).toThrow('codex_evaluator_base_url_invalid');
+    expect(() => createOpenAIResponsesCodexEvaluator({ ...common, baseUrl: 'https://user:pass@models.invalid/v1' })).toThrow('codex_evaluator_base_url_invalid');
+    expect(() => createOpenAIResponsesCodexEvaluator({ ...common, baseUrl: 'https://models.invalid/proxy/not-v1' })).toThrow('codex_evaluator_base_url_invalid');
+  });
+
   it('refuses oversized evidence instead of truncating verification context', async () => {
     const fetcher = jest.fn();
     const evaluator = createOpenAIResponsesCodexEvaluator({ apiKey: 'key', model: 'model', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1, fetcher });

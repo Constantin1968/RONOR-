@@ -11,6 +11,7 @@ let app; let port: number;
 if (role === 'codex') {
   app = createCodexVerifierApp({ serviceToken: requiredSecret('RONOR_CODEX_VERIFIER_TOKEN'), artifacts, evaluator: createOpenAIResponsesCodexEvaluator({
     apiKey: requiredSecret('RONOR_CODEX_API_KEY'), model: requiredSecret('RONOR_CODEX_MODEL'),
+    baseUrl: process.env.RONOR_CODEX_BASE_URL,
     inputUsdPerMillionTokens: price('RONOR_CODEX_INPUT_USD_PER_MTOK'), outputUsdPerMillionTokens: price('RONOR_CODEX_OUTPUT_USD_PER_MTOK'),
   }) });
   port = Number(process.env.RONOR_CODEX_VERIFIER_PORT ?? 3002);

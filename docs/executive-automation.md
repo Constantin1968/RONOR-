@@ -307,10 +307,15 @@ consume Docker secret files through `*_FILE`. The upstream Agent Server's
 session key is supplied from ignored, permission-restricted `.env.automation`,
 never Compose or Mission Fabric. Each service identity must be distinct.
 
-The `automation-control` network is internal. Only OpenHands and Codex also
-join a pre-created `ronor-model-egress` network, which the host firewall/proxy
-must restrict to approved model gateways. A generic Internet-connected bridge
-does not meet this policy.
+The `automation-control` and `ronor-model-egress` networks are internal.
+OpenHands and Codex join only `ronor-model-egress`; neither receives a general
+Internet route. A small RONOR reverse proxy is the sole dual-homed component:
+it joins the internal network and `ronor-model-uplink`, validates one configured
+HTTPS hostname, authenticates the gateway credential and permits only
+`/v1/responses`, `/v1/chat/completions` and `/v1/models`. It rejects query
+strings, redirects, arbitrary paths, plaintext upstreams, IP-literal targets
+and oversized responses. A generic Internet-connected agent bridge does not
+meet this policy.
 
 Every automation service has an authenticated in-container healthcheck. The
 OpenHands bridge starts only after Agent Server is healthy, eliminating the

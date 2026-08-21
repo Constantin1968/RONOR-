@@ -34,6 +34,14 @@ describe('OpenAI Responses Codex evaluator', () => {
     expect(String(url)).toBe('https://models.ma11ai.example/api/v1/responses');
   });
 
+  it('permits only the exact internal model proxy over plaintext', async () => {
+    const fetcher = jest.fn(() => response(JSON.stringify({ verdict: 'pass', summary: 'verified', evidence: ['proxy:pass'] })));
+    const evaluator = createOpenAIResponsesCodexEvaluator({ apiKey: 'proxy-key', model: 'model', baseUrl: 'http://model-egress-proxy:3004/v1', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1, fetcher });
+    await evaluator.evaluate({ missionId: 'm-proxy', claims: [], materials: [material] });
+    expect(String((fetcher.mock.calls[0] as unknown as [URL])[0])).toBe('http://model-egress-proxy:3004/v1/responses');
+    expect(() => createOpenAIResponsesCodexEvaluator({ apiKey: 'x', model: 'm', baseUrl: 'http://other-proxy:3004/v1', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1 })).toThrow('codex_evaluator_base_url_invalid');
+  });
+
   it('refuses plaintext, credential-bearing and path-confused gateway URLs', () => {
     const common = { apiKey: 'key', model: 'model', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1 };
     expect(() => createOpenAIResponsesCodexEvaluator({ ...common, baseUrl: 'http://models.invalid/v1' })).toThrow('codex_evaluator_base_url_invalid');

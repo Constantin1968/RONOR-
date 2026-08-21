@@ -17,6 +17,24 @@ describe('RONOR local LangGraph planner', () => {
     expect(actions).not.toEqual(expect.arrayContaining(['edit_worktree', 'commit_local']));
   });
 
+  it('understands Romanian READ-ONLY instructions with diacritics', async () => {
+    const result = await planningGraph.invoke({ objective: 'Verifică infrastructura și securitatea fără modificări', domains: [], assignments: [], readOnly: false });
+    expect(result.assignments.map((item) => item.id)).toEqual(expect.arrayContaining([
+      expect.stringContaining('security'), expect.stringContaining('infrastructure'), expect.stringContaining('runtime'),
+    ]));
+    expect(result.assignments.flatMap((item) => item.actions)).not.toEqual(expect.arrayContaining(['edit_worktree', 'commit_local']));
+  });
+
+  it('routes CONTROL, knowledge and infrastructure work into distinct bounded assignments', async () => {
+    const result = await planningGraph.invoke({ objective: 'Improve CONTROL dashboard, R-Knowledge memory and Docker infrastructure', domains: [], assignments: [], readOnly: false });
+    const ids = result.assignments.map((item) => item.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      expect.stringContaining('control-ui'), expect.stringContaining('infrastructure'), expect.stringContaining('knowledge'),
+    ]));
+    expect(result.assignments).toHaveLength(5);
+    expect(result.assignments.at(-1)).toMatchObject({ id: 'langgraph-local-commit', actions: ['commit_local'] });
+  });
+
   it('serves the adapter protocol on localhost', async () => {
     const response = await request(createLangGraphLocalApp()).post('/v1/plan').send({ objective: 'Documentează runtime-ul' });
     expect(response.status).toBe(200);

@@ -11,14 +11,18 @@ const PlanState = Annotation.Root({
 });
 
 function classify(state: typeof PlanState.State): Partial<typeof PlanState.State> {
-  const text = state.objective.toLowerCase();
-  const domains = ['security', 'test', 'documentation', 'runtime'].filter((domain) => {
-    if (domain === 'security') return /security|securitate|auth|secret/.test(text);
-    if (domain === 'test') return /test|verify|verific/.test(text);
-    if (domain === 'documentation') return /doc|document/.test(text);
-    return true;
-  });
-  const readOnly = /read[ -]?only|f[aă]r[aă] modific|f[aă]r[aă] edit|no (?:file )?(?:edit|change)|without (?:file )?(?:editing|changes)/.test(text);
+  const text = state.objective.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const rules: Array<[string, RegExp]> = [
+    ['security', /\b(?:security|securitate(?:a)?|auth(?:entication|orization)?|credential|secret|risk|risc)\b/],
+    ['test', /\b(?:test(?:s|ing)?|verify|verification|verific(?:a|are|ari)|ci|conformance)\b/],
+    ['documentation', /\b(?:doc(?:s|ument|umentation)?|document(?:eaza|are)|readme|runbook)\b/],
+    ['control-ui', /\b(?:control|dashboard|front[ -]?end|ui|ux|interfata|website|web)\b/],
+    ['infrastructure', /\b(?:infra(?:structure)?|infrastructur(?:a|e)?|docker|compose|tailscale|server|hetzner|contabo|digital ocean|cloudflare|r2|deployment)\b/],
+    ['knowledge', /\b(?:knowledge|cunostinte|memorie|memory|retrieval|rag|continuumpedia|cida)\b/],
+  ];
+  const domains = rules.filter(([, pattern]) => pattern.test(text)).map(([domain]) => domain);
+  if (!domains.includes('runtime')) domains.push('runtime');
+  const readOnly = /\b(?:read[ -]?only|fara (?:modificari|editare)|nu modifica|doar (?:inspecteaza|verifica)|no (?:file )?(?:edit|change)s?|without (?:file )?(?:editing|changes))\b/.test(text);
   return { domains, readOnly };
 }
 
@@ -28,7 +32,7 @@ function createPlan(state: typeof PlanState.State): Partial<typeof PlanState.Sta
     : ['read_repo', 'edit_worktree', 'run_tests'] as AutomationAction[];
   const assignments: PlannedAssignment[] = state.domains.map((domain, index) => ({
     id: `langgraph-${domain}-${index + 1}`,
-    instruction: `Address the ${domain} portion of the approved objective: ${state.objective}`,
+    instruction: `Address the ${domain} portion of the approved objective. Stay inside the declared actions and produce bounded evidence: ${state.objective}`,
     actions,
   }));
   if (!state.readOnly) assignments.push({ id: 'langgraph-local-commit', instruction: 'Create a clear local commit after all declared tests pass.', actions: ['commit_local'] });

@@ -14,9 +14,13 @@ const artifacts: EvidenceArtifact[] = ['git_diff', 'git_status', 'test_report'].
   kind: kind as EvidenceArtifact['kind'], sha256: String(index + 1).repeat(64), reference: `run/task/file-${index}`, bytes: 4,
 }));
 const evidence: VerificationEvidence = { claims: ['tests:pass'], artifacts };
+const passingReport = JSON.stringify({
+  schema: 'ronor-test-report/v1', passed: true, command_count: 1,
+  results: [{ id: 'jest', passed: true, exit_code: 0, signal: null }],
+});
 const collector = (overrides: Partial<WorkspaceArtifactCollector> = {}): WorkspaceArtifactCollector => ({
   collect: jest.fn(() => artifacts), verify: jest.fn((items) => items),
-  read: jest.fn((items) => items.map((artifact) => ({ artifact, content: 'safe' }))), ...overrides,
+  read: jest.fn((items) => items.map((artifact) => ({ artifact, content: artifact.kind === 'test_report' ? passingReport : 'safe' }))), ...overrides,
   recordTestReport: jest.fn(() => artifacts[2]),
 });
 
@@ -36,6 +40,28 @@ describe('independent verification authorities', () => {
     const evaluate = jest.fn(); const app = createCodexVerifierApp({ serviceToken: 'codex-token', receiptPrivateKey, artifacts: collector(), evaluator: { evaluate } });
     const response = await request(app).post('/v1/verify').set('Authorization', 'Bearer codex-token').send({ mission_id: 'mission-1', evidence: { claims: [], artifacts: artifacts.slice(0, 2) } });
     expect(response.status).toBe(422); expect(response.body.verdict).toBe('fail'); expect(evaluate).not.toHaveBeenCalled();
+  });
+
+  it('Codex refuses failed, malformed or contradictory test evidence before model invocation', async () => {
+    const evaluate = jest.fn();
+    const verify = async (report: string, claims = ['tests:pass']) => {
+      const store = collector({ read: jest.fn((items) => items.map((artifact) => ({ artifact, content: artifact.kind === 'test_report' ? report : 'safe' }))) });
+      const app = createCodexVerifierApp({ serviceToken: 'codex-token', receiptPrivateKey, artifacts: store, evaluator: { evaluate } });
+      return request(app).post('/v1/verify').set('Authorization', 'Bearer codex-token').send({ mission_id: 'mission-1', evidence: { ...evidence, claims } });
+    };
+    const failed = JSON.stringify({ schema: 'ronor-test-report/v1', passed: false, command_count: 1, results: [{ id: 'jest', passed: false, exit_code: 1, signal: null }] });
+    expect((await verify(failed)).body.evidence).toEqual(['test-evidence:invalid']);
+    expect((await verify('{bad json')).status).toBe(422);
+    expect((await verify(passingReport, ['tests:pass', 'test:jest:fail'])).status).toBe(422);
+    expect(evaluate).not.toHaveBeenCalled();
+  });
+
+  it('Codex rejects duplicate artifact references before reading evidence', async () => {
+    const store = collector(); const evaluate = jest.fn();
+    const app = createCodexVerifierApp({ serviceToken: 'codex-token', receiptPrivateKey, artifacts: store, evaluator: { evaluate } });
+    const duplicated = [...artifacts, { ...artifacts[2], kind: 'event_log' as const }];
+    const response = await request(app).post('/v1/verify').set('Authorization', 'Bearer codex-token').send({ mission_id: 'mission-1', evidence: { claims: ['tests:pass'], artifacts: duplicated } });
+    expect(response.status).toBe(400); expect(store.read).not.toHaveBeenCalled(); expect(evaluate).not.toHaveBeenCalled();
   });
 
   it('Codex fails closed and never leaks evaluator errors', async () => {

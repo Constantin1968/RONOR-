@@ -131,21 +131,45 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
     batchSize: Number(env.RONOR_AUTOMATION_RECOVERY_BATCH_SIZE ?? 5),
     preflight: async (candidate) => Boolean(await recoveryPreflight(candidate.mandate)),
-    execute: async (_runId, mandate, signal) => {
+    execute: async (runId, mandate, signal, attempt) => {
       const prepared = await recoveryPreflight(mandate);
       const adapters = configuredAutomationAdapters(env);
       if (!prepared || !adapters || !env.RONOR_AUTOMATION_ARTIFACT_ROOT || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) throw new Error('automation_recovery_preflight_lost');
-      const run = await runExecutiveMission({
-        objective: prepared.objective,
-        workspaceRoot: mandate.workspace_root,
-        branch: prepared.branch,
-        mandate,
-        adapters,
-        signal,
-        artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
-        postExecutionVerifier: createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN }),
+      const appendRecovery = (type: 'run.status_changed' | 'failure.recorded', payload: Record<string, unknown>) => {
+        const fabric = getMissionFabric(mandate.mission_id);
+        if (!fabric) throw new Error('automation_recovery_fabric_missing');
+        appendMissionFabricEvent({
+          missionId: mandate.mission_id, expectedVersion: fabric.version, type,
+          actor: { kind: 'ronor', id: 'automation-recovery' }, payload,
+        });
+      };
+      appendRecovery('run.status_changed', {
+        id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'recovery', status: 'queued',
+        attempt, reason_code: 'interrupted_lease_reclaimed', updated_at: new Date().toISOString(),
       });
-      return run.status;
+      try {
+        const run = await runExecutiveMission({
+          objective: prepared.objective,
+          workspaceRoot: mandate.workspace_root,
+          branch: prepared.branch,
+          mandate,
+          adapters,
+          signal,
+          artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
+          postExecutionVerifier: createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN }),
+        });
+        return run.status;
+      } catch {
+        appendRecovery('failure.recorded', {
+          id: `${runId}-recovery-${attempt}-failed`, run_id: runId, attempt,
+          reason: 'automation_recovery_execution_failed',
+        });
+        appendRecovery('run.status_changed', {
+          id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'recovery', status: 'failed',
+          attempt, reason_code: 'automation_recovery_execution_failed', updated_at: new Date().toISOString(),
+        });
+        throw new Error('automation_recovery_execution_failed');
+      }
     },
   });
   Object.defineProperty(router, 'stopAutomationRecovery', {

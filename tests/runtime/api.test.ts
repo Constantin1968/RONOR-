@@ -12,6 +12,8 @@
 
 import express from 'express';
 import request from 'supertest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createMission } from '../../src/runtime/mission/store';
 import {
   INSECURE_DEFAULT_KEY,
@@ -689,6 +691,13 @@ describe('L0 · read surfaces', () => {
     const router = createRuntimeRouter({});
     expect(typeof router.stopAutomationRecovery).toBe('function');
     expect(() => router.stopAutomationRecovery()).not.toThrow();
+  });
+
+  it('uses bounded recovery audit codes rather than persisting exception details', () => {
+    const source = readFileSync(join(process.cwd(), 'src/runtime/api/routes.ts'), 'utf8');
+    expect(source).toContain("reason_code: 'interrupted_lease_reclaimed'");
+    expect(source).toContain("reason: 'automation_recovery_execution_failed'");
+    expect(source).not.toMatch(/automation_recovery_execution_failed[^\n]*(?:stack|message)/);
   });
 
   it('reports automation ready only after authenticated identity and capability attestation', async () => {

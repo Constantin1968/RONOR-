@@ -35,7 +35,7 @@ export function startAutomationRecoverySupervisor(params: {
   enabled: boolean;
   owner: string;
   preflight?(candidate: InterruptedAutomationRun): Promise<boolean>;
-  execute(runId: string, mandate: ExecutionMandate, signal: AbortSignal): Promise<AutomationRunStatus>;
+  execute(runId: string, mandate: ExecutionMandate, signal: AbortSignal, attempt: number): Promise<AutomationRunStatus>;
   intervalMs?: number;
   leaseMs?: number;
   batchSize?: number;
@@ -77,7 +77,7 @@ export function startAutomationRecoverySupervisor(params: {
     active.set(candidate.run_id, controller);
     recovered.lease.startHeartbeat(() => controller.abort());
     let status: AutomationRunStatus = 'failed';
-    try { status = await params.execute(candidate.run_id, recovered.mandate, controller.signal); }
+    try { status = await params.execute(candidate.run_id, recovered.mandate, controller.signal, recovered.attempt); }
     catch { status = 'failed'; }
     finally {
       recovered.lease.finish(status);

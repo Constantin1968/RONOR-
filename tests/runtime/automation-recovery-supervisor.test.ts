@@ -31,7 +31,7 @@ describe('automation recovery supervisor', () => {
     });
     expect(await supervisor.sweepNow()).toBe(1);
     expect(claim).toHaveBeenCalledWith(candidate, 'runtime-a', new Date('2026-08-20T12:00:00Z'), 120_000);
-    expect(execute).toHaveBeenCalledWith('run_1', mandate, expect.any(AbortSignal));
+    expect(execute).toHaveBeenCalledWith('run_1', mandate, expect.any(AbortSignal), 2);
     expect(recoveredLease.startHeartbeat).toHaveBeenCalledTimes(1);
     expect(recoveredLease.finish).toHaveBeenCalledWith('complete');
     expect(supervisor.snapshot()).toMatchObject({

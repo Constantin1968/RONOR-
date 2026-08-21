@@ -317,6 +317,12 @@ strings, redirects, arbitrary paths, plaintext upstreams, IP-literal targets
 and oversized responses. A generic Internet-connected agent bridge does not
 meet this policy.
 
+An operator may explicitly set `RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE=true` only
+when the configured upstream is an IPv4 address inside Tailscale's
+`100.64.0.0/10` range and the peer identity has been verified. This exception
+admits HTTP because the transport is already protected by Tailscale/WireGuard;
+it does not admit RFC1918, link-local, metadata or arbitrary plaintext hosts.
+
 Every automation service has an authenticated in-container healthcheck. The
 OpenHands bridge starts only after Agent Server is healthy, eliminating the
 one-shot startup race without enabling automatic restart loops. Health probes

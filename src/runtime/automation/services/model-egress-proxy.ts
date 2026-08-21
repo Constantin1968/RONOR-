@@ -12,20 +12,26 @@ function authorised(req: Request, token: string): boolean {
   return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
 }
 
-export function modelGatewayBaseUrl(value: string): URL {
+function isTailscaleIpv4(host: string): boolean {
+  const parts = host.split('.').map(Number);
+  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) && parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127;
+}
+
+export function modelGatewayBaseUrl(value: string, allowTailscale = false): URL {
   const url = new URL(value);
   const path = url.pathname.replace(/\/+$/, '');
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !path.endsWith('/v1') ||
-      net.isIP(url.hostname) !== 0 || !/^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/.test(url.hostname)) {
+  const tlsHostname = url.protocol === 'https:' && net.isIP(url.hostname) === 0 && /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/.test(url.hostname);
+  const tailscalePeer = allowTailscale && url.protocol === 'http:' && isTailscaleIpv4(url.hostname);
+  if ((!tlsHostname && !tailscalePeer) || url.username || url.password || url.search || url.hash || !path.endsWith('/v1')) {
     throw new Error('model_gateway_url_invalid');
   }
   url.pathname = path;
   return url;
 }
 
-export function createModelEgressProxy(config: { gatewayBaseUrl: string; gatewayToken: string; fetcher?: Fetcher }) {
+export function createModelEgressProxy(config: { gatewayBaseUrl: string; gatewayToken: string; allowTailscale?: boolean; fetcher?: Fetcher }) {
   if (!config.gatewayToken || config.gatewayToken.length < 16) throw new Error('model_gateway_token_invalid');
-  const upstream = modelGatewayBaseUrl(config.gatewayBaseUrl);
+  const upstream = modelGatewayBaseUrl(config.gatewayBaseUrl, config.allowTailscale);
   const fetcher = config.fetcher ?? fetch;
   const app = express(); app.disable('x-powered-by'); app.use(express.raw({ type: 'application/json', limit: '1mb' }));
   app.get('/health', (req, res) => authorised(req, config.gatewayToken)

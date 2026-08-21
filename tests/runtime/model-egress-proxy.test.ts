@@ -29,6 +29,13 @@ describe('automation model egress proxy', () => {
     }
   });
 
+  it('admits plaintext only for an explicitly enabled Tailscale CGNAT peer', () => {
+    expect(modelGatewayBaseUrl('http://100.83.241.57/gw/v1', true).href).toBe('http://100.83.241.57/gw/v1');
+    for (const url of ['http://100.83.241.57/gw/v1', 'http://10.0.0.1/v1', 'http://100.128.0.1/v1', 'http://169.254.169.254/v1']) {
+      expect(() => modelGatewayBaseUrl(url, url.includes('100.83') ? false : true)).toThrow('model_gateway_url_invalid');
+    }
+  });
+
   it('fails closed without relaying upstream error bodies', async () => {
     const app = createModelEgressProxy({ gatewayBaseUrl: 'https://models.example/v1', gatewayToken: token, fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
     const result = await request(app).post('/v1/chat/completions').set('Authorization', `Bearer ${token}`).send({});

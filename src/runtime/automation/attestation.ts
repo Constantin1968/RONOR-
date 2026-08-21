@@ -2,7 +2,7 @@ import { AutomationAdapterError } from './adapters/http';
 import crypto from 'crypto';
 
 type Fetcher = typeof fetch;
-export type AdapterName = 'langgraph' | 'openhands' | 'codex' | 'assurance';
+export type AdapterName = 'langgraph' | 'openhands' | 'codex' | 'assurance' | 'evidence';
 export interface AutomationAttestation {
   verified: Record<AdapterName, 'verified'>;
   verified_at: string;
@@ -15,15 +15,18 @@ const EXPECTED_PROTOCOL: Record<AdapterName, string> = {
   openhands: 'ronor-openhands-bridge/v1',
   codex: 'ronor-codex-verifier/v1',
   assurance: 'ronor-assurance/v1',
+  evidence: 'ronor-evidence-runner/v1',
 };
 const EXPECTED_IDENTITY: Record<AdapterName, { service_id: string; capabilities: string[] }> = {
   langgraph: { service_id: 'langgraph', capabilities: ['plan'] },
   openhands: { service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] },
   codex: { service_id: 'codex-verifier', capabilities: ['verify'] },
   assurance: { service_id: 'victoria-assurance', capabilities: ['assure'] },
+  evidence: { service_id: 'automation-evidence-runner', capabilities: ['git-evidence', 'allowlisted-tests'] },
 };
 const INTERNAL_SERVICE_HOST: Record<AdapterName, string> = {
   langgraph: 'langgraph', openhands: 'openhands-bridge', codex: 'codex-verifier', assurance: 'victoria-assurance',
+  evidence: 'automation-evidence-runner',
 };
 const cache = new Map<string, AutomationAttestation>();
 
@@ -34,6 +37,7 @@ function fingerprint(env: NodeJS.ProcessEnv): string {
     env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN,
     env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN,
     env.RONOR_ASSURANCE_URL, env.RONOR_ASSURANCE_TOKEN,
+    env.RONOR_EVIDENCE_RUNNER_URL, env.RONOR_EVIDENCE_RUNNER_TOKEN,
   ])).digest('hex');
 }
 
@@ -49,6 +53,7 @@ function endpoint(name: AdapterName, baseUrl: string): URL {
   const base = new URL(baseUrl);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   const internal = base.hostname.toLowerCase() === INTERNAL_SERVICE_HOST[name];
+  if (name === 'evidence' && !internal) throw new AutomationAdapterError('attestation_endpoint_invalid');
   if (base.username || base.password || base.search || base.hash || (base.protocol !== 'https:' && !(base.protocol === 'http:' && (loopback || internal)))) throw new AutomationAdapterError('attestation_endpoint_invalid');
   const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
   return new URL(`${prefix}/health`, base.origin);
@@ -60,6 +65,7 @@ export async function attestAutomationAdapters(env: NodeJS.ProcessEnv, fetcher: 
     openhands: { url: env.RONOR_OPENHANDS_URL, token: env.RONOR_OPENHANDS_TOKEN },
     codex: { url: env.RONOR_CODEX_VERIFIER_URL, token: env.RONOR_CODEX_VERIFIER_TOKEN },
     assurance: { url: env.RONOR_ASSURANCE_URL, token: env.RONOR_ASSURANCE_TOKEN },
+    evidence: { url: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN },
   };
   const key = fingerprint(env);
   cache.delete(key);

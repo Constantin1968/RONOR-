@@ -47,18 +47,21 @@ manifest and issues its own assurance verdict; a Codex PASS is never converted
 automatically into a Victoria PASS.
 ## Live adapter boundary
 
-The runner connects through four small HTTP contracts: LangGraph `POST /v1/plan`,
+The runner connects through five small HTTP contracts: LangGraph `POST /v1/plan`,
 OpenHands `POST /v1/execute`, the independent Codex verifier `POST /v1/verify`,
-and Victoria assurance `POST /v1/assure`.
+Victoria assurance `POST /v1/assure`, and the isolated evidence runner
+`POST /v1/verify`.
 Remote endpoints require HTTPS; plaintext HTTP is accepted only on loopback.
 The sole production exception is an exact service identity on the pre-created
-internal Docker network: `langgraph`, `openhands-bridge`, `codex-verifier` and
-`victoria-assurance`. Each adapter accepts only its own hostname; arbitrary
+internal Docker network: `langgraph`, `openhands-bridge`, `codex-verifier`,
+`victoria-assurance` and `automation-evidence-runner`. Each adapter accepts only its own hostname; arbitrary
 container names and private-network addresses remain invalid.
 Credentials are read from environment variables and are never returned by the
 status API. The registry fails closed unless automation is explicitly enabled
-and all four endpoints are configured. OpenHands, Codex and Assurance must use
-distinct endpoint and credential identities; aliasing any of them fails closed.
+and all five endpoints are configured. OpenHands, Codex, Assurance and the
+evidence runner must use distinct endpoint and credential identities; aliasing
+any of them fails closed. The evidence runner is intentionally accepted only by
+its internal service-DNS identity, never as a remote HTTPS endpoint.
 Immediately before execution, the runtime performs authenticated `GET /health`
 attestation against every service and requires its pinned `ronor-*/v1` protocol.
 A configured URL is therefore never treated as proof of readiness, redirects are

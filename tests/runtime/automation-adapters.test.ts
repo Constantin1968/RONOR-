@@ -17,6 +17,7 @@ describe('live automation adapter boundary', () => {
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
       RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
     };
     expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: false, attested_at: null });
@@ -26,12 +27,13 @@ describe('live automation adapter boundary', () => {
       'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+      'automation-evidence-runner': ['ronor-evidence-runner/v1', 'automation-evidence-runner', 'git-evidence,allowlisted-tests'],
     };
     await attestAutomationAdapters(env, jest.fn((url: string | URL | Request) => {
       const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
       return response({ ok: true, protocol, service_id, capabilities: capability.split(',') });
     }));
-    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' } });
     expect(configuredAutomationAdapters(env)).not.toBeNull();
   });
 
@@ -42,6 +44,7 @@ describe('live automation adapter boundary', () => {
       RONOR_OPENHANDS_URL: 'https://shared.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://shared.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
     };
     expect(automationAdapterStatus(env).ready).toBe(false);
     expect(automationAdapterStatus(env).adapters.codex).toBe('identity-conflict');

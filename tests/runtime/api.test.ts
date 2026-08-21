@@ -684,12 +684,14 @@ describe('L0 · read surfaces', () => {
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
     };
     const declarations: Record<string, [string, string, string]> = {
       'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
       'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+      'automation-evidence-runner': ['ronor-evidence-runner/v1', 'automation-evidence-runner', 'git-evidence,allowlisted-tests'],
     };
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
       const parsed = new URL(String(url));
@@ -702,14 +704,14 @@ describe('L0 · read surfaces', () => {
       expect(before.body.automation).toMatchObject({ configured: true, ready: false });
       const probe = await request(makeApp(env)).get('/api/runtime/control/automation/readiness').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
       expect(probe.status).toBe(200);
-      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' } });
       expect(JSON.stringify(probe.body)).not.toContain('graph-token');
       const plan = await request(makeApp(env)).post('/api/runtime/control/automation/plan').set('Authorization', `Bearer ${ARCHITECT_SECRET}`).send({ objective: 'Plan the runtime inspection.' });
       expect(plan.status).toBe(201);
       expect(plan.body).toMatchObject({ ok: true, target: 'langgraph', assignments: [{ id: 'langgraph-runtime-1', actions: ['read_repo'] }] });
       expect(plan.body.mission_id).toMatch(/^msn_/);
       expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/v1/plan')).toHaveLength(1);
-      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(8);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(10);
     } finally { fetchMock.mockRestore(); }
   });
 

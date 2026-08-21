@@ -10,11 +10,11 @@ const env = {
 describe('automation endpoint attestation', () => {
   beforeEach(() => clearAutomationAttestations());
   it('requires four independently authenticated compatible protocols', async () => {
-    const declarations: Record<string, { protocol: string; service_id: string; capability: string }> = {
-      'graph.invalid': { protocol: 'ronor-langgraph/v1', service_id: 'langgraph', capability: 'plan' },
-      'hands.invalid': { protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capability: 'execute' },
-      'codex.invalid': { protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capability: 'verify' },
-      'assurance.invalid': { protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capability: 'assure' },
+    const declarations: Record<string, { protocol: string; service_id: string; capabilities: string[] }> = {
+      'graph.invalid': { protocol: 'ronor-langgraph/v1', service_id: 'langgraph', capabilities: ['plan'] },
+      'hands.invalid': { protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] },
+      'codex.invalid': { protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capabilities: ['verify'] },
+      'assurance.invalid': { protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capabilities: ['assure'] },
     };
     const fetcher = jest.fn((url: string | URL | Request, init?: RequestInit) => {
       const target = new URL(String(url));
@@ -22,7 +22,7 @@ describe('automation endpoint attestation', () => {
       expect(init?.redirect).toBe('error');
       expect((init?.headers as Record<string, string>).authorization).toMatch(/^Bearer /);
       const declaration = declarations[target.hostname];
-      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol: declaration.protocol, service_id: declaration.service_id, capabilities: [declaration.capability] }), { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol: declaration.protocol, service_id: declaration.service_id, capabilities: declaration.capabilities }), { status: 200 }));
     });
     const now = new Date('2026-08-20T12:00:00Z');
     const result = await attestAutomationAdapters(env, fetcher, { now: () => now, ttlMs: 10_000 });
@@ -48,5 +48,19 @@ describe('automation endpoint attestation', () => {
     }), { status: 200 })));
     await expect(attestAutomationAdapters(env, fetcher)).rejects.toThrow('attestation_langgraph_protocol_mismatch');
     expect(currentAutomationAttestation(env)).toBeNull();
+  });
+
+  it('refuses an OpenHands bridge that cannot cancel active execution', async () => {
+    const fetcher = jest.fn((url: string | URL | Request) => {
+      const hostname = new URL(String(url)).hostname;
+      const declarations: Record<string, [string, string, string[]]> = {
+        'graph.invalid': ['ronor-langgraph/v1', 'langgraph', ['plan']],
+        'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', ['execute']],
+      };
+      const [protocol, service_id, capabilities] = declarations[hostname];
+      return Promise.resolve(new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities })));
+    });
+    await expect(attestAutomationAdapters(env, fetcher)).rejects.toThrow('attestation_openhands_protocol_mismatch');
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

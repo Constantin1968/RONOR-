@@ -23,13 +23,13 @@ describe('live automation adapter boundary', () => {
     expect(configuredAutomationAdapters(env)).toBeNull();
     const declarations: Record<string, [string, string, string]> = {
       'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
-      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute'],
+      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
     };
     await attestAutomationAdapters(env, jest.fn((url: string | URL | Request) => {
       const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
-      return response({ ok: true, protocol, service_id, capabilities: [capability] });
+      return response({ ok: true, protocol, service_id, capabilities: capability.split(',') });
     }));
     expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
     expect(configuredAutomationAdapters(env)).not.toBeNull();
@@ -88,6 +88,25 @@ describe('live automation adapter boundary', () => {
     const pending = createLangGraphAdapter({ baseUrl: 'http://127.0.0.1:2024', fetcher, timeoutMs: 10_000 }).plan('objective', controller.signal);
     controller.abort();
     await expect(pending).rejects.toThrow('adapter_cancelled');
+  });
+
+  it('sends a capability-bound bridge cancellation when OpenHands is aborted', async () => {
+    const fetcher = jest.fn()
+      .mockImplementationOnce((_url: URL | Request | string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      }))
+      .mockImplementationOnce(() => response({ ok: true, status: 'cancellation_requested' }, 202));
+    const controller = new AbortController();
+    const adapter = createOpenHandsAdapter({ baseUrl: 'http://127.0.0.1:3001', capabilityKey: 'k'.repeat(32), fetcher });
+    const pending = adapter.execute({ id: 'cancel-me', instruction: 'Run tests.', actions: ['run_tests'] }, mandate, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow('adapter_cancelled');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(String(fetcher.mock.calls[1][0])).toBe('http://127.0.0.1:3001/v1/cancel');
+    const executeHeaders = (fetcher.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const cancelHeaders = (fetcher.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(cancelHeaders['x-ronor-capability']).toBe(executeHeaders['x-ronor-capability']);
+    expect(JSON.parse(String((fetcher.mock.calls[1][1] as RequestInit).body))).toEqual({ assignment_id: 'cancel-me' });
   });
 
   it('normalises valid LangGraph, OpenHands and Codex responses', async () => {

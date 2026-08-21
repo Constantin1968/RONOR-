@@ -72,6 +72,27 @@ describe('native OpenHands Agent Server client', () => {
     expect(fetcher.mock.calls.some((call) => (call[1] as RequestInit).method === 'DELETE')).toBe(false);
   });
 
+  it('propagates cancellation to Agent Server and pauses an active conversation', async () => {
+    const controller = new AbortController();
+    let pollingStarted!: () => void;
+    const polling = new Promise<void>((resolve) => { pollingStarted = resolve; });
+    const fetcher = jest.fn()
+      .mockImplementationOnce(() => json({ conversation_id: conversationId }))
+      .mockImplementationOnce(() => json({ accepted: true }))
+      .mockImplementationOnce((_url: URL, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        pollingStarted();
+        init.signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true });
+      }))
+      .mockImplementationOnce(() => json({ paused: true }));
+    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0 });
+    const execution = client.execute(envelope, controller.signal);
+    await polling;
+    controller.abort();
+    await expect(execution).rejects.toThrow('openhands_cancelled');
+    expect(String(fetcher.mock.calls[3][0])).toBe(`https://hands.invalid/api/conversations/${conversationId}/pause`);
+    expect((fetcher.mock.calls[2][1] as RequestInit).signal).toBe(controller.signal);
+  });
+
   it('uses the authenticated official health endpoint', async () => {
     const fetcher = jest.fn(() => json({ ok: true }));
     const client = createNativeOpenHandsClient({ baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher });

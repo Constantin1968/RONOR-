@@ -31,6 +31,7 @@ export function createNativeOpenHandsClient(config: {
   maxPolls?: number;
   sleep?: (ms: number) => Promise<void>;
   plaintextServiceHosts?: readonly string[];
+  llm?: { model: string; apiKey: string; baseUrl: string; apiMode?: 'chat' | 'responses' | 'auto' };
 }): NativeOpenHandsPort & { health(): Promise<boolean> } {
   if (!config.sessionApiKey) throw new NativeOpenHandsError('openhands_session_key_required');
   const base = baseUrl(config.baseUrl, config.plaintextServiceHosts ?? []);
@@ -80,6 +81,10 @@ export function createNativeOpenHandsClient(config: {
         const created = await call('/api/conversations', 'POST', {
           workspace: { kind: 'LocalWorkspace', working_dir: CONTAINER_WORKSPACE },
           confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
+          ...(config.llm ? { agent_settings: {
+            agent_kind: 'openhands',
+            llm: { model: config.llm.model, api_key: config.llm.apiKey, base_url: config.llm.baseUrl, api_mode: config.llm.apiMode ?? 'chat' },
+          } } : {}),
         }, signal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
         if (!conversationId || !/^[A-Za-z0-9-]{1,120}$/.test(conversationId)) throw new NativeOpenHandsError('openhands_conversation_id_invalid');

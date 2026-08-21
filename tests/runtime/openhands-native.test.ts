@@ -15,7 +15,10 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(() => json({ execution_status: 'running' }))
       .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.02 }))
       .mockImplementationOnce(() => json({ items: [{ kind: 'MessageEvent', content: 'done' }] }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
+    const client = createNativeOpenHandsClient({
+      baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined,
+      llm: { model: 'openai/qwen3-coder:30b', apiKey: 'model-client-key', baseUrl: 'http://model-egress-proxy:3004/v1', apiMode: 'chat' },
+    });
     const result = await client.execute(envelope);
     expect(result).toMatchObject({ ok: true, cost_usd: 0.02, artifacts: [{ kind: 'event_log', reference: `api/conversations/${conversationId}/events/search` }] });
     expect(fetcher).toHaveBeenCalledTimes(5);
@@ -24,6 +27,9 @@ describe('native OpenHands Agent Server client', () => {
     expect(JSON.parse(String((fetcher.mock.calls[0][1] as RequestInit).body))).toEqual({
       workspace: { kind: 'LocalWorkspace', working_dir: '/workspace/project' },
       confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
+      agent_settings: { agent_kind: 'openhands', llm: {
+        model: 'openai/qwen3-coder:30b', api_key: 'model-client-key', base_url: 'http://model-egress-proxy:3004/v1', api_mode: 'chat',
+      } },
     });
     expect(JSON.parse(String((fetcher.mock.calls[1][1] as RequestInit).body))).toEqual({
       role: 'user', content: [{ type: 'text', text: 'Run tests.' }], run: true,

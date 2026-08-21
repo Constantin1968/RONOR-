@@ -59,6 +59,7 @@ describe('isolated automation composition', () => {
     expect(agent.environment).not.toHaveProperty('LLM_API_KEY');
     expect(agent.environment).not.toHaveProperty('OH_SECRET_KEY');
     expect(agent.secrets).toEqual(['openhands_session_key', 'openhands_llm_api_key', 'openhands_secret_key']);
+    expect(compose.services['openhands-bridge'].secrets).toContain('openhands_llm_api_key');
     expect(agent.environment).toMatchObject({
       RONOR_OPENHANDS_SESSION_API_KEY_FILE: '/run/secrets/openhands_session_key',
       RONOR_OPENHANDS_LLM_API_KEY_FILE: '/run/secrets/openhands_llm_api_key',

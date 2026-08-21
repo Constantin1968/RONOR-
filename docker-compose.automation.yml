@@ -46,6 +46,7 @@ services:
       RONOR_MODEL_EGRESS_HOST: 0.0.0.0
       RONOR_MODEL_EGRESS_PORT: "3004"
       RONOR_MODEL_GATEWAY_BASE_URL: ${RONOR_MODEL_GATEWAY_BASE_URL:?set the approved HTTPS model gateway in .env.automation}
+      RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE: ${RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE:-false}
       RONOR_MODEL_GATEWAY_TOKEN_FILE: /run/secrets/openhands_llm_api_key
     secrets: [openhands_llm_api_key]
     networks: [model-egress, model-uplink]

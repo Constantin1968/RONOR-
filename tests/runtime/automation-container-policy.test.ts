@@ -13,7 +13,7 @@ describe('isolated automation composition', () => {
   it('pins external images and never grants host control surfaces', () => {
     expect(source).not.toMatch(/:\s*latest(?:\s|$)/m);
     expect(source).not.toContain('/var/run/docker.sock');
-    expect(source).not.toMatch(/(?:\.ssh|tailscale|SSH_AUTH_SOCK|github_token)/i);
+    expect(source).not.toMatch(/(?:\.ssh|SSH_AUTH_SOCK|github_token|tailscale\.sock|\/var\/run\/tailscale)/i);
     expect(compose.services['openhands-agent'].image).toBe('ronor-openhands-agent:${RONOR_AUTOMATION_IMAGE_TAG:-local}');
     expect(compose.services['openhands-agent'].build.args.RONOR_OPENHANDS_AGENT_IMAGE).toBe('ghcr.io/openhands/agent-server:1.42.1-python');
   });

@@ -708,7 +708,8 @@ describe('L0 · read surfaces', () => {
       expect(plan.status).toBe(201);
       expect(plan.body).toMatchObject({ ok: true, target: 'langgraph', assignments: [{ id: 'langgraph-runtime-1', actions: ['read_repo'] }] });
       expect(plan.body.mission_id).toMatch(/^msn_/);
-      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/v1/plan')).toHaveLength(1);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(8);
     } finally { fetchMock.mockRestore(); }
   });
 

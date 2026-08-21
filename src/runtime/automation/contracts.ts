@@ -53,7 +53,7 @@ export interface AutomationAdapters {
 }
 
 export type AutomationRunStatus =
-  | 'planned' | 'executing' | 'verifying' | 'assuring' | 'complete' | 'blocked' | 'failed';
+  | 'queued' | 'planned' | 'executing' | 'verifying' | 'assuring' | 'complete' | 'blocked' | 'failed';
 
 export interface AutomationRun {
   run_id: string;

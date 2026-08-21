@@ -78,6 +78,7 @@ import { attestAutomationAdapters } from '../automation/attestation';
 import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
 import { issueArchitectMandate } from '../automation/mandate-issuer';
 import { claimAutomationRun } from '../automation/run-lease';
+import { launchAutomationRun } from '../automation/background-run';
 import type { AutomationRun } from '../automation/contracts';
 
 /**
@@ -574,6 +575,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(503).json({ ok: false, error: 'artifact_policy_not_configured' });
         return;
       }
+      const approvedWorkspaceRoot = env.RONOR_AUTOMATION_WORKSPACE_ROOT;
+      const artifactRoot = env.RONOR_AUTOMATION_ARTIFACT_ROOT;
       const testCommands = parseAllowedTestCommands(env.RONOR_AUTOMATION_TEST_COMMANDS_JSON);
       if (!testCommands) {
         res.status(503).json({ ok: false, error: 'test_policy_not_configured' });
@@ -616,17 +619,51 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         return;
       }
       claim.lease.startHeartbeat(() => control.abort());
-      let run: AutomationRun | undefined;
-      try {
-        const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
-        const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
-        const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: env.RONOR_AUTOMATION_WORKSPACE_ROOT, baseEnv });
-        run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
-        res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
-      } finally {
-        claim.lease.finish(run?.status ?? 'failed');
-        control.finish();
-      }
+      const queued: AutomationRun = {
+        run_id: runId, mission_id: mandate.mission_id, status: 'queued', cost_usd: 0,
+        completed_assignments: 0, total_assignments: 0, reason: null,
+      };
+      const fabric = getMissionFabric(mandate.mission_id)!;
+      appendMissionFabricEvent({
+        missionId: mandate.mission_id, expectedVersion: fabric.version, type: 'run.status_changed',
+        actor: { kind: 'langgraph', id: 'langgraph' },
+        payload: {
+          id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'queue', status: 'queued',
+          completed_assignments: 0, total_assignments: 0, cost_usd: 0, reason_code: null,
+          updated_at: new Date().toISOString(),
+        },
+      });
+      launchAutomationRun({
+        lease: claim.lease,
+        control,
+        execute: async () => {
+          const artifactCollector = createWorkspaceArtifactCollector(artifactRoot);
+          const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
+          const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: approvedWorkspaceRoot, baseEnv });
+          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
+        },
+        onUnhandledFailure: () => {
+          const current = getMissionFabric(mandate.mission_id);
+          if (!current) return;
+          appendMissionFabricEvent({
+            missionId: mandate.mission_id, expectedVersion: current.version, type: 'failure.recorded',
+            actor: { kind: 'ronor', id: 'automation-supervisor' },
+            payload: { id: `${runId}-unhandled`, run_id: runId, reason: 'automation_run_unhandled_failure' },
+          });
+          const failed = getMissionFabric(mandate.mission_id);
+          if (!failed) return;
+          appendMissionFabricEvent({
+            missionId: mandate.mission_id, expectedVersion: failed.version, type: 'run.status_changed',
+            actor: { kind: 'ronor', id: 'automation-supervisor' },
+            payload: {
+              id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'supervisor', status: 'failed',
+              completed_assignments: 0, total_assignments: 0, cost_usd: 0,
+              reason_code: 'automation_run_unhandled_failure', updated_at: new Date().toISOString(),
+            },
+          });
+        },
+      });
+      res.status(202).json({ ok: true, accepted: true, run: queued });
     }),
   );
 

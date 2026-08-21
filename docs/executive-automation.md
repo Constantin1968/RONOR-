@@ -207,6 +207,12 @@ adapter or allowlisted test is interrupted when approved runtime expires. A zero
 or exhausted cost envelope stops OpenHands or Codex before invocation; reported
 spend is checked again after every paid stage.
 
+`POST /control/automation/run` acknowledges an admitted mandate with HTTP `202`
+and its deterministic `run_id` after the durable lease and initial `queued`
+Fabric event exist. Execution then continues under that lease independently of
+the browser request. CONTROL follows the mission Fabric, allowing Merlin to
+observe or cancel a live run without keeping one long HTTP connection open.
+
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The
 files are written atomically beneath the pre-existing artifact root, bounded to

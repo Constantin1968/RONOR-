@@ -68,8 +68,8 @@
       var key = 'control-' + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()));
       var execution = await api('/automation/run', { method: 'POST', body: JSON.stringify({ approved: true, mission_id: state.missionId, idempotency_key: key }) });
       state.runId = execution.run.run_id;
-      el('result').textContent = 'OPENHANDS · EXECUȚIE FINALIZATĂ\nMisiune: ' + state.missionId + '\nRun: ' + state.runId + '\nStatus: ' + execution.run.status + '\nCost: $' + execution.run.cost_usd;
-      show('missions'); await loadMission(state.missionId); await refresh();
+      el('result').textContent = 'OPENHANDS · EXECUȚIE ACCEPTATĂ\nMisiune: ' + state.missionId + '\nRun: ' + state.runId + '\nStatus: ' + execution.run.status + '\nUrmărirea live este activă.';
+      show('missions'); await loadMission(state.missionId);
     } catch (err) { el('result').textContent = 'EROARE: ' + err.message; }
   });
   document.addEventListener('keydown', function (ev) { if (ev.ctrlKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); show('switchboard'); el('objective').focus(); } if (ev.key === 'Escape') el('objective').blur(); });

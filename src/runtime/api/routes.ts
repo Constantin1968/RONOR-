@@ -607,6 +607,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       });
       if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
       if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
+      if (claim.outcome === 'mandate_expired') { res.status(422).json({ ok: false, error: 'automation_mandate_expired' }); return; }
       if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
       if (claim.outcome === 'cancelled') { res.status(409).json({ ok: false, error: 'automation_run_cancelled' }); return; }
       mandate = claim.mandate;

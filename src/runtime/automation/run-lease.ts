@@ -10,7 +10,15 @@ export type RunClaimResult =
   | { outcome: 'cancelled'; mandate: ExecutionMandate }
   | { outcome: 'busy' }
   | { outcome: 'conflict' }
+  | { outcome: 'mandate_expired' }
   | { outcome: 'fix_cycle_limit_exceeded' };
+
+export interface InterruptedAutomationRun {
+  run_id: string;
+  mission_id: string;
+  mandate: ExecutionMandate;
+  attempt_count: number;
+}
 
 export function mandateFingerprint(mandate: ExecutionMandate): string {
   const authority = {
@@ -117,6 +125,39 @@ export function requestAutomationRunCancellation(runId: string, missionId: strin
   }).immediate();
 }
 
+/**
+ * Return only interrupted runs that remain recoverable under their original
+ * immutable mandate. This is an internal supervisor boundary; callers must
+ * still acquire the lease atomically with claimAutomationRun before executing.
+ */
+export function interruptedAutomationRuns(now = new Date(), limit = 10): InterruptedAutomationRun[] {
+  ensureRuntimeLedgerSchema();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('automation_recovery_limit_invalid');
+  const rows = getDb().prepare(
+    `SELECT run_id, mission_id, mandate_fingerprint, mandate_json, attempt_count
+     FROM runtime_automation_runs
+     WHERE status = 'running' AND cancel_requested_at IS NULL
+       AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+     ORDER BY updated_at ASC, run_id ASC LIMIT ?`,
+  ).all(now.toISOString(), limit) as Array<{
+    run_id: string; mission_id: string; mandate_fingerprint: string;
+    mandate_json: string; attempt_count: number;
+  }>;
+
+  const recoverable: InterruptedAutomationRun[] = [];
+  for (const row of rows) {
+    try {
+      const mandate = JSON.parse(row.mandate_json) as ExecutionMandate;
+      if (mandateFingerprint(mandate) !== row.mandate_fingerprint) continue;
+      if (mandate.mission_id !== row.mission_id) continue;
+      if (!Number.isFinite(Date.parse(mandate.expires_at)) || Date.parse(mandate.expires_at) <= now.getTime()) continue;
+      if (row.attempt_count >= mandate.max_fix_cycles + 1) continue;
+      recoverable.push({ run_id: row.run_id, mission_id: row.mission_id, mandate, attempt_count: row.attempt_count });
+    } catch { /* corrupted records fail closed and are never scheduled */ }
+  }
+  return recoverable;
+}
+
 export function claimAutomationRun(params: {
   runId: string;
   mandate: ExecutionMandate;
@@ -154,6 +195,7 @@ export function claimAutomationRun(params: {
     if (row.status === 'complete') return { outcome: 'completed', mandate: storedMandate };
     if (row.status === 'cancelled') return { outcome: 'cancelled', mandate: storedMandate };
     if (row.status === 'running' && row.lease_expires_at && Date.parse(row.lease_expires_at) > now.getTime()) return { outcome: 'busy' };
+    if (!Number.isFinite(Date.parse(storedMandate.expires_at)) || Date.parse(storedMandate.expires_at) <= now.getTime()) return { outcome: 'mandate_expired' };
     if (row.attempt_count >= storedMandate.max_fix_cycles + 1) return { outcome: 'fix_cycle_limit_exceeded' };
     const attempt = row.attempt_count + 1;
     db.prepare(

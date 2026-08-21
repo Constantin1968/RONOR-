@@ -217,10 +217,10 @@ describe('Executive Mission Runner · governed execution', () => {
     const mission = createMission({ title: 'Cumulative budget', objective, operatorId: 'merlin' });
     const m = mandate(mission.mission_id, { max_cost_usd: 0.4 });
     const first = adapters([{ id: 'costly-complete-task', instruction: 'Implement once', actions: ['edit_worktree'] }]);
-    first.openhands.execute = async () => ({ ok: true, summary: 'implemented', evidence: ['diff:done'], cost_usd: 0.4 });
-    first.codex.verify = async () => { throw new Error('transient verifier failure'); };
+    first.openhands.execute = async () => ({ ok: true, summary: 'implemented', evidence: ['diff:done'], cost_usd: 0.3 });
+    first.codex.verify = async () => ({ ok: true, verdict: 'fail', summary: 'retryable verification failure', evidence: ['codex:fail'], cost_usd: 0.1 });
     const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
-    expect(failed.reason).toBe('codex_adapter_failed');
+    expect(failed.reason).toBe('codex_verification_failed');
     expect(failed.cost_usd).toBe(0.4);
 
     const resumed = adapters([{ id: 'different-plan', instruction: 'must not run', actions: ['edit_worktree'] }]);

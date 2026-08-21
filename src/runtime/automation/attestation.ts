@@ -16,11 +16,11 @@ const EXPECTED_PROTOCOL: Record<AdapterName, string> = {
   codex: 'ronor-codex-verifier/v1',
   assurance: 'ronor-assurance/v1',
 };
-const EXPECTED_IDENTITY: Record<AdapterName, { service_id: string; capability: string }> = {
-  langgraph: { service_id: 'langgraph', capability: 'plan' },
-  openhands: { service_id: 'openhands-bridge', capability: 'execute' },
-  codex: { service_id: 'codex-verifier', capability: 'verify' },
-  assurance: { service_id: 'victoria-assurance', capability: 'assure' },
+const EXPECTED_IDENTITY: Record<AdapterName, { service_id: string; capabilities: string[] }> = {
+  langgraph: { service_id: 'langgraph', capabilities: ['plan'] },
+  openhands: { service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] },
+  codex: { service_id: 'codex-verifier', capabilities: ['verify'] },
+  assurance: { service_id: 'victoria-assurance', capabilities: ['assure'] },
 };
 const cache = new Map<string, AutomationAttestation>();
 
@@ -76,8 +76,9 @@ export async function attestAutomationAdapters(env: NodeJS.ProcessEnv, fetcher: 
       try { body = JSON.parse(raw); } catch { throw new AutomationAdapterError(`attestation_${name}_invalid`); }
       const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
       const identity = EXPECTED_IDENTITY[name];
+      const capabilities = Array.isArray(record?.capabilities) ? record.capabilities : null;
       if (!record || record.ok !== true || record.protocol !== EXPECTED_PROTOCOL[name] || record.service_id !== identity.service_id ||
-          !Array.isArray(record.capabilities) || !record.capabilities.includes(identity.capability)) {
+          !capabilities || !identity.capabilities.every((capability) => capabilities.includes(capability))) {
         throw new AutomationAdapterError(`attestation_${name}_protocol_mismatch`);
       }
       verified[name] = 'verified';

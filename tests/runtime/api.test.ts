@@ -687,13 +687,13 @@ describe('L0 · read surfaces', () => {
     };
     const declarations: Record<string, [string, string, string]> = {
       'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
-      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute'],
+      'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
     };
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
       const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
-      return new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities: [capability] }));
+      return new Response(JSON.stringify({ ok: true, protocol, service_id, capabilities: capability.split(',') }));
     });
     try {
       const before = await request(makeApp(env)).get('/api/runtime/control/overview').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);

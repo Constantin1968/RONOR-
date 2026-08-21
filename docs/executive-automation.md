@@ -181,7 +181,11 @@ a bounded reason code without filesystem or remote details.
 An active run can be cancelled only through the architect route
 `POST /control/automation/runs/:runId/cancel`. The request is bound to its
 mission and produces an `AbortSignal` that propagates to LangGraph, OpenHands
-and Codex HTTP calls. Cancellation is distinct from adapter timeout and never
+and Codex HTTP calls. The OpenHands adapter also sends an authenticated,
+capability-bound `POST /v1/cancel`; the bridge aborts the matching active
+assignment and pauses its already-created Agent Server conversation. A broken
+HTTP connection remains an additional best-effort cancellation signal. Cancellation is
+distinct from adapter timeout and never
 claims to roll back local effects that completed before the signal arrived.
 The propagated signal also includes the mandate deadline, so an in-flight
 adapter or allowlisted test is interrupted when approved runtime expires. A zero

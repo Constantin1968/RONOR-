@@ -7,7 +7,7 @@ import { verifyExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
 
 export interface NativeOpenHandsPort {
-  execute(envelope: OpenHandsExecutionEnvelope): Promise<AdapterResult>;
+  execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult>;
   cancel?(assignmentId: string): Promise<void>;
 }
 
@@ -84,10 +84,28 @@ export function createOpenHandsBridgeApp(config: {
   const app = express();
   const nonces = config.nonces ?? new MemoryCapabilityNonceStore();
   const now = config.now ?? (() => new Date());
+  const active = new Map<string, AbortController>();
+  const activeKey = (mandateId: string, assignmentId: string) => `${mandateId}\0${assignmentId}`;
   app.use(express.json({ limit: '32kb' }));
   app.get('/health', (req, res) => bearer(req.header('authorization')) === config.serviceToken
-    ? res.json({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute'] })
+    ? res.json({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));
+  app.post('/v1/cancel', (req, res) => {
+    if (!config.serviceToken || bearer(req.header('authorization')) !== config.serviceToken) {
+      res.status(401).json({ ok: false, error: 'unauthorized' }); return;
+    }
+    const token = req.header('x-ronor-capability');
+    const claims = token ? verifyExecutionCapability(token, config.capabilityKey, now()) : null;
+    const assignmentId = typeof (req.body as Record<string, unknown> | undefined)?.assignment_id === 'string'
+      ? (req.body as Record<string, string>).assignment_id : '';
+    if (!claims || claims.assignment_id !== assignmentId) {
+      res.status(403).json({ ok: false, error: 'invalid_capability' }); return;
+    }
+    const controller = active.get(activeKey(claims.mandate_id, assignmentId));
+    if (!controller) { res.status(404).json({ ok: false, error: 'execution_not_active' }); return; }
+    controller.abort();
+    res.status(202).json({ ok: true, status: 'cancellation_requested' });
+  });
   app.post('/v1/execute', async (req, res) => {
     if (!config.serviceToken || bearer(req.header('authorization')) !== config.serviceToken) {
       res.status(401).json({ ok: false, error: 'unauthorized' }); return;
@@ -106,12 +124,28 @@ export function createOpenHandsBridgeApp(config: {
     if (!consumed) {
       res.status(409).json({ ok: false, error: 'capability_replayed' }); return;
     }
+    const executionKey = activeKey(claims.mandate_id, envelope.assignment_id);
+    if (active.has(executionKey)) {
+      res.status(409).json({ ok: false, error: 'assignment_already_active' }); return;
+    }
+    const controller = new AbortController();
+    active.set(executionKey, controller);
+    const cancel = () => controller.abort();
+    req.once('aborted', cancel);
+    res.once('close', () => { if (!res.writableEnded) cancel(); });
     try {
-      const result = await config.client.execute(envelope);
+      const result = await config.client.execute(envelope, controller.signal);
       assertAutomationOutputSafe(result);
-      res.status(result.ok ? 200 : 422).json(result);
+      if (!res.destroyed) {
+        if (controller.signal.aborted) res.status(409).json({ ok: false, error: 'openhands_execution_cancelled' });
+        else res.status(result.ok ? 200 : 422).json(result);
+      }
     } catch {
-      res.status(502).json({ ok: false, error: 'openhands_execution_failed' });
+      if (!res.destroyed) res.status(controller.signal.aborted ? 409 : 502).json({
+        ok: false, error: controller.signal.aborted ? 'openhands_execution_cancelled' : 'openhands_execution_failed',
+      });
+    } finally {
+      if (active.get(executionKey) === controller) active.delete(executionKey);
     }
   });
   return app;

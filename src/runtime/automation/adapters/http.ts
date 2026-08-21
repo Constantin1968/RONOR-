@@ -85,8 +85,20 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
       assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
     };
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
-    return parseAdapterResult(body);
+    try {
+      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal });
+      return parseAdapterResult(body);
+    } catch (error) {
+      if (error instanceof AutomationAdapterError && error.message === 'adapter_cancelled') {
+        try {
+          await postJson({
+            baseUrl: config.baseUrl, path: '/v1/cancel', token: config.token, capability,
+            body: { assignment_id: assignment.id }, fetcher: config.fetcher ?? fetch, timeoutMs: 5_000,
+          });
+        } catch { /* cancellation is best-effort at this boundary and still fails closed */ }
+      }
+      throw error;
+    }
   }};
 }
 

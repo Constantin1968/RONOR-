@@ -2,6 +2,7 @@ import request from 'supertest';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
+import type { AddressInfo } from 'net';
 import { signExecutionCapability } from '../../src/runtime/automation/capability';
 import { createOpenHandsBridgeApp, FileCapabilityNonceStore, MemoryCapabilityNonceStore } from '../../src/runtime/automation/services/openhands-bridge';
 import type { OpenHandsExecutionEnvelope } from '../../src/runtime/automation/contracts';
@@ -24,14 +25,51 @@ describe('RONOR OpenHands bridge', () => {
     const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute: jest.fn() } });
     expect((await request(app).get('/health')).status).toBe(401);
     const response = await request(app).get('/health').set('Authorization', `Bearer ${serviceToken}`);
-    expect(response.body).toMatchObject({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute'] });
+    expect(response.body).toMatchObject({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] });
   });
   it('executes once with matching service identity and capability', async () => {
     const execute = jest.fn(async () => ({ ok: true, summary: 'done', evidence: ['tests:pass'], cost_usd: 0 }));
     const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute }, now: () => new Date('2026-08-20T00:00:00Z') });
     const response = await request(app).post('/v1/execute').set('Authorization', `Bearer ${serviceToken}`).set('X-RONOR-Capability', capability()).send({ envelope });
     expect(response.status).toBe(200);
-    expect(execute).toHaveBeenCalledWith(envelope);
+    expect(execute).toHaveBeenCalledWith(envelope, expect.any(AbortSignal));
+  });
+
+  it('cancels only the matching active assignment and aborts native execution', async () => {
+    let started!: () => void;
+    const executing = new Promise<void>((resolve) => { started = resolve; });
+    let nativeSignal: AbortSignal | undefined;
+    const execute = jest.fn((_value: OpenHandsExecutionEnvelope, signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      nativeSignal = signal;
+      started();
+      signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+    }));
+    const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute }, now: () => new Date('2026-08-20T00:00:00Z') });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address() as AddressInfo;
+    try {
+      const pending = fetch(`http://127.0.0.1:${address.port}/v1/execute`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${serviceToken}`, 'x-ronor-capability': capability('disconnect'), 'content-type': 'application/json' },
+        body: JSON.stringify({ envelope }),
+      });
+      await executing;
+      const refused = await fetch(`http://127.0.0.1:${address.port}/v1/cancel`, {
+        method: 'POST', headers: { authorization: `Bearer ${serviceToken}`, 'x-ronor-capability': capability('other'), 'content-type': 'application/json' },
+        body: JSON.stringify({ assignment_id: 'other-task' }),
+      });
+      expect(refused.status).toBe(403);
+      const cancelled = await fetch(`http://127.0.0.1:${address.port}/v1/cancel`, {
+        method: 'POST', headers: { authorization: `Bearer ${serviceToken}`, 'x-ronor-capability': capability('disconnect'), 'content-type': 'application/json' },
+        body: JSON.stringify({ assignment_id: envelope.assignment_id }),
+      });
+      expect(cancelled.status).toBe(202);
+      expect((await pending).status).toBe(409);
+      expect(nativeSignal?.aborted).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
   });
 
   it('rejects missing auth, tampering and replay before OpenHands', async () => {

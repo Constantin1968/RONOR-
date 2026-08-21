@@ -34,6 +34,7 @@ type RecoveryClaim = Extract<RunClaimResult, { outcome: 'resumed' }>;
 export function startAutomationRecoverySupervisor(params: {
   enabled: boolean;
   owner: string;
+  authorityKey: string;
   preflight?(candidate: InterruptedAutomationRun): Promise<boolean>;
   execute(runId: string, mandate: ExecutionMandate, signal: AbortSignal, attempt: number): Promise<AutomationRunStatus>;
   intervalMs?: number;
@@ -49,9 +50,9 @@ export function startAutomationRecoverySupervisor(params: {
   if (!Number.isFinite(intervalMs) || intervalMs < 1_000) throw new Error('automation_recovery_interval_invalid');
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) throw new Error('automation_recovery_batch_invalid');
 
-  const discover = params.discover ?? interruptedAutomationRuns;
+  const discover = params.discover ?? ((now, limit) => interruptedAutomationRuns(params.authorityKey, now, limit));
   const claim = params.claim ?? ((candidate, owner, now, duration) => claimAutomationRun({
-    runId: candidate.run_id, mandate: candidate.mandate, owner, now, leaseMs: duration,
+    runId: candidate.run_id, mandate: candidate.mandate, owner, authorityKey: params.authorityKey, now, leaseMs: duration,
   }));
   const active = new Map<string, AbortController>();
   let stopped = false;

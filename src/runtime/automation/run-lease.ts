@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { getDb } from '../../audit/hash-chain';
 import { ensureRuntimeLedgerSchema } from '../ledgers/schema';
 import type { AutomationRunStatus, ExecutionMandate } from './contracts';
+import { verifyMandateAuthority } from './mandate-issuer';
 
 export type RunClaimResult =
   | { outcome: 'acquired'; lease: AutomationRunLease; attempt: number; mandate: ExecutionMandate }
@@ -10,6 +11,7 @@ export type RunClaimResult =
   | { outcome: 'cancelled'; mandate: ExecutionMandate }
   | { outcome: 'busy' }
   | { outcome: 'conflict' }
+  | { outcome: 'authority_invalid' }
   | { outcome: 'mandate_expired' }
   | { outcome: 'fix_cycle_limit_exceeded' };
 
@@ -130,7 +132,7 @@ export function requestAutomationRunCancellation(runId: string, missionId: strin
  * immutable mandate. This is an internal supervisor boundary; callers must
  * still acquire the lease atomically with claimAutomationRun before executing.
  */
-export function interruptedAutomationRuns(now = new Date(), limit = 10): InterruptedAutomationRun[] {
+export function interruptedAutomationRuns(authorityKey: string, now = new Date(), limit = 10): InterruptedAutomationRun[] {
   ensureRuntimeLedgerSchema();
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('automation_recovery_limit_invalid');
   const rows = getDb().prepare(
@@ -148,6 +150,7 @@ export function interruptedAutomationRuns(now = new Date(), limit = 10): Interru
   for (const row of rows) {
     try {
       const mandate = JSON.parse(row.mandate_json) as ExecutionMandate;
+      if (!verifyMandateAuthority(mandate, authorityKey)) continue;
       if (mandateFingerprint(mandate) !== row.mandate_fingerprint) continue;
       if (mandate.mission_id !== row.mission_id) continue;
       if (!Number.isFinite(Date.parse(mandate.expires_at)) || Date.parse(mandate.expires_at) <= now.getTime()) continue;
@@ -162,6 +165,7 @@ export function claimAutomationRun(params: {
   runId: string;
   mandate: ExecutionMandate;
   owner: string;
+  authorityKey: string;
   now?: Date;
   leaseMs?: number;
 }): RunClaimResult {
@@ -170,6 +174,7 @@ export function claimAutomationRun(params: {
   const now = params.now ?? new Date();
   const leaseMs = params.leaseMs ?? 120_000;
   if (!Number.isFinite(leaseMs) || leaseMs < 3_000) throw new Error('automation_lease_duration_invalid');
+  if (!verifyMandateAuthority(params.mandate, params.authorityKey)) return { outcome: 'authority_invalid' };
   const token = crypto.randomUUID();
   const fingerprint = mandateFingerprint(params.mandate);
   const leaseExpires = new Date(now.getTime() + leaseMs).toISOString();
@@ -190,7 +195,8 @@ export function claimAutomationRun(params: {
     let storedMandate: ExecutionMandate;
     try {
       storedMandate = JSON.parse(row.mandate_json) as ExecutionMandate;
-      if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint) return { outcome: 'conflict' };
+      if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint ||
+          !verifyMandateAuthority(storedMandate, params.authorityKey)) return { outcome: 'authority_invalid' };
     } catch { return { outcome: 'conflict' }; }
     if (row.status === 'complete') return { outcome: 'completed', mandate: storedMandate };
     if (row.status === 'cancelled') return { outcome: 'cancelled', mandate: storedMandate };

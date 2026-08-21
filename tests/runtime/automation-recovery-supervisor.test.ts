@@ -3,6 +3,7 @@ import type { AutomationRunLease, InterruptedAutomationRun, RunClaimResult } fro
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const mandate = { mandate_id: 'mandate_1', mission_id: 'mission_1' } as ExecutionMandate;
+const authorityKey = 'test-recovery-authority-key-0123456789abcdef';
 const candidate: InterruptedAutomationRun = { run_id: 'run_1', mission_id: 'mission_1', mandate, attempt_count: 1 };
 
 function lease(): AutomationRunLease {
@@ -12,7 +13,7 @@ function lease(): AutomationRunLease {
 describe('automation recovery supervisor', () => {
   it('is inert when disabled and never discovers work', async () => {
     const discover = jest.fn(() => [candidate]);
-    const supervisor = startAutomationRecoverySupervisor({ enabled: false, owner: 'supervisor', discover, execute: jest.fn() });
+    const supervisor = startAutomationRecoverySupervisor({ enabled: false, owner: 'supervisor', authorityKey, discover, execute: jest.fn() });
     expect(await supervisor.sweepNow()).toBe(0);
     expect(discover).not.toHaveBeenCalled();
     expect(supervisor.snapshot()).toMatchObject({ enabled: false, state: 'disabled', active_runs: 0, leases_reclaimed_total: 0 });
@@ -25,7 +26,7 @@ describe('automation recovery supervisor', () => {
     const claim = jest.fn((): RunClaimResult => ({ outcome: 'resumed', lease: recoveredLease, attempt: 2, mandate }));
     const execute = jest.fn(async () => 'complete' as const);
     const supervisor = startAutomationRecoverySupervisor({
-      enabled: true, owner: 'runtime-a', intervalMs: 60_000,
+      enabled: true, owner: 'runtime-a', authorityKey, intervalMs: 60_000,
       discover: () => [candidate], claim, execute,
       now: () => new Date('2026-08-20T12:00:00Z'),
     });
@@ -44,7 +45,7 @@ describe('automation recovery supervisor', () => {
   it('does not execute when another replica wins the lease', async () => {
     const execute = jest.fn();
     const supervisor = startAutomationRecoverySupervisor({
-      enabled: true, owner: 'runtime-b', intervalMs: 60_000,
+      enabled: true, owner: 'runtime-b', authorityKey, intervalMs: 60_000,
       discover: () => [candidate], claim: () => ({ outcome: 'busy' }), execute,
     });
     expect(await supervisor.sweepNow()).toBe(0);
@@ -55,7 +56,7 @@ describe('automation recovery supervisor', () => {
   it('does not consume a lease while external preflight is unavailable', async () => {
     const claim = jest.fn(); const execute = jest.fn();
     const supervisor = startAutomationRecoverySupervisor({
-      enabled: true, owner: 'runtime-preflight', intervalMs: 60_000,
+      enabled: true, owner: 'runtime-preflight', authorityKey, intervalMs: 60_000,
       discover: () => [candidate], preflight: async () => false, claim, execute,
     });
     expect(await supervisor.sweepNow()).toBe(0);
@@ -73,7 +74,7 @@ describe('automation recovery supervisor', () => {
       signal.addEventListener('abort', () => resolve('failed'), { once: true });
     }));
     const supervisor = startAutomationRecoverySupervisor({
-      enabled: true, owner: 'runtime-c', intervalMs: 60_000, discover: () => [candidate],
+      enabled: true, owner: 'runtime-c', authorityKey, intervalMs: 60_000, discover: () => [candidate],
       claim: () => ({ outcome: 'resumed', lease: recoveredLease, attempt: 2, mandate }), execute,
     });
     await new Promise<void>((resolve) => queueMicrotask(resolve));
@@ -85,7 +86,7 @@ describe('automation recovery supervisor', () => {
   });
 
   it('refuses unsafe polling and batch limits', () => {
-    expect(() => startAutomationRecoverySupervisor({ enabled: false, owner: 'x', intervalMs: 999, execute: jest.fn() })).toThrow('automation_recovery_interval_invalid');
-    expect(() => startAutomationRecoverySupervisor({ enabled: false, owner: 'x', batchSize: 101, execute: jest.fn() })).toThrow('automation_recovery_batch_invalid');
+    expect(() => startAutomationRecoverySupervisor({ enabled: false, owner: 'x', authorityKey, intervalMs: 999, execute: jest.fn() })).toThrow('automation_recovery_interval_invalid');
+    expect(() => startAutomationRecoverySupervisor({ enabled: false, owner: 'x', authorityKey, batchSize: 101, execute: jest.fn() })).toThrow('automation_recovery_batch_invalid');
   });
 });

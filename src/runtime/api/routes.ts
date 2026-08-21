@@ -134,6 +134,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   const recoverySupervisor = startAutomationRecoverySupervisor({
     enabled: env.RONOR_AUTOMATION_ENABLED === 'true' && env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true',
     owner: recoveryOwner ?? 'automation-recovery-disabled',
+    authorityKey: env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY ?? '',
     intervalMs: Number(env.RONOR_AUTOMATION_RECOVERY_INTERVAL_MS ?? 30_000),
     leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
     batchSize: Number(env.RONOR_AUTOMATION_RECOVERY_BATCH_SIZE ?? 5),
@@ -710,10 +711,12 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       }
       const claim = claimAutomationRun({
         runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,
+        authorityKey: mandateSigningKey,
         leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
       });
       if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
       if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
+      if (claim.outcome === 'authority_invalid') { res.status(422).json({ ok: false, error: 'mandate_authority_invalid' }); return; }
       if (claim.outcome === 'mandate_expired') { res.status(422).json({ ok: false, error: 'automation_mandate_expired' }); return; }
       if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
       if (claim.outcome === 'cancelled') { res.status(409).json({ ok: false, error: 'automation_run_cancelled' }); return; }

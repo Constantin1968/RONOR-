@@ -85,6 +85,8 @@ RONOR_AUTOMATION_MANDATE_SIGNING_KEY=<minimum-32-byte-runtime-secret>
 The runtime authenticates each mandate again inside the execution runner before
 mission lookup, planning or worker invocation. Admission and recovery preflight
 checks therefore cannot be bypassed by replacing a mandate between stages.
+The persistent lease transaction and interrupted-run discovery independently
+verify the same authority signature, including after database recovery.
 RONOR_LANGGRAPH_URL=
 RONOR_LANGGRAPH_TOKEN=
 RONOR_OPENHANDS_URL=

@@ -56,7 +56,7 @@ export function createNativeOpenHandsClient(config: {
 
   return {
     async health() {
-      try { const ready = await call('/health', 'GET'); return ready.ready === true || ready.status === 'ready' || ready.ok === true; }
+      try { const ready = await call('/health', 'GET'); return ready.ready === true || ready.status === 'ready' || ready.status === 'ok' || ready.ok === true; }
       catch { return false; }
     },
     async execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult> {

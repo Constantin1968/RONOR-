@@ -94,7 +94,7 @@ describe('native OpenHands Agent Server client', () => {
   });
 
   it('uses the authenticated official health endpoint', async () => {
-    const fetcher = jest.fn(() => json({ ok: true }));
+    const fetcher = jest.fn(() => json({ status: 'ok' }));
     const client = createNativeOpenHandsClient({ baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher });
     await expect(client.health()).resolves.toBe(true);
     const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];

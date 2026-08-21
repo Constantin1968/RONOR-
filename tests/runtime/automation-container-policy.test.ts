@@ -45,6 +45,7 @@ describe('isolated automation composition', () => {
     expect(String(compose.services['codex-verifier'].healthcheck.test)).toContain('/run/secrets/codex_verifier_token');
     expect(String(compose.services['victoria-assurance'].healthcheck.test)).toContain('/run/secrets/assurance_token');
     expect(String(compose.services['model-egress-proxy'].healthcheck.test)).toContain('/run/secrets/openhands_llm_api_key');
+    expect(String(compose.services['openhands-agent'].healthcheck.test)).toContain('/run/secrets/openhands_session_key');
     expect(compose.services['openhands-agent'].depends_on).toEqual({ 'model-egress-proxy': { condition: 'service_healthy' } });
     expect(compose.services['codex-verifier'].depends_on).toEqual({ 'model-egress-proxy': { condition: 'service_healthy' } });
   });

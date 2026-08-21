@@ -301,6 +301,12 @@ join a pre-created `ronor-model-egress` network, which the host firewall/proxy
 must restrict to approved model gateways. A generic Internet-connected bridge
 does not meet this policy.
 
+Every automation service has an authenticated in-container healthcheck. The
+OpenHands bridge starts only after Agent Server is healthy, eliminating the
+one-shot startup race without enabling automatic restart loops. Health probes
+read their identities from mounted secret files or the Agent Server process
+environment and never embed credential values in the Compose definition.
+
 The runtime and automation projects share only the externally declared
 `ronor-automation-control` network. It must be created explicitly with Docker's
 `--internal` flag; Compose never creates a broadly routed substitute. Production

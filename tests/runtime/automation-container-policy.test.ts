@@ -33,6 +33,18 @@ describe('isolated automation composition', () => {
     }
   });
 
+  it('health-attests every service and waits for OpenHands before starting its bridge', () => {
+    for (const service of Object.values(compose.services)) {
+      expect(service.healthcheck).toMatchObject({ interval: '10s', timeout: '5s' });
+      expect(service.healthcheck.test).toBeTruthy();
+      expect(JSON.stringify(service.healthcheck.test)).not.toMatch(/Bearer\s+[A-Za-z0-9._-]{12,}/i);
+    }
+    expect(compose.services['openhands-bridge'].depends_on).toEqual({ 'openhands-agent': { condition: 'service_healthy' } });
+    expect(String(compose.services.langgraph.healthcheck.test)).toContain('/run/secrets/langgraph_token');
+    expect(String(compose.services['codex-verifier'].healthcheck.test)).toContain('/run/secrets/codex_verifier_token');
+    expect(String(compose.services['victoria-assurance'].healthcheck.test)).toContain('/run/secrets/assurance_token');
+  });
+
   it('limits writes to the OpenHands worktree and bridge nonce ledger', () => {
     const writable: Array<[string, string]> = [];
     for (const [name, service] of Object.entries(compose.services)) {

@@ -32,6 +32,12 @@ services:
       RONOR_LANGGRAPH_TOKEN_FILE: /run/secrets/langgraph_token
     secrets: [langgraph_token]
     ports: ["127.0.0.1:2024:2024"]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/langgraph_token','utf8').trim();http.get({host:'127.0.0.1',port:2024,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
 
   openhands-agent:
     image: ghcr.io/openhands/agent-server:1.42.1-python
@@ -59,11 +65,19 @@ services:
         target: /workspace/project
         read_only: false
     networks: [automation-control, model-egress]
+    healthcheck:
+      test: [CMD, python, -c, "import os,urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health',headers={'X-Session-API-Key':os.environ['SESSION_API_KEY']}),timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 18
 
   openhands-bridge:
     <<: *ronor-service
     command: [node, dist/runtime/automation/services/openhands-bridge-server.js]
-    depends_on: [openhands-agent]
+    depends_on:
+      openhands-agent:
+        condition: service_healthy
     environment:
       RONOR_OPENHANDS_AGENT_SERVER_URL: http://openhands-agent:8000
       RONOR_OPENHANDS_BRIDGE_HOST: 0.0.0.0
@@ -79,6 +93,12 @@ services:
         target: /var/lib/ronor-nonces
         read_only: false
     ports: ["127.0.0.1:3001:3001"]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/openhands_bridge_token','utf8').trim();http.get({host:'127.0.0.1',port:3001,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
 
   codex-verifier:
     <<: *ronor-service
@@ -100,6 +120,12 @@ services:
         read_only: true
     networks: [automation-control, model-egress]
     ports: ["127.0.0.1:3002:3002"]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/codex_verifier_token','utf8').trim();http.get({host:'127.0.0.1',port:3002,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
 
   victoria-assurance:
     <<: *ronor-service
@@ -116,6 +142,12 @@ services:
         target: /artifacts
         read_only: true
     ports: ["127.0.0.1:3003:3003"]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/assurance_token','utf8').trim();http.get({host:'127.0.0.1',port:3003,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
 
 networks:
   automation-control:

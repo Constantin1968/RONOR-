@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import type { AddressInfo } from 'net';
@@ -103,6 +103,21 @@ describe('RONOR OpenHands bridge', () => {
       expect(accepted.status).toBe(200);
       expect(replay.status).toBe(409);
       expect(execute).toHaveBeenCalledTimes(1);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it('prunes only expired bounded nonce records and ignores unrelated files', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ronor-nonces-prune-'));
+    try {
+      const oldNow = Date.parse('2026-08-20T00:00:00Z');
+      const store = new FileCapabilityNonceStore(directory, () => oldNow);
+      expect(store.consume('expired-record', '2026-08-20T00:00:01Z')).toBe(true);
+      const nonceFile = readdirSync(directory).find((name) => name.endsWith('.nonce'))!;
+      writeFileSync(path.join(directory, 'unrelated.txt'), 'keep');
+      const futureStore = new FileCapabilityNonceStore(directory, () => oldNow + 2_000);
+      expect(futureStore.consume('new-record', '2026-08-20T00:00:10Z')).toBe(true);
+      expect(existsSync(path.join(directory, nonceFile))).toBe(false);
+      expect(existsSync(path.join(directory, 'unrelated.txt'))).toBe(true);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 

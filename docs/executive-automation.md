@@ -309,8 +309,10 @@ is supplied. That override mounts the dedicated repository clone read-only for
 policy inspection/diff capture and the artifact directory read-write; it never
 mounts credentials or the Docker socket. Use a self-contained clone rather than
 a linked Git worktree whose `.git` file points outside the mounted boundary.
-The opt-in-capable runtime image contains the Git CLI only for fixed-argument
-workspace inspection and artifact capture; it receives no Git credentials.
+`Dockerfile.automation-runtime` derives from an explicitly pinned, already
+verified RONOR image and adds the Git CLI only for fixed-argument workspace
+inspection and artifact capture. The constitutional production Dockerfile is
+unchanged, and the opt-in derivative receives no Git credentials.
 Use service DNS inside the runtime:
 
 ```text

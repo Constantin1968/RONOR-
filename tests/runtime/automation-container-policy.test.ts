@@ -65,8 +65,9 @@ describe('isolated automation composition', () => {
     expect(runtime.networks['automation-control']).toMatchObject({ external: true, name: 'ronor-automation-control' });
     expect(source).toContain('network reaching only');
     expect(runtimeSource).toContain('docker network create --internal ronor-automation-control');
-    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
-    expect(dockerfile).toMatch(/FROM node:20-bookworm-slim AS runtime[\s\S]*apt-get install[\s\S]*\bgit\b/);
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile.automation-runtime'), 'utf8');
+    expect(dockerfile).toMatch(/ARG RONOR_AUTOMATION_RUNTIME_BASE_IMAGE[\s\S]*FROM \$\{RONOR_AUTOMATION_RUNTIME_BASE_IMAGE\}[\s\S]*\bgit\b/);
+    expect(runtime.services.ronor.build.args.RONOR_AUTOMATION_RUNTIME_BASE_IMAGE).toContain('RONOR_AUTOMATION_RUNTIME_BASE_IMAGE');
   });
 });
 

@@ -37,7 +37,6 @@ ENV PORT=3000
 # Runtime system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json ./

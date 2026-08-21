@@ -2,6 +2,12 @@
 # this network with: docker network create --internal ronor-automation-control
 services:
   ronor:
+    build:
+      context: .
+      dockerfile: Dockerfile.automation-runtime
+      args:
+        RONOR_AUTOMATION_RUNTIME_BASE_IMAGE: ${RONOR_AUTOMATION_RUNTIME_BASE_IMAGE:?pin the already verified RONOR image}
+    image: ronor-automation-runtime:${RONOR_AUTOMATION_IMAGE_TAG:?pin the automation image tag}
     networks:
       - automation-control
     volumes:

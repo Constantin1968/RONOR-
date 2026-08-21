@@ -815,6 +815,15 @@ describe('L0 · mission lifecycle', () => {
     expect(patched.body.mission.state.notes.operator).toBe('reviewed by operator');
   });
 
+  it('derives mission ownership from the authenticated principal', async () => {
+    const created = await request(makeApp())
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Bound owner', objective: 'Reject attribution spoofing', operator_id: 'merlin' });
+    expect(created.status).toBe(201);
+    expect(created.body.mission.operator_id).toBe('test-operator');
+  });
+
   it('rejects a mission with no title or objective', async () => {
     const res = await request(makeApp())
       .post('/api/runtime/missions')
@@ -961,6 +970,31 @@ describe('L0 · mission lifecycle', () => {
         payload: { id: '__proto__', status: 'assigned' },
       });
     expect(reserved.status).toBe(400);
+  });
+
+  it('requires an explicit service scope for service authorship', async () => {
+    const impostorSecret = 'test-codex-label-impostor-secret-012345';
+    const serviceSecret = 'test-codex-service-secret-012345678901';
+    upsertApiKey({ secret: impostorSecret, label: 'codex-impostor', role: 'operator', scopes: ['query'] });
+    upsertApiKey({ secret: serviceSecret, label: 'verification-worker', role: 'operator', scopes: ['query', 'fabric:codex'] });
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Service identity', objective: 'Bind service principals' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+
+    const impostor = await request(app).post(path)
+      .set('Authorization', `Bearer ${impostorSecret}`)
+      .send({ expected_version: 0, actor: { kind: 'codex' }, type: 'message.recorded', payload: { id: 'impostor', text: 'claim' } });
+    expect(impostor.status).toBe(201);
+    expect(impostor.body.fabric.messages[0].actor).toEqual({ kind: 'agent', id: 'codex-impostor' });
+
+    const service = await request(app).post(path)
+      .set('Authorization', `Bearer ${serviceSecret}`)
+      .send({ expected_version: 1, actor: { kind: 'codex' }, type: 'message.recorded', payload: { id: 'service', text: 'verified' } });
+    expect(service.status).toBe(201);
+    expect(service.body.fabric.messages[1].actor).toEqual({ kind: 'codex', id: 'verification-worker' });
   });
 });
 

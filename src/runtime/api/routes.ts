@@ -57,6 +57,7 @@ import {
   getMission,
   listMissions,
   MissionFabricConflictError,
+  MissionFabricIntegrityError,
   MissionFabricValidationError,
   setMissionStatus,
   verifyMissionFabric,
@@ -355,7 +356,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       const mission = createMission({
         title,
         objective,
-        operatorId: sanitiseIdentifier(body.operator_id) ?? req.apiKey?.label ?? null,
+        // Attribution is an authentication fact, never caller-supplied data.
+        operatorId: req.apiKey?.label ?? null,
       });
       res.status(201).json({ ok: true, mission });
     }),
@@ -442,10 +444,13 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       // hints only and can never impersonate Merlin or another service.
       const actorId = req.apiKey?.label ?? null;
       const claimedKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'agent';
+      const serviceKind = ['codex', 'langgraph', 'openhands'].find(
+        (kind) => claimedKind === kind && req.apiKey?.scopes.includes(`fabric:${kind}`),
+      );
       const actorKind = req.apiKey?.role === 'architect'
         ? 'human'
-        : ['codex', 'langgraph', 'openhands'].includes(claimedKind) && actorId?.toLowerCase().startsWith(claimedKind)
-          ? claimedKind
+        : serviceKind
+          ? serviceKind
           : 'agent';
       const eventType = typeof body.type === 'string' ? body.type as MissionFabricEventType : null;
       const expectedVersion = typeof body.expected_version === 'number' && Number.isInteger(body.expected_version)
@@ -474,6 +479,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       } catch (error) {
         if (error instanceof MissionFabricConflictError) {
           res.status(409).json({ ok: false, error: 'version_conflict', message: error.message });
+          return;
+        }
+        if (error instanceof MissionFabricIntegrityError) {
+          res.status(409).json({ ok: false, error: 'fabric_integrity_failure', message: 'Mission history failed integrity verification.' });
           return;
         }
         if (error instanceof MissionFabricValidationError) {

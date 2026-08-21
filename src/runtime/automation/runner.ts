@@ -76,6 +76,10 @@ export async function runExecutiveMission(params: {
   if (!validation.valid) return { ...base, reason: validation.reason };
 
   const initialFabric = getMissionFabric(params.mandate.mission_id)!;
+  const persistedCost = initialFabric.runs[runId]?.cost_usd;
+  if (typeof persistedCost === 'number' && Number.isFinite(persistedCost) && persistedCost >= 0) {
+    base.cost_usd = persistedCost;
+  }
   const mandateClaimed = initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id);
   const completed = completedExecutionRun(params.mandate);
   if (completed) return completed;

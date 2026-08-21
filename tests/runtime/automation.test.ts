@@ -213,6 +213,26 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(assuranceCalls).toBe(0);
   });
 
+  it('restores cumulative cost on resume and blocks new verifier spend', async () => {
+    const mission = createMission({ title: 'Cumulative budget', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id, { max_cost_usd: 0.4 });
+    const first = adapters([{ id: 'costly-complete-task', instruction: 'Implement once', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => ({ ok: true, summary: 'implemented', evidence: ['diff:done'], cost_usd: 0.4 });
+    first.codex.verify = async () => { throw new Error('transient verifier failure'); };
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed.reason).toBe('codex_adapter_failed');
+    expect(failed.cost_usd).toBe(0.4);
+
+    const resumed = adapters([{ id: 'different-plan', instruction: 'must not run', actions: ['edit_worktree'] }]);
+    const verify = jest.fn(resumed.codex.verify);
+    resumed.codex.verify = verify;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    expect(result.reason).toBe('cost_budget_exhausted_before_verification');
+    expect(result.cost_usd).toBe(0.4);
+    expect(resumed.executeCount()).toBe(0);
+    expect(verify).not.toHaveBeenCalled();
+  });
+
   it('aborts an in-flight OpenHands call when the mandate runtime expires', async () => {
     const mission = createMission({ title: 'In-flight deadline', objective, operatorId: 'merlin' });
     const a = adapters([{ id: 'task-slow', instruction: 'Wait forever', actions: ['edit_worktree'] }]);

@@ -1,6 +1,7 @@
 import express from 'express';
 import type { EvidenceArtifact, VerificationEvidence, VerificationVerdict } from '../contracts';
 import type { WorkspaceArtifactCollector } from '../artifacts';
+import { signVerificationReceipt, verifyVerificationReceipt } from '../verification-receipt';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const KINDS = new Set(['git_diff', 'git_status', 'test_report', 'event_log']);
@@ -34,7 +35,7 @@ function hasRequiredEvidence(evidence: VerificationEvidence): boolean {
   return kinds.has('git_diff') && kinds.has('git_status') && kinds.has('test_report');
 }
 
-export function createCodexVerifierApp(config: { serviceToken: string; artifacts: WorkspaceArtifactCollector; evaluator: CodexEvaluationPort }) {
+export function createCodexVerifierApp(config: { serviceToken: string; receiptPrivateKey: string; artifacts: WorkspaceArtifactCollector; evaluator: CodexEvaluationPort; now?: () => Date }) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
   app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capabilities: ['verify'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/verify', async (req, res) => {
@@ -46,13 +47,14 @@ export function createCodexVerifierApp(config: { serviceToken: string; artifacts
       const materials = config.artifacts.read(evidence.artifacts);
       const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials });
       if (!verdict || !['pass', 'fail'].includes(verdict.verdict) || typeof verdict.summary !== 'string' || verdict.summary.length > 4000 || !Array.isArray(verdict.evidence) || verdict.evidence.length > 50 || !verdict.evidence.every((item) => typeof item === 'string' && item.length <= 2000) || !Number.isFinite(verdict.cost_usd) || verdict.cost_usd < 0) throw new Error('invalid_evaluator_result');
-      res.status(verdict.verdict === 'pass' ? 200 : 422).json({ ok: verdict.verdict === 'pass', ...verdict });
+      const receipt = signVerificationReceipt({ privateKeyPem: config.receiptPrivateKey, missionId, verdict: verdict.verdict, evidence, now: config.now?.() });
+      res.status(verdict.verdict === 'pass' ? 200 : 422).json({ ok: verdict.verdict === 'pass', ...verdict, receipt });
     } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Independent verification failed closed.', evidence: ['verification:failed-closed'], cost_usd: 0 }); }
   });
   return app;
 }
 
-export function createAssuranceAuthorityApp(config: { serviceToken: string; artifacts: WorkspaceArtifactCollector }) {
+export function createAssuranceAuthorityApp(config: { serviceToken: string; receiptPublicKey: string; artifacts: WorkspaceArtifactCollector; now?: () => Date }) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
   app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capabilities: ['assure'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/assure', (req, res) => {
@@ -60,7 +62,11 @@ export function createAssuranceAuthorityApp(config: { serviceToken: string; arti
     const missionId = req.body?.mission_id; const verification = req.body?.verification as Record<string, unknown> | undefined; const evidence = parseEvidence(req.body?.evidence);
     if (typeof missionId !== 'string' || !SAFE_ID.test(missionId) || !verification || !evidence) { res.status(400).json({ ok: false, error: 'invalid_assurance_request' }); return; }
     try { config.artifacts.verify(evidence.artifacts); } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Evidence integrity could not be independently assured.', evidence: ['assurance:integrity-failed'], cost_usd: 0 }); return; }
-    const accepted = verification.verdict === 'pass' && hasRequiredEvidence(evidence) && evidence.claims.some((claim) => /test/i.test(claim));
+    const receipt = verification.receipt as VerificationVerdict['receipt'];
+    const receiptValid = Boolean(receipt && verifyVerificationReceipt({
+      publicKeyPem: config.receiptPublicKey, receipt, missionId, verdict: verification.verdict as 'pass' | 'fail', evidence, now: config.now?.(),
+    }));
+    const accepted = verification.verdict === 'pass' && receiptValid && hasRequiredEvidence(evidence) && evidence.claims.some((claim) => /test/i.test(claim));
     const verdict: VerificationVerdict = { ok: accepted, verdict: accepted ? 'pass' : 'fail', summary: accepted ? 'Victoria independently accepted the verified evidence envelope.' : 'Victoria refused an incomplete or failed evidence envelope.', evidence: [accepted ? 'assurance:policy-pass' : 'assurance:policy-fail'], cost_usd: 0 };
     res.status(accepted ? 200 : 422).json(verdict);
   });

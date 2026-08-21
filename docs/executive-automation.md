@@ -218,6 +218,14 @@ is committed to the run ledger before the in-memory `AbortSignal` is fired;
 the active lease is revoked and the same mandate can never resurrect that run
 after a process restart.
 
+Codex signs every verification verdict with a short-lived Ed25519 receipt bound to
+the mission id, verdict and SHA-256 digest of the exact evidence envelope.
+Victoria has a separate service identity and token and accepts a verdict only
+after independently validating that receipt and re-reading the artifact hashes.
+Only Codex receives `codex_receipt_private_key`; Victoria receives the matching
+`assurance_receipt_public_key`, so Victoria can verify but cannot forge a Codex
+verdict. Neither key is exposed to CONTROL, LangGraph, OpenHands or the runtime.
+
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The
 files are written atomically beneath the pre-existing artifact root, bounded to

@@ -137,14 +137,15 @@ describe('live automation adapter boundary', () => {
     expect(request[1].body).not.toContain('workspace_root');
     expect(request[1].body).not.toContain('mandate_id');
 
-    const codexFetch = jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass' }));
+    const receipt = { version: 'ronor-codex-receipt/v1' as const, issuer: 'codex-verifier' as const, mission_id: 'mission1', verdict: 'pass' as const, evidence_digest: 'a'.repeat(64), issued_at: '2026-08-21T12:00:00.000Z', signature: 'b'.repeat(86) };
+    const codexFetch = jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass', receipt }));
     const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: codexFetch });
     await expect(codex.verify('mission1', { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
     expect((codexFetch.mock.calls[0] as unknown as [URL, RequestInit])[1].body).toContain('"artifacts":[]');
 
     const assuranceFetch = jest.fn(() => response({ ok: true, summary: 'assured independently', evidence: ['policy:pass'], cost_usd: 0, verdict: 'pass' }));
     const assurance = createAssuranceAdapter({ baseUrl: 'https://assurance.invalid', token: 'assurance-token', fetcher: assuranceFetch });
-    const codexVerdict = { ok: true, verdict: 'pass' as const, summary: 'verified', evidence: ['tests'], cost_usd: 0 };
+    const codexVerdict = { ok: true, verdict: 'pass' as const, summary: 'verified', evidence: ['tests'], cost_usd: 0, receipt };
     await expect(assurance.accept('mission1', codexVerdict, { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
     expect((assuranceFetch.mock.calls[0] as unknown as [URL, RequestInit])[0].pathname).toBe('/v1/assure');
   });

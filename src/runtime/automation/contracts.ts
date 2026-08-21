@@ -42,7 +42,16 @@ export interface EvidenceArtifact {
   bytes: number;
 }
 export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
-export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; }
+export interface VerificationReceipt {
+  version: 'ronor-codex-receipt/v1';
+  issuer: 'codex-verifier';
+  mission_id: string;
+  verdict: 'pass' | 'fail';
+  evidence_digest: string;
+  issued_at: string;
+  signature: string;
+}
+export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; receipt?: VerificationReceipt; }
 export interface VerificationEvidence { claims: string[]; artifacts: EvidenceArtifact[]; }
 
 export interface AutomationAdapters {

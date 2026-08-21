@@ -135,12 +135,13 @@ services:
       RONOR_CODEX_VERIFIER_PORT: "3002"
       RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
       RONOR_CODEX_VERIFIER_TOKEN_FILE: /run/secrets/codex_verifier_token
+      RONOR_CODEX_RECEIPT_PRIVATE_KEY_FILE: /run/secrets/codex_receipt_private_key
       RONOR_CODEX_API_KEY_FILE: /run/secrets/codex_api_key
       RONOR_CODEX_MODEL: ${RONOR_CODEX_MODEL:?set in .env.automation}
       RONOR_CODEX_BASE_URL: http://model-egress-proxy:3004/v1
       RONOR_CODEX_INPUT_USD_PER_MTOK: ${RONOR_CODEX_INPUT_USD_PER_MTOK:?set current rate}
       RONOR_CODEX_OUTPUT_USD_PER_MTOK: ${RONOR_CODEX_OUTPUT_USD_PER_MTOK:?set current rate}
-    secrets: [codex_verifier_token, codex_api_key]
+    secrets: [codex_verifier_token, codex_api_key, codex_receipt_private_key]
     depends_on:
       model-egress-proxy:
         condition: service_healthy
@@ -166,7 +167,8 @@ services:
       RONOR_ASSURANCE_PORT: "3003"
       RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
       RONOR_ASSURANCE_TOKEN_FILE: /run/secrets/assurance_token
-    secrets: [assurance_token]
+      RONOR_ASSURANCE_RECEIPT_PUBLIC_KEY_FILE: /run/secrets/assurance_receipt_public_key
+    secrets: [assurance_token, assurance_receipt_public_key]
     volumes:
       - type: bind
         source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
@@ -214,3 +216,7 @@ secrets:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_api_key
   assurance_token:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_token
+  codex_receipt_private_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_receipt_private_key
+  assurance_receipt_public_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_receipt_public_key

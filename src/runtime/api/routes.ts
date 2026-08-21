@@ -160,6 +160,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
           workspaceRoot: mandate.workspace_root,
           branch: prepared.branch,
           mandate,
+          authorityKey: env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY!,
           adapters,
           signal,
           artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
@@ -749,7 +750,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         control,
         execute: async () => {
           const artifactCollector = createWorkspaceArtifactCollector(artifactRoot);
-          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, postExecutionVerifier });
+          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, authorityKey: mandateSigningKey, adapters, signal: control.signal, artifactCollector, postExecutionVerifier });
         },
         onUnhandledFailure: () => {
           const current = getMissionFabric(mandate.mission_id);

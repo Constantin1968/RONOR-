@@ -6,17 +6,19 @@ import {
 } from '../../src/runtime/mission/store';
 import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
-import { runExecutiveMission } from '../../src/runtime/automation/runner';
+import { runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
+import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
 const objective = 'Implement and verify a bounded RONOR feature.';
 const workspace = 'C:/sandbox/ronor';
 const branch = 'agent/mission-1';
+const authorityKey = 'test-runner-authority-key-0123456789abcdef';
 const testExecutor: TestExecutor = { run: () => ({ passed: true, claims: ['tests:pass'], artifact: { kind: 'test_report', sha256: 'f'.repeat(64), reference: 'run/test-report.json', bytes: 10 } }) };
 
 function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): ExecutionMandate {
-  return {
+  return signMandateAuthority({
     mandate_id: `mandate-${missionId}`,
     mission_id: missionId,
     issued_by: 'merlin',
@@ -32,8 +34,11 @@ function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): 
     issued_at: '2026-08-20T00:00:00.000Z',
     expires_at: '2099-08-21T00:00:00.000Z',
     ...overrides,
-  };
+  }, authorityKey);
 }
+
+type MissionParams = Omit<Parameters<typeof executeMission>[0], 'authorityKey'>;
+const runExecutiveMission = (params: MissionParams) => executeMission({ ...params, authorityKey });
 
 function adapters(assignments: PlannedAssignment[]): AutomationAdapters & { executeCount: () => number } {
   let executions = 0;
@@ -105,6 +110,18 @@ describe('Executive Mission Runner · governed execution', () => {
     });
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('action_outside_mandate:push');
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses a tampered mandate before invoking LangGraph or OpenHands', async () => {
+    const mission = createMission({ title: 'Forged mandate', objective, operatorId: 'merlin' });
+    const signed = mandate(mission.mission_id);
+    const forged = { ...signed, max_cost_usd: signed.max_cost_usd + 100 };
+    const a = adapters([{ id: 'must-not-plan-forged', instruction: 'Do not run', actions: ['read_repo'] }]);
+    const plan = jest.fn(a.langgraph.plan); a.langgraph.plan = plan;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: forged, adapters: a });
+    expect(result).toMatchObject({ status: 'blocked', reason: 'mandate_authority_invalid', cost_usd: 0 });
+    expect(plan).not.toHaveBeenCalled();
     expect(a.executeCount()).toBe(0);
   });
 

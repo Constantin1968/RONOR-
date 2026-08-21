@@ -59,6 +59,14 @@ export function verifyMandateAuthority(mandate: ExecutionMandate, secret: string
   } catch { return false; }
 }
 
+export function signMandateAuthority(mandate: ExecutionMandate, secret: string): ExecutionMandate {
+  const signed: ExecutionMandate = { ...mandate, authority_version: 'ronor-mandate/v1' };
+  delete signed.authority_signature;
+  signed.authority_signature = crypto.createHmac('sha256', signingKey(secret))
+    .update(authorityPayload(signed)).digest('base64url');
+  return signed;
+}
+
 /** Create authority inside the runtime boundary; the HTTP caller cannot set authority fields. */
 export function issueArchitectMandate(request: MandateRequest, ceilings: MandateCeilings, secret: string): ExecutionMandate {
   if (!/^key_[a-f0-9]{12}$/.test(request.architectKeyId)) throw new Error('architect_identity_invalid');
@@ -86,7 +94,5 @@ export function issueArchitectMandate(request: MandateRequest, ceilings: Mandate
     issued_at: now.toISOString(),
     expires_at: new Date(now.getTime() + runtime * 60_000).toISOString(),
   };
-  mandate.authority_signature = crypto.createHmac('sha256', signingKey(secret))
-    .update(authorityPayload(mandate)).digest('base64url');
-  return mandate;
+  return signMandateAuthority(mandate, secret);
 }

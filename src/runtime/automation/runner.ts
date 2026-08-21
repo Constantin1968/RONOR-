@@ -5,6 +5,7 @@ import { isAutomationAction, type AutomationAdapters, type AutomationRun, type E
 import type { WorkspaceArtifactCollector } from './artifacts';
 import type { TestExecutor } from './test-executor';
 import type { PostExecutionVerifier } from './post-execution-verifier';
+import { verifyMandateAuthority } from './mandate-issuer';
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
@@ -52,6 +53,7 @@ export async function runExecutiveMission(params: {
   workspaceRoot: string;
   branch: string;
   mandate: ExecutionMandate;
+  authorityKey: string;
   adapters: AutomationAdapters;
   now?: () => Date;
   signal?: AbortSignal;
@@ -69,6 +71,9 @@ export async function runExecutiveMission(params: {
     run_id: runId, mission_id: params.mandate.mission_id, status: 'blocked', cost_usd: 0,
     completed_assignments: 0, total_assignments: 0, reason: null,
   };
+  if (!verifyMandateAuthority(params.mandate, params.authorityKey)) {
+    return { ...base, reason: 'mandate_authority_invalid' };
+  }
   if (!getMission(params.mandate.mission_id)) return { ...base, reason: 'mission_not_found' };
   if (verifyMissionFabric(params.mandate.mission_id)?.valid !== true) {
     return { ...base, reason: 'mission_fabric_integrity_failed' };

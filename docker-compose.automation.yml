@@ -76,9 +76,16 @@ services:
     mem_limit: 4g
     cpus: 2.0
     tmpfs:
-      - /tmp:rw,nosuid,nodev,size=512m
+      # The pinned Agent Server is a PyInstaller binary and must execute its
+      # unpacked native libraries from /tmp. The root filesystem remains RO.
+      - /tmp:rw,exec,nosuid,nodev,size=512m
+      # Conversation state is ephemeral and intentionally excluded from the
+      # repository worktree. Evidence is exported separately before teardown.
+      - /workspace/conversations:rw,nosuid,nodev,size=1g
     command: [--host, 0.0.0.0, --port, "8000"]
     environment:
+      HOME: /tmp/openhands-home
+      XDG_CONFIG_HOME: /tmp/openhands-config
       LLM_MODEL: ${RONOR_OPENHANDS_LLM_MODEL:?set in .env.automation}
       LLM_BASE_URL: http://model-egress-proxy:3004/v1
       RONOR_OPENHANDS_SESSION_API_KEY_FILE: /run/secrets/openhands_session_key

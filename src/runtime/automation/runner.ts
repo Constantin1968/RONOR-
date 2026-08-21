@@ -1,9 +1,11 @@
 import crypto from 'crypto';
-import { appendMissionFabricEvent, getMission, getMissionFabric } from '../mission/store';
+import { appendMissionFabricEvent, getMission, getMissionFabric, verifyMissionFabric } from '../mission/store';
 import { actionPermitted, validateMandate } from './policy';
 import { isAutomationAction, type AutomationAdapters, type AutomationRun, type EvidenceArtifact, type ExecutionMandate, type PlannedAssignment } from './contracts';
 import type { WorkspaceArtifactCollector } from './artifacts';
 import type { TestExecutor } from './test-executor';
+import type { PostExecutionVerifier } from './post-execution-verifier';
+import { verifyMandateAuthority } from './mandate-issuer';
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
@@ -51,11 +53,13 @@ export async function runExecutiveMission(params: {
   workspaceRoot: string;
   branch: string;
   mandate: ExecutionMandate;
+  authorityKey: string;
   adapters: AutomationAdapters;
   now?: () => Date;
   signal?: AbortSignal;
   artifactCollector?: WorkspaceArtifactCollector;
   testExecutor?: TestExecutor;
+  postExecutionVerifier?: PostExecutionVerifier;
 }): Promise<AutomationRun> {
   const now = params.now ?? (() => new Date());
   const startedAt = now().getTime();
@@ -67,13 +71,23 @@ export async function runExecutiveMission(params: {
     run_id: runId, mission_id: params.mandate.mission_id, status: 'blocked', cost_usd: 0,
     completed_assignments: 0, total_assignments: 0, reason: null,
   };
+  if (!verifyMandateAuthority(params.mandate, params.authorityKey)) {
+    return { ...base, reason: 'mandate_authority_invalid' };
+  }
   if (!getMission(params.mandate.mission_id)) return { ...base, reason: 'mission_not_found' };
+  if (verifyMissionFabric(params.mandate.mission_id)?.valid !== true) {
+    return { ...base, reason: 'mission_fabric_integrity_failed' };
+  }
   const validation = validateMandate(params.mandate, {
     objective: params.objective, workspaceRoot: params.workspaceRoot, branch: params.branch, now: now(),
   });
   if (!validation.valid) return { ...base, reason: validation.reason };
 
   const initialFabric = getMissionFabric(params.mandate.mission_id)!;
+  const persistedCost = initialFabric.runs[runId]?.cost_usd;
+  if (typeof persistedCost === 'number' && Number.isFinite(persistedCost) && persistedCost >= 0) {
+    base.cost_usd = persistedCost;
+  }
   const mandateClaimed = initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id);
   const completed = completedExecutionRun(params.mandate);
   if (completed) return completed;
@@ -161,11 +175,17 @@ export async function runExecutiveMission(params: {
       return terminal(run, 'failed', result.ok ? 'cost_limit_exceeded' : result.summary, 'openhands', 'openhands');
     }
     let authoritativeArtifacts = result.artifacts ?? [];
-    if (params.artifactCollector) {
+    if (params.postExecutionVerifier) {
+      try {
+        const verified = await params.postExecutionVerifier.verify(runId, assignment.id, assignment.actions.includes('run_tests'), executionSignal);
+        authoritativeArtifacts = verified.artifacts; workerClaims.push(...verified.claims);
+        if (!verified.passed) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-nonzero`, run_id: runId, reason: 'tests_failed' }, 'openhands'); return terminal(run, 'failed', 'tests_failed', 'tests', 'openhands'); }
+      } catch { const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'isolated_verification_failed'; append('failure.recorded', { id: `${runId}-${assignment.id}-isolated-verification-failed`, run_id: runId, reason }, 'openhands'); return terminal(run, 'failed', reason, 'evidence', 'openhands'); }
+    } else if (params.artifactCollector) {
       try { authoritativeArtifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id); }
       catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return terminal(run, 'failed', 'artifact_collection_failed', 'evidence', 'openhands'); }
     }
-    if (assignment.actions.includes('run_tests')) {
+    if (!params.postExecutionVerifier && assignment.actions.includes('run_tests')) {
       if (!params.testExecutor) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-unavailable`, run_id: runId, reason: 'test_executor_not_configured' }, 'openhands'); return terminal(run, 'failed', 'test_executor_not_configured', 'tests', 'openhands'); }
       let tests;
       try { tests = params.testExecutor.run(params.workspaceRoot, runId, assignment.id, executionSignal); }

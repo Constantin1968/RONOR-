@@ -11,6 +11,8 @@ export function isAutomationAction(value: unknown): value is AutomationAction {
 }
 
 export interface ExecutionMandate {
+  authority_version?: 'ronor-mandate/v1';
+  authority_signature?: string;
   mandate_id: string;
   mission_id: string;
   issued_by: 'merlin';
@@ -42,7 +44,16 @@ export interface EvidenceArtifact {
   bytes: number;
 }
 export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
-export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; }
+export interface VerificationReceipt {
+  version: 'ronor-codex-receipt/v1';
+  issuer: 'codex-verifier';
+  mission_id: string;
+  verdict: 'pass' | 'fail';
+  evidence_digest: string;
+  issued_at: string;
+  signature: string;
+}
+export interface VerificationVerdict extends AdapterResult { verdict: 'pass' | 'fail'; receipt?: VerificationReceipt; }
 export interface VerificationEvidence { claims: string[]; artifacts: EvidenceArtifact[]; }
 
 export interface AutomationAdapters {
@@ -53,7 +64,7 @@ export interface AutomationAdapters {
 }
 
 export type AutomationRunStatus =
-  | 'planned' | 'executing' | 'verifying' | 'assuring' | 'complete' | 'blocked' | 'failed';
+  | 'queued' | 'planned' | 'executing' | 'verifying' | 'assuring' | 'complete' | 'blocked' | 'failed';
 
 export interface AutomationRun {
   run_id: string;

@@ -75,11 +75,13 @@ describe('isolated automation composition', () => {
         if (typeof volume === 'object' && volume.read_only !== true) writable.push([name, volume.target]);
       }
     }
-    expect(writable).toEqual([['openhands-agent', '/workspace/project'], ['openhands-bridge', '/var/lib/ronor-nonces']]);
+    expect(writable).toEqual([['openhands-agent', '/workspace/project'], ['openhands-bridge', '/var/lib/ronor-nonces'], ['automation-evidence-runner', '/artifacts']]);
     expect(compose.services['openhands-bridge'].volumes[0]).toMatchObject({ type: 'bind', read_only: false });
     expect(String(compose.services['openhands-bridge'].volumes[0].source)).toContain('RONOR_AUTOMATION_NONCE_DIR');
     expect(compose.services['codex-verifier'].volumes[0].read_only).toBe(true);
     expect(compose.services['victoria-assurance'].volumes[0].read_only).toBe(true);
+    expect(compose.services['automation-evidence-runner'].volumes[0]).toMatchObject({ target: '/workspace/project', read_only: true });
+    expect(compose.services['automation-evidence-runner'].networks).toEqual(['automation-control']);
   });
 
   it('uses an internal control plane and explicit model egress', () => {
@@ -90,6 +92,13 @@ describe('isolated automation composition', () => {
     expect(isolated).toEqual(['codex-verifier', 'model-egress-proxy', 'openhands-agent']);
     expect(uplink).toEqual(['model-egress-proxy']);
     expect(compose.networks['model-uplink']).toMatchObject({ external: true, name: 'ronor-model-uplink' });
+    const proxy = compose.services['model-egress-proxy'];
+    expect(proxy.environment).toMatchObject({
+      RONOR_MODEL_GATEWAY_OPENHANDS_TOKEN_FILE: '/run/secrets/openhands_llm_api_key',
+      RONOR_MODEL_GATEWAY_CODEX_TOKEN_FILE: '/run/secrets/codex_api_key',
+      RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE: '/run/secrets/model_gateway_upstream_token',
+    });
+    expect(proxy.secrets).toEqual(expect.arrayContaining(['openhands_llm_api_key', 'codex_api_key', 'model_gateway_upstream_token']));
   });
 
   it('attaches production only through an explicit opt-in override', () => {

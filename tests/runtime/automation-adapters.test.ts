@@ -17,6 +17,7 @@ describe('live automation adapter boundary', () => {
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
       RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
     };
     expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: false, attested_at: null });
@@ -26,12 +27,13 @@ describe('live automation adapter boundary', () => {
       'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+      'automation-evidence-runner': ['ronor-evidence-runner/v1', 'automation-evidence-runner', 'git-evidence,allowlisted-tests'],
     };
     await attestAutomationAdapters(env, jest.fn((url: string | URL | Request) => {
       const [protocol, service_id, capability] = declarations[new URL(String(url)).hostname];
       return response({ ok: true, protocol, service_id, capabilities: capability.split(',') });
     }));
-    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+    expect(automationAdapterStatus(env)).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' } });
     expect(configuredAutomationAdapters(env)).not.toBeNull();
   });
 
@@ -42,6 +44,7 @@ describe('live automation adapter boundary', () => {
       RONOR_OPENHANDS_URL: 'https://shared.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://shared.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
     };
     expect(automationAdapterStatus(env).ready).toBe(false);
     expect(automationAdapterStatus(env).adapters.codex).toBe('identity-conflict');
@@ -137,14 +140,15 @@ describe('live automation adapter boundary', () => {
     expect(request[1].body).not.toContain('workspace_root');
     expect(request[1].body).not.toContain('mandate_id');
 
-    const codexFetch = jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass' }));
+    const receipt = { version: 'ronor-codex-receipt/v1' as const, issuer: 'codex-verifier' as const, mission_id: 'mission1', verdict: 'pass' as const, evidence_digest: 'a'.repeat(64), issued_at: '2026-08-21T12:00:00.000Z', signature: 'b'.repeat(86) };
+    const codexFetch = jest.fn(() => response({ ok: true, summary: 'verified', evidence: ['tests'], cost_usd: 0, verdict: 'pass', receipt }));
     const codex = createCodexVerifierAdapter({ baseUrl: 'https://codex.invalid', token: 'session-token', fetcher: codexFetch });
     await expect(codex.verify('mission1', { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
     expect((codexFetch.mock.calls[0] as unknown as [URL, RequestInit])[1].body).toContain('"artifacts":[]');
 
     const assuranceFetch = jest.fn(() => response({ ok: true, summary: 'assured independently', evidence: ['policy:pass'], cost_usd: 0, verdict: 'pass' }));
     const assurance = createAssuranceAdapter({ baseUrl: 'https://assurance.invalid', token: 'assurance-token', fetcher: assuranceFetch });
-    const codexVerdict = { ok: true, verdict: 'pass' as const, summary: 'verified', evidence: ['tests'], cost_usd: 0 };
+    const codexVerdict = { ok: true, verdict: 'pass' as const, summary: 'verified', evidence: ['tests'], cost_usd: 0, receipt };
     await expect(assurance.accept('mission1', codexVerdict, { claims: ['tests:pass'], artifacts: [] })).resolves.toMatchObject({ verdict: 'pass' });
     expect((assuranceFetch.mock.calls[0] as unknown as [URL, RequestInit])[0].pathname).toBe('/v1/assure');
   });

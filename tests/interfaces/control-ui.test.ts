@@ -42,5 +42,7 @@ describe('CONTROL architect interface', () => {
     expect(js).toContain('setTimeout');
     expect(js).toContain('stopPolling');
     expect(js).toContain('rollback automat');
+    expect(js).toContain('EXECUȚIE ACCEPTATĂ');
+    expect(js).toContain('Urmărirea live este activă');
   });
 });

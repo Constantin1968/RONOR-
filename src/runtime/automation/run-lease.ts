@@ -2,14 +2,25 @@ import crypto from 'node:crypto';
 import { getDb } from '../../audit/hash-chain';
 import { ensureRuntimeLedgerSchema } from '../ledgers/schema';
 import type { AutomationRunStatus, ExecutionMandate } from './contracts';
+import { verifyMandateAuthority } from './mandate-issuer';
 
 export type RunClaimResult =
   | { outcome: 'acquired'; lease: AutomationRunLease; attempt: number; mandate: ExecutionMandate }
   | { outcome: 'resumed'; lease: AutomationRunLease; attempt: number; mandate: ExecutionMandate }
   | { outcome: 'completed'; mandate: ExecutionMandate }
+  | { outcome: 'cancelled'; mandate: ExecutionMandate }
   | { outcome: 'busy' }
   | { outcome: 'conflict' }
+  | { outcome: 'authority_invalid' }
+  | { outcome: 'mandate_expired' }
   | { outcome: 'fix_cycle_limit_exceeded' };
+
+export interface InterruptedAutomationRun {
+  run_id: string;
+  mission_id: string;
+  mandate: ExecutionMandate;
+  attempt_count: number;
+}
 
 export function mandateFingerprint(mandate: ExecutionMandate): string {
   const authority = {
@@ -37,7 +48,7 @@ export class AutomationRunLease {
     const expires = new Date(now.getTime() + this.leaseMs).toISOString();
     const result = getDb().prepare(
       `UPDATE runtime_automation_runs SET lease_expires_at = ?, updated_at = datetime('now')
-       WHERE run_id = ? AND lease_token = ? AND status = 'running'`,
+       WHERE run_id = ? AND lease_token = ? AND status = 'running' AND cancel_requested_at IS NULL`,
     ).run(expires, this.runId, this.token);
     return result.changes === 1;
   }
@@ -66,10 +77,95 @@ export class AutomationRunLease {
   }
 }
 
+export interface AutomationRunRecord {
+  run_id: string;
+  mission_id: string;
+  status: 'running' | 'complete' | 'failed' | 'cancelled';
+  attempt_count: number;
+  cancellation_requested: boolean;
+  lease_active: boolean;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export function getAutomationRunRecord(runId: string, missionId: string, now = new Date()): AutomationRunRecord | null {
+  ensureRuntimeLedgerSchema();
+  const row = getDb().prepare(
+    `SELECT run_id, mission_id, status, attempt_count, cancel_requested_at, lease_expires_at,
+            created_at, updated_at, completed_at
+     FROM runtime_automation_runs WHERE run_id = ? AND mission_id = ?`,
+  ).get(runId, missionId) as (Omit<AutomationRunRecord, 'cancellation_requested' | 'lease_active'> & {
+    cancel_requested_at: string | null; lease_expires_at: string | null;
+  }) | undefined;
+  if (!row) return null;
+  const { cancel_requested_at, lease_expires_at, ...safe } = row;
+  return {
+    ...safe,
+    cancellation_requested: cancel_requested_at !== null,
+    lease_active: safe.status === 'running' && lease_expires_at !== null && Date.parse(lease_expires_at) > now.getTime(),
+  };
+}
+
+export function requestAutomationRunCancellation(runId: string, missionId: string):
+  'cancelled' | 'not_found' | 'mission_mismatch' | 'not_active' {
+  ensureRuntimeLedgerSchema();
+  const db = getDb();
+  return db.transaction(() => {
+    const row = db.prepare(`SELECT mission_id, status FROM runtime_automation_runs WHERE run_id = ?`).get(runId) as
+      | { mission_id: string; status: string } | undefined;
+    if (!row) return 'not_found' as const;
+    if (row.mission_id !== missionId) return 'mission_mismatch' as const;
+    if (row.status !== 'running') return 'not_active' as const;
+    const result = db.prepare(
+      `UPDATE runtime_automation_runs
+       SET status = 'cancelled', cancel_requested_at = datetime('now'), lease_token = NULL,
+           lease_owner = NULL, lease_expires_at = NULL, updated_at = datetime('now')
+       WHERE run_id = ? AND mission_id = ? AND status = 'running'`,
+    ).run(runId, missionId);
+    return result.changes === 1 ? 'cancelled' as const : 'not_active' as const;
+  }).immediate();
+}
+
+/**
+ * Return only interrupted runs that remain recoverable under their original
+ * immutable mandate. This is an internal supervisor boundary; callers must
+ * still acquire the lease atomically with claimAutomationRun before executing.
+ */
+export function interruptedAutomationRuns(authorityKey: string, now = new Date(), limit = 10): InterruptedAutomationRun[] {
+  ensureRuntimeLedgerSchema();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('automation_recovery_limit_invalid');
+  const rows = getDb().prepare(
+    `SELECT run_id, mission_id, mandate_fingerprint, mandate_json, attempt_count
+     FROM runtime_automation_runs
+     WHERE status = 'running' AND cancel_requested_at IS NULL
+       AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+     ORDER BY updated_at ASC, run_id ASC LIMIT ?`,
+  ).all(now.toISOString(), limit) as Array<{
+    run_id: string; mission_id: string; mandate_fingerprint: string;
+    mandate_json: string; attempt_count: number;
+  }>;
+
+  const recoverable: InterruptedAutomationRun[] = [];
+  for (const row of rows) {
+    try {
+      const mandate = JSON.parse(row.mandate_json) as ExecutionMandate;
+      if (!verifyMandateAuthority(mandate, authorityKey)) continue;
+      if (mandateFingerprint(mandate) !== row.mandate_fingerprint) continue;
+      if (mandate.mission_id !== row.mission_id) continue;
+      if (!Number.isFinite(Date.parse(mandate.expires_at)) || Date.parse(mandate.expires_at) <= now.getTime()) continue;
+      if (row.attempt_count >= mandate.max_fix_cycles + 1) continue;
+      recoverable.push({ run_id: row.run_id, mission_id: row.mission_id, mandate, attempt_count: row.attempt_count });
+    } catch { /* corrupted records fail closed and are never scheduled */ }
+  }
+  return recoverable;
+}
+
 export function claimAutomationRun(params: {
   runId: string;
   mandate: ExecutionMandate;
   owner: string;
+  authorityKey: string;
   now?: Date;
   leaseMs?: number;
 }): RunClaimResult {
@@ -78,6 +174,7 @@ export function claimAutomationRun(params: {
   const now = params.now ?? new Date();
   const leaseMs = params.leaseMs ?? 120_000;
   if (!Number.isFinite(leaseMs) || leaseMs < 3_000) throw new Error('automation_lease_duration_invalid');
+  if (!verifyMandateAuthority(params.mandate, params.authorityKey)) return { outcome: 'authority_invalid' };
   const token = crypto.randomUUID();
   const fingerprint = mandateFingerprint(params.mandate);
   const leaseExpires = new Date(now.getTime() + leaseMs).toISOString();
@@ -98,10 +195,13 @@ export function claimAutomationRun(params: {
     let storedMandate: ExecutionMandate;
     try {
       storedMandate = JSON.parse(row.mandate_json) as ExecutionMandate;
-      if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint) return { outcome: 'conflict' };
+      if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint ||
+          !verifyMandateAuthority(storedMandate, params.authorityKey)) return { outcome: 'authority_invalid' };
     } catch { return { outcome: 'conflict' }; }
     if (row.status === 'complete') return { outcome: 'completed', mandate: storedMandate };
+    if (row.status === 'cancelled') return { outcome: 'cancelled', mandate: storedMandate };
     if (row.status === 'running' && row.lease_expires_at && Date.parse(row.lease_expires_at) > now.getTime()) return { outcome: 'busy' };
+    if (!Number.isFinite(Date.parse(storedMandate.expires_at)) || Date.parse(storedMandate.expires_at) <= now.getTime()) return { outcome: 'mandate_expired' };
     if (row.attempt_count >= storedMandate.max_fix_cycles + 1) return { outcome: 'fix_cycle_limit_exceeded' };
     const attempt = row.attempt_count + 1;
     db.prepare(

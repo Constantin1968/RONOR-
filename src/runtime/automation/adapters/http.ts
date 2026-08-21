@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationVerdict } from '../contracts';
+import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationReceipt, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
 
@@ -109,7 +109,9 @@ export function createCodexVerifierAdapter(config: { baseUrl: string; token?: st
     const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');
-    return { ...result, verdict: body.verdict };
+    const receipt = parseVerificationReceipt(body.receipt);
+    if (!receipt) throw new AutomationAdapterError('codex_receipt_invalid');
+    return { ...result, verdict: body.verdict, receipt };
   }};
 }
 
@@ -117,13 +119,25 @@ export function createAssuranceAdapter(config: { baseUrl: string; token?: string
   return { async accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
     const body = await postJson({
       baseUrl: config.baseUrl, path: '/v1/assure', token: config.token,
-      body: { mission_id: missionId, verification: { verdict: verdict.verdict, summary: verdict.summary, evidence: verdict.evidence }, evidence },
+      body: { mission_id: missionId, verification: { verdict: verdict.verdict, summary: verdict.summary, evidence: verdict.evidence, receipt: verdict.receipt }, evidence },
       fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts,
     });
     const result = parseAdapterResult(body);
     if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('assurance_verdict_invalid');
     return { ...result, verdict: body.verdict };
   }};
+}
+
+function parseVerificationReceipt(value: unknown): VerificationReceipt | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  if (item.version !== 'ronor-codex-receipt/v1' || item.issuer !== 'codex-verifier' ||
+      typeof item.mission_id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(item.mission_id) ||
+      (item.verdict !== 'pass' && item.verdict !== 'fail') ||
+      typeof item.evidence_digest !== 'string' || !/^[a-f0-9]{64}$/.test(item.evidence_digest) ||
+      typeof item.issued_at !== 'string' || !Number.isFinite(Date.parse(item.issued_at)) ||
+      typeof item.signature !== 'string' || !/^[A-Za-z0-9_-]{80,120}$/.test(item.signature)) return null;
+  return item as unknown as VerificationReceipt;
 }
 
 function parseAdapterResult(body: Record<string, unknown>): AdapterResult {

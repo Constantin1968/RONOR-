@@ -57,6 +57,7 @@ import {
   getMission,
   listMissions,
   MissionFabricConflictError,
+  MissionFabricIntegrityError,
   MissionFabricValidationError,
   setMissionStatus,
   verifyMissionFabric,
@@ -75,10 +76,14 @@ import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
-import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../automation/test-executor';
-import { issueArchitectMandate } from '../automation/mandate-issuer';
-import { claimAutomationRun } from '../automation/run-lease';
-import type { AutomationRun } from '../automation/contracts';
+import { issueArchitectMandate, verifyMandateAuthority } from '../automation/mandate-issuer';
+import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
+import { launchAutomationRun } from '../automation/background-run';
+import type { AutomationRun, ExecutionMandate } from '../automation/contracts';
+import { createHttpPostExecutionVerifier } from '../automation/post-execution-verifier';
+import { startAutomationRecoverySupervisor } from '../automation/recovery-supervisor';
+
+export type RuntimeRouter = Router & { stopAutomationRecovery(): void };
 
 /**
  * Build the runtime router.
@@ -90,8 +95,95 @@ import type { AutomationRun } from '../automation/contracts';
  * surface whose behaviour changes between a developer machine and CI. It
  * defaults to `process.env`, so production wiring is unchanged.
  */
-export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Router {
+export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): RuntimeRouter {
   const router = Router();
+
+  const recoveryPreflight = async (mandate: ExecutionMandate): Promise<{
+    objective: string; branch: string;
+  } | null> => {
+    if (env.RONOR_AUTOMATION_ENABLED !== 'true' || env.RONOR_AUTOMATION_RECOVERY_ENABLED !== 'true') return null;
+    if (!env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY ||
+        !verifyMandateAuthority(mandate, env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY)) return null;
+    const mission = getMission(mandate.mission_id);
+    if (!mission || !env.RONOR_AUTOMATION_WORKSPACE_ROOT || !env.RONOR_AUTOMATION_ARTIFACT_ROOT ||
+        !env.RONOR_AUTOMATION_EXPECTED_ORIGIN || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) return null;
+    const workspace = inspectAndValidateWorkspace(mandate.workspace_root, {
+      approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
+      branch_prefix: mandate.branch_prefix,
+      expected_origin: env.RONOR_AUTOMATION_EXPECTED_ORIGIN,
+      require_clean: false,
+    });
+    if (!workspace.valid || !workspace.snapshot) return null;
+    try {
+      await attestAutomationAdapters(env);
+      const verifier = createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN });
+      await verifier.attest();
+      createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
+    } catch { return null; }
+    return { objective: mission.objective, branch: workspace.snapshot.branch };
+  };
+
+  const recoveryOwner = sanitiseIdentifier(env.RONOR_AUTOMATION_RECOVERY_OWNER, 120);
+  if (env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true' && !recoveryOwner) {
+    throw new Error('automation_recovery_owner_required');
+  }
+  if (env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true' &&
+      (!env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY || Buffer.byteLength(env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY, 'utf8') < 32)) {
+    throw new Error('automation_recovery_mandate_authority_required');
+  }
+  const recoverySupervisor = startAutomationRecoverySupervisor({
+    enabled: env.RONOR_AUTOMATION_ENABLED === 'true' && env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true',
+    owner: recoveryOwner ?? 'automation-recovery-disabled',
+    authorityKey: env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY ?? '',
+    intervalMs: Number(env.RONOR_AUTOMATION_RECOVERY_INTERVAL_MS ?? 30_000),
+    leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
+    batchSize: Number(env.RONOR_AUTOMATION_RECOVERY_BATCH_SIZE ?? 5),
+    preflight: async (candidate) => Boolean(await recoveryPreflight(candidate.mandate)),
+    execute: async (runId, mandate, signal, attempt) => {
+      const prepared = await recoveryPreflight(mandate);
+      const adapters = configuredAutomationAdapters(env);
+      if (!prepared || !adapters || !env.RONOR_AUTOMATION_ARTIFACT_ROOT || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) throw new Error('automation_recovery_preflight_lost');
+      const appendRecovery = (type: 'run.status_changed' | 'failure.recorded', payload: Record<string, unknown>) => {
+        const fabric = getMissionFabric(mandate.mission_id);
+        if (!fabric) throw new Error('automation_recovery_fabric_missing');
+        appendMissionFabricEvent({
+          missionId: mandate.mission_id, expectedVersion: fabric.version, type,
+          actor: { kind: 'ronor', id: 'automation-recovery' }, payload,
+        });
+      };
+      appendRecovery('run.status_changed', {
+        id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'recovery', status: 'queued',
+        attempt, reason_code: 'interrupted_lease_reclaimed', updated_at: new Date().toISOString(),
+      });
+      try {
+        const run = await runExecutiveMission({
+          objective: prepared.objective,
+          workspaceRoot: mandate.workspace_root,
+          branch: prepared.branch,
+          mandate,
+          authorityKey: env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY!,
+          adapters,
+          signal,
+          artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
+          postExecutionVerifier: createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN }),
+        });
+        return run.status;
+      } catch {
+        appendRecovery('failure.recorded', {
+          id: `${runId}-recovery-${attempt}-failed`, run_id: runId, attempt,
+          reason: 'automation_recovery_execution_failed',
+        });
+        appendRecovery('run.status_changed', {
+          id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'recovery', status: 'failed',
+          attempt, reason_code: 'automation_recovery_execution_failed', updated_at: new Date().toISOString(),
+        });
+        throw new Error('automation_recovery_execution_failed');
+      }
+    },
+  });
+  Object.defineProperty(router, 'stopAutomationRecovery', {
+    enumerable: false, configurable: false, value: () => recoverySupervisor.stop(),
+  });
 
   // -------------------------------------------------------------------------
   // Health — unauthenticated by design
@@ -272,7 +364,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       const mission = createMission({
         title,
         objective,
-        operatorId: sanitiseIdentifier(body.operator_id) ?? req.apiKey?.label ?? null,
+        // Attribution is an authentication fact, never caller-supplied data.
+        operatorId: req.apiKey?.label ?? null,
       });
       res.status(201).json({ ok: true, mission });
     }),
@@ -359,10 +452,13 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       // hints only and can never impersonate Merlin or another service.
       const actorId = req.apiKey?.label ?? null;
       const claimedKind = typeof actorBody.kind === 'string' ? actorBody.kind : 'agent';
+      const serviceKind = ['codex', 'langgraph', 'openhands'].find(
+        (kind) => claimedKind === kind && req.apiKey?.scopes.includes(`fabric:${kind}`),
+      );
       const actorKind = req.apiKey?.role === 'architect'
         ? 'human'
-        : ['codex', 'langgraph', 'openhands'].includes(claimedKind) && actorId?.toLowerCase().startsWith(claimedKind)
-          ? claimedKind
+        : serviceKind
+          ? serviceKind
           : 'agent';
       const eventType = typeof body.type === 'string' ? body.type as MissionFabricEventType : null;
       const expectedVersion = typeof body.expected_version === 'number' && Number.isInteger(body.expected_version)
@@ -391,6 +487,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       } catch (error) {
         if (error instanceof MissionFabricConflictError) {
           res.status(409).json({ ok: false, error: 'version_conflict', message: error.message });
+          return;
+        }
+        if (error instanceof MissionFabricIntegrityError) {
+          res.status(409).json({ ok: false, error: 'fabric_integrity_failure', message: 'Mission history failed integrity verification.' });
           return;
         }
         if (error instanceof MissionFabricValidationError) {
@@ -437,7 +537,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         failed: integrity.filter((item) => item?.valid === false).length,
       },
       council: { members: managementAgents().length },
-      automation: automationAdapterStatus(env),
+      automation: { ...automationAdapterStatus(env), recovery: recoverySupervisor.snapshot() },
     });
   });
 
@@ -548,6 +648,11 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
         return;
       }
+      const mandateSigningKey = env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY;
+      if (!mandateSigningKey || Buffer.byteLength(mandateSigningKey, 'utf8') < 32) {
+        res.status(503).json({ ok: false, error: 'mandate_authority_not_configured' });
+        return;
+      }
       let mandate;
       try {
         const optionalNumber = (value: unknown) => value === undefined ? undefined : Number(value);
@@ -561,7 +666,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
           maxCostUsd: Number(env.RONOR_AUTOMATION_MAX_COST_USD ?? 5),
           maxRuntimeMinutes: Number(env.RONOR_AUTOMATION_MAX_RUNTIME_MINUTES ?? 60),
           maxFixCycles: Number(env.RONOR_AUTOMATION_MAX_FIX_CYCLES ?? 3),
-        });
+        }, mandateSigningKey);
       } catch {
         res.status(422).json({ ok: false, error: 'mandate_policy_refused' });
         return;
@@ -574,11 +679,16 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         res.status(503).json({ ok: false, error: 'artifact_policy_not_configured' });
         return;
       }
-      const testCommands = parseAllowedTestCommands(env.RONOR_AUTOMATION_TEST_COMMANDS_JSON);
-      if (!testCommands) {
-        res.status(503).json({ ok: false, error: 'test_policy_not_configured' });
+      const artifactRoot = env.RONOR_AUTOMATION_ARTIFACT_ROOT;
+      if (!env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) {
+        res.status(503).json({ ok: false, error: 'isolated_evidence_runner_not_configured' });
         return;
       }
+      let postExecutionVerifier;
+      try {
+        postExecutionVerifier = createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN });
+        await postExecutionVerifier.attest();
+      } catch { res.status(503).json({ ok: false, error: 'isolated_evidence_runner_attestation_failed' }); return; }
       const workspace = inspectAndValidateWorkspace(workspaceRoot, {
         approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
         branch_prefix: mandate.branch_prefix,
@@ -595,13 +705,21 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
       const adapters = configuredAutomationAdapters(env);
       if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
       const runId = executionRunId(mandate.mandate_id);
+      if (!verifyMandateAuthority(mandate, mandateSigningKey)) {
+        res.status(422).json({ ok: false, error: 'mandate_authority_invalid' });
+        return;
+      }
       const claim = claimAutomationRun({
         runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,
+        authorityKey: mandateSigningKey,
         leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),
       });
       if (claim.outcome === 'busy') { res.status(409).json({ ok: false, error: 'automation_run_already_active' }); return; }
       if (claim.outcome === 'conflict') { res.status(409).json({ ok: false, error: 'automation_mandate_conflict' }); return; }
+      if (claim.outcome === 'authority_invalid') { res.status(422).json({ ok: false, error: 'mandate_authority_invalid' }); return; }
+      if (claim.outcome === 'mandate_expired') { res.status(422).json({ ok: false, error: 'automation_mandate_expired' }); return; }
       if (claim.outcome === 'fix_cycle_limit_exceeded') { res.status(422).json({ ok: false, error: 'fix_cycle_limit_exceeded' }); return; }
+      if (claim.outcome === 'cancelled') { res.status(409).json({ ok: false, error: 'automation_run_cancelled' }); return; }
       mandate = claim.mandate;
       if (claim.outcome === 'completed') {
         const run = completedExecutionRun(mandate);
@@ -616,26 +734,70 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
         return;
       }
       claim.lease.startHeartbeat(() => control.abort());
-      let run: AutomationRun | undefined;
-      try {
-        const artifactCollector = createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT);
-        const baseEnv = Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP'].flatMap((name) => env[name] ? [[name, env[name]!]] : []));
-        const testExecutor = createAllowlistedTestExecutor({ commands: testCommands, artifacts: artifactCollector, approvedRoot: env.RONOR_AUTOMATION_WORKSPACE_ROOT, baseEnv });
-        run = await runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, adapters, signal: control.signal, artifactCollector, testExecutor });
-        res.status(run.status === 'complete' ? 200 : 422).json({ ok: run.status === 'complete', run });
-      } finally {
-        claim.lease.finish(run?.status ?? 'failed');
-        control.finish();
-      }
+      const queued: AutomationRun = {
+        run_id: runId, mission_id: mandate.mission_id, status: 'queued', cost_usd: 0,
+        completed_assignments: 0, total_assignments: 0, reason: null,
+      };
+      const fabric = getMissionFabric(mandate.mission_id)!;
+      appendMissionFabricEvent({
+        missionId: mandate.mission_id, expectedVersion: fabric.version, type: 'run.status_changed',
+        actor: { kind: 'langgraph', id: 'langgraph' },
+        payload: {
+          id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'queue', status: 'queued',
+          completed_assignments: 0, total_assignments: 0, cost_usd: 0, reason_code: null,
+          updated_at: new Date().toISOString(),
+        },
+      });
+      launchAutomationRun({
+        lease: claim.lease,
+        control,
+        execute: async () => {
+          const artifactCollector = createWorkspaceArtifactCollector(artifactRoot);
+          return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, authorityKey: mandateSigningKey, adapters, signal: control.signal, artifactCollector, postExecutionVerifier });
+        },
+        onUnhandledFailure: () => {
+          const current = getMissionFabric(mandate.mission_id);
+          if (!current) return;
+          appendMissionFabricEvent({
+            missionId: mandate.mission_id, expectedVersion: current.version, type: 'failure.recorded',
+            actor: { kind: 'ronor', id: 'automation-supervisor' },
+            payload: { id: `${runId}-unhandled`, run_id: runId, reason: 'automation_run_unhandled_failure' },
+          });
+          const failed = getMissionFabric(mandate.mission_id);
+          if (!failed) return;
+          appendMissionFabricEvent({
+            missionId: mandate.mission_id, expectedVersion: failed.version, type: 'run.status_changed',
+            actor: { kind: 'ronor', id: 'automation-supervisor' },
+            payload: {
+              id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'supervisor', status: 'failed',
+              completed_assignments: 0, total_assignments: 0, cost_usd: 0,
+              reason_code: 'automation_run_unhandled_failure', updated_at: new Date().toISOString(),
+            },
+          });
+        },
+      });
+      res.status(202).json({ ok: true, accepted: true, run: queued });
     }),
   );
+
+  router.get('/control/automation/runs/:runId', requireArchitect, rateLimit, (req, res) => {
+    const runId = sanitiseIdentifier(req.params.runId, 120);
+    const missionId = sanitiseIdentifier(req.query.mission_id, 120);
+    if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_run_status_request' }); return; }
+    const record = getAutomationRunRecord(runId, missionId);
+    const fabric = getMissionFabric(missionId);
+    if (!record || !fabric) { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    res.json({ ok: true, run: record, fabric_run: fabric.runs[runId] ?? null });
+  });
 
   router.post('/control/automation/runs/:runId/cancel', requireArchitect, rateLimit, (req, res) => {
     const runId = sanitiseIdentifier(req.params.runId, 120);
     const missionId = sanitiseIdentifier((req.body as Record<string, unknown> | undefined)?.mission_id, 120);
     if (!runId || !missionId) { res.status(400).json({ ok: false, error: 'invalid_cancel_request' }); return; }
-    const result = cancelAutomationRun(runId, missionId);
-    if (result !== 'cancelled') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    const durable = requestAutomationRunCancellation(runId, missionId);
+    if (durable === 'not_found' || durable === 'mission_mismatch') { res.status(404).json({ ok: false, error: 'automation_run_not_found' }); return; }
+    if (durable === 'not_active') { res.status(409).json({ ok: false, error: 'automation_run_not_active' }); return; }
+    cancelAutomationRun(runId, missionId);
     const fabric = getMissionFabric(missionId);
     if (fabric) appendMissionFabricEvent({
       missionId, expectedVersion: fabric.version, type: 'run.cancel_requested',
@@ -1009,7 +1171,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Route
     }),
   );
 
-  return router;
+  return router as RuntimeRouter;
 }
 
 // ---------------------------------------------------------------------------

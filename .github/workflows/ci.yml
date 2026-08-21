@@ -74,6 +74,24 @@ jobs:
             --fail
         continue-on-error: true
 
+  automation-preflight:
+    name: Automation Activation Preflight Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate activation preflight syntax
+        run: bash -n scripts/automation-preflight.sh
+      - name: Verify missing policy fails closed without side effects
+        run: |
+          set +e
+          output="$(env -i PATH="$PATH" HOME="$HOME" bash scripts/automation-preflight.sh 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$(printf '%s\n' "$output" | grep -c '^PASS  network\|^PREFLIGHT PASS')" -eq 0
+          test "$(printf '%s\n' "$output" | grep -c 'set RONOR_AUTOMATION_SECRET_DIR')" -eq 1
+
   # ============================================================
   # ADDITIVE JOBS — MIP-014 STEP 2, R-Knowledge plane
   #

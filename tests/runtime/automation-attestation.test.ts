@@ -5,16 +5,18 @@ const env = {
   RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
   RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
   RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+  RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
 };
 
 describe('automation endpoint attestation', () => {
   beforeEach(() => clearAutomationAttestations());
-  it('requires four independently authenticated compatible protocols', async () => {
+  it('requires five independently authenticated compatible protocols', async () => {
     const declarations: Record<string, { protocol: string; service_id: string; capabilities: string[] }> = {
       'graph.invalid': { protocol: 'ronor-langgraph/v1', service_id: 'langgraph', capabilities: ['plan'] },
       'hands.invalid': { protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] },
       'codex.invalid': { protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capabilities: ['verify'] },
       'assurance.invalid': { protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capabilities: ['assure'] },
+      'automation-evidence-runner': { protocol: 'ronor-evidence-runner/v1', service_id: 'automation-evidence-runner', capabilities: ['git-evidence', 'allowlisted-tests'] },
     };
     const fetcher = jest.fn((url: string | URL | Request, init?: RequestInit) => {
       const target = new URL(String(url));
@@ -26,10 +28,10 @@ describe('automation endpoint attestation', () => {
     });
     const now = new Date('2026-08-20T12:00:00Z');
     const result = await attestAutomationAdapters(env, fetcher, { now: () => now, ttlMs: 10_000 });
-    expect(result.verified).toEqual({ langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' });
+    expect(result.verified).toEqual({ langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' });
     expect(currentAutomationAttestation(env, new Date('2026-08-20T12:00:09Z'))?.verified).toEqual(result.verified);
     expect(currentAutomationAttestation(env, new Date('2026-08-20T12:00:10Z'))).toBeNull();
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(5);
   });
 
   it('fails closed on a protocol mismatch without probing later authorities', async () => {

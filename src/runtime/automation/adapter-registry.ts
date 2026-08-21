@@ -2,7 +2,8 @@ import type { AutomationAdapters } from './contracts';
 import { createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from './adapters/http';
 import { currentAutomationAttestation } from './attestation';
 
-export interface AutomationAdapterStatus { enabled: boolean; configured: boolean; ready: boolean; runner: string; attested_at: string | null; attestation_expires_at: string | null; adapters: Record<'langgraph' | 'openhands' | 'codex' | 'assurance', string>; }
+type AdapterStatusName = 'langgraph' | 'openhands' | 'codex' | 'assurance' | 'evidence';
+export interface AutomationAdapterStatus { enabled: boolean; configured: boolean; ready: boolean; runner: string; attested_at: string | null; attestation_expires_at: string | null; adapters: Record<AdapterStatusName, string>; }
 
 function sameIdentity(left: string | undefined, right: string | undefined): boolean {
   if (!left || !right) return false;
@@ -11,8 +12,9 @@ function sameIdentity(left: string | undefined, right: string | undefined): bool
   catch { return false; }
 }
 
-const INTERNAL_SERVICE_HOST: Record<'langgraph' | 'openhands' | 'codex' | 'assurance', string> = {
+const INTERNAL_SERVICE_HOST: Record<AdapterStatusName, string> = {
   langgraph: 'langgraph', openhands: 'openhands-bridge', codex: 'codex-verifier', assurance: 'victoria-assurance',
+  evidence: 'automation-evidence-runner',
 };
 
 function endpointState(name: keyof typeof INTERNAL_SERVICE_HOST, urlValue: string | undefined, tokenValue: string | undefined): string {
@@ -21,6 +23,7 @@ function endpointState(name: keyof typeof INTERNAL_SERVICE_HOST, urlValue: strin
     const url = new URL(urlValue);
     const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
     const internal = url.hostname.toLowerCase() === INTERNAL_SERVICE_HOST[name];
+    if (name === 'evidence' && !internal) return 'invalid-endpoint';
     if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(url.protocol === 'http:' && (loopback || internal)))) return 'invalid-endpoint';
     if (!tokenValue) return 'authentication-required';
     return 'configured-not-verified';
@@ -34,13 +37,14 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
     openhands: endpointState('openhands', env.RONOR_OPENHANDS_URL, env.RONOR_OPENHANDS_TOKEN),
     codex: endpointState('codex', env.RONOR_CODEX_VERIFIER_URL, env.RONOR_CODEX_VERIFIER_TOKEN),
     assurance: endpointState('assurance', env.RONOR_ASSURANCE_URL, env.RONOR_ASSURANCE_TOKEN),
+    evidence: endpointState('evidence', env.RONOR_EVIDENCE_RUNNER_URL, env.RONOR_EVIDENCE_RUNNER_TOKEN),
   };
   if (states.openhands === 'configured-not-verified' && !env.RONOR_AUTOMATION_CAPABILITY_KEY) states.openhands = 'capability-key-required';
-  const identityConflict = sameIdentity(env.RONOR_OPENHANDS_URL, env.RONOR_CODEX_VERIFIER_URL) ||
-    sameIdentity(env.RONOR_OPENHANDS_URL, env.RONOR_ASSURANCE_URL) || sameIdentity(env.RONOR_CODEX_VERIFIER_URL, env.RONOR_ASSURANCE_URL) ||
-    Boolean(env.RONOR_OPENHANDS_TOKEN && (env.RONOR_OPENHANDS_TOKEN === env.RONOR_CODEX_VERIFIER_TOKEN || env.RONOR_OPENHANDS_TOKEN === env.RONOR_ASSURANCE_TOKEN)) ||
-    Boolean(env.RONOR_CODEX_VERIFIER_TOKEN && env.RONOR_CODEX_VERIFIER_TOKEN === env.RONOR_ASSURANCE_TOKEN);
-  if (identityConflict) { states.openhands = 'identity-conflict'; states.codex = 'identity-conflict'; states.assurance = 'identity-conflict'; }
+  const criticalUrls = [env.RONOR_OPENHANDS_URL, env.RONOR_CODEX_VERIFIER_URL, env.RONOR_ASSURANCE_URL, env.RONOR_EVIDENCE_RUNNER_URL];
+  const criticalTokens = [env.RONOR_OPENHANDS_TOKEN, env.RONOR_CODEX_VERIFIER_TOKEN, env.RONOR_ASSURANCE_TOKEN, env.RONOR_EVIDENCE_RUNNER_TOKEN];
+  const identityConflict = criticalUrls.some((left, index) => criticalUrls.slice(index + 1).some((right) => sameIdentity(left, right))) ||
+    criticalTokens.some((left, index) => Boolean(left && criticalTokens.slice(index + 1).includes(left)));
+  if (identityConflict) { states.openhands = 'identity-conflict'; states.codex = 'identity-conflict'; states.assurance = 'identity-conflict'; states.evidence = 'identity-conflict'; }
   const configuredParts = Object.fromEntries(Object.entries(states).map(([name, state]) => [name, state === 'configured-not-verified'])) as Record<keyof typeof states, boolean>;
   const configured = enabled && Object.values(configuredParts).every(Boolean);
   const attestation = configured ? currentAutomationAttestation(env) : null;
@@ -51,7 +55,7 @@ export function automationAdapterStatus(env: NodeJS.ProcessEnv): AutomationAdapt
     runner: enabled ? 'enabled' : 'implemented-disabled',
     attested_at: attestation?.verified_at ?? null,
     attestation_expires_at: attestation?.expires_at ?? null,
-    adapters: attestation ? { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } : states,
+    adapters: attestation ? { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' } : states,
   };
 }
 

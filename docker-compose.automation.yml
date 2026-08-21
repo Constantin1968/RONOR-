@@ -47,8 +47,10 @@ services:
       RONOR_MODEL_EGRESS_PORT: "3004"
       RONOR_MODEL_GATEWAY_BASE_URL: ${RONOR_MODEL_GATEWAY_BASE_URL:?set the approved HTTPS model gateway in .env.automation}
       RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE: ${RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE:-false}
-      RONOR_MODEL_GATEWAY_TOKEN_FILE: /run/secrets/openhands_llm_api_key
-    secrets: [openhands_llm_api_key]
+      RONOR_MODEL_GATEWAY_OPENHANDS_TOKEN_FILE: /run/secrets/openhands_llm_api_key
+      RONOR_MODEL_GATEWAY_CODEX_TOKEN_FILE: /run/secrets/codex_api_key
+      RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE: /run/secrets/model_gateway_upstream_token
+    secrets: [openhands_llm_api_key, codex_api_key, model_gateway_upstream_token]
     networks: [model-egress, model-uplink]
     healthcheck:
       test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/openhands_llm_api_key','utf8').trim();http.get({host:'127.0.0.1',port:3004,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
@@ -135,12 +137,13 @@ services:
       RONOR_CODEX_VERIFIER_PORT: "3002"
       RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
       RONOR_CODEX_VERIFIER_TOKEN_FILE: /run/secrets/codex_verifier_token
+      RONOR_CODEX_RECEIPT_PRIVATE_KEY_FILE: /run/secrets/codex_receipt_private_key
       RONOR_CODEX_API_KEY_FILE: /run/secrets/codex_api_key
       RONOR_CODEX_MODEL: ${RONOR_CODEX_MODEL:?set in .env.automation}
       RONOR_CODEX_BASE_URL: http://model-egress-proxy:3004/v1
       RONOR_CODEX_INPUT_USD_PER_MTOK: ${RONOR_CODEX_INPUT_USD_PER_MTOK:?set current rate}
       RONOR_CODEX_OUTPUT_USD_PER_MTOK: ${RONOR_CODEX_OUTPUT_USD_PER_MTOK:?set current rate}
-    secrets: [codex_verifier_token, codex_api_key]
+    secrets: [codex_verifier_token, codex_api_key, codex_receipt_private_key]
     depends_on:
       model-egress-proxy:
         condition: service_healthy
@@ -166,7 +169,8 @@ services:
       RONOR_ASSURANCE_PORT: "3003"
       RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
       RONOR_ASSURANCE_TOKEN_FILE: /run/secrets/assurance_token
-    secrets: [assurance_token]
+      RONOR_ASSURANCE_RECEIPT_PUBLIC_KEY_FILE: /run/secrets/assurance_receipt_public_key
+    secrets: [assurance_token, assurance_receipt_public_key]
     volumes:
       - type: bind
         source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
@@ -175,6 +179,45 @@ services:
     ports: ["127.0.0.1:3003:3003"]
     healthcheck:
       test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/assurance_token','utf8').trim();http.get({host:'127.0.0.1',port:3003,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+
+  automation-evidence-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.evidence-runner
+    image: ronor-evidence-runner:${RONOR_AUTOMATION_IMAGE_TAG:-local}
+    user: "10001:10001"
+    read_only: true
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    environment:
+      RONOR_EVIDENCE_WORKSPACE: /workspace/project
+      RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
+      RONOR_AUTOMATION_TEST_COMMANDS_JSON: ${RONOR_AUTOMATION_TEST_COMMANDS_JSON:?bounded test commands required}
+      RONOR_EVIDENCE_RUNNER_TOKEN_FILE: /run/secrets/evidence_runner_token
+    secrets: [evidence_runner_token]
+    volumes:
+      - type: bind
+        source: ${RONOR_AUTOMATION_WORKTREE:?absolute dedicated worktree required}
+        target: /workspace/project
+        read_only: true
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?absolute artifact root required}
+        target: /artifacts
+        read_only: false
+    networks: [automation-control]
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/evidence_runner_token','utf8').trim();http.get({host:'127.0.0.1',port:3005,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       start_period: 10s
@@ -212,5 +255,13 @@ secrets:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_verifier_token
   codex_api_key:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_api_key
+  model_gateway_upstream_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/model_gateway_upstream_token
   assurance_token:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_token
+  codex_receipt_private_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_receipt_private_key
+  assurance_receipt_public_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_receipt_public_key
+  evidence_runner_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/evidence_runner_token

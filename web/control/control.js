@@ -16,7 +16,7 @@
   function renderList(target, values, build) { var box = el(target); box.replaceChildren(); values.forEach(function (value) { box.append(build(value)); }); if (!values.length) box.append(card('Niciun element', 'Nu există date pentru această categorie.', 'gol')); }
   function renderOverview(data) {
     var box = el('metrics'); box.replaceChildren(); [['Misiuni', data.missions.total], ['Active', data.missions.active], ['Fabric verificat', data.fabric.verified], ['Integritate eșuată', data.fabric.failed], ['Consiliu AI', data.council.members]].forEach(function (m) { var n = node('article', '', 'metric'); n.append(node('strong', String(m[1])), node('span', m[0])); box.append(n); });
-    var auto = el('automation'); auto.replaceChildren(); Object.keys(data.automation.adapters).forEach(function (k) { auto.append(card(k.toUpperCase(), 'Adapter de execuție', data.automation.adapters[k])); }); auto.append(card('RUNNER', 'Politică deny-by-default', data.automation.runner));
+    var auto = el('automation'); auto.replaceChildren(); Object.keys(data.automation.adapters).forEach(function (k) { auto.append(card(k.toUpperCase(), 'Adapter de execuție', data.automation.adapters[k])); }); auto.append(card('RUNNER', 'Politică deny-by-default', data.automation.runner)); var recovery = data.automation.recovery; if (recovery) { auto.append(card('RECOVERY', 'Active ' + recovery.active_runs + ' · reluate ' + recovery.leases_reclaimed_total + ' · finalizate ' + recovery.completions_total, recovery.state)); }
     var missions = el('missionList'); missions.replaceChildren(); data.missions.recent.forEach(function (m) { var b = node('button', m.title + '\n' + m.mission_id + ' · ' + m.status, 'mission-button'); b.type = 'button'; b.addEventListener('click', function () { loadMission(m.mission_id); }); missions.append(b); });
   }
   async function loadMission(missionId) {
@@ -68,8 +68,8 @@
       var key = 'control-' + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()));
       var execution = await api('/automation/run', { method: 'POST', body: JSON.stringify({ approved: true, mission_id: state.missionId, idempotency_key: key }) });
       state.runId = execution.run.run_id;
-      el('result').textContent = 'OPENHANDS · EXECUȚIE FINALIZATĂ\nMisiune: ' + state.missionId + '\nRun: ' + state.runId + '\nStatus: ' + execution.run.status + '\nCost: $' + execution.run.cost_usd;
-      show('missions'); await loadMission(state.missionId); await refresh();
+      el('result').textContent = 'OPENHANDS · EXECUȚIE ACCEPTATĂ\nMisiune: ' + state.missionId + '\nRun: ' + state.runId + '\nStatus: ' + execution.run.status + '\nUrmărirea live este activă.';
+      show('missions'); await loadMission(state.missionId);
     } catch (err) { el('result').textContent = 'EROARE: ' + err.message; }
   });
   document.addEventListener('keydown', function (ev) { if (ev.ctrlKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); show('switchboard'); el('objective').focus(); } if (ev.key === 'Escape') el('objective').blur(); });

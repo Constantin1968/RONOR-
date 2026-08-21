@@ -254,6 +254,7 @@ export function appendToMission(params: {
 
 export class MissionFabricConflictError extends Error {}
 export class MissionFabricValidationError extends Error {}
+export class MissionFabricIntegrityError extends Error {}
 
 /**
  * Append one vendor-neutral event using optimistic concurrency.
@@ -281,6 +282,12 @@ export function appendMissionFabricEvent(params: {
       | undefined;
     if (!row) return null;
     const state = parseState(row.state_json);
+    const integrity = verifyFabricState(state.fabric);
+    if (!integrity.valid) {
+      throw new MissionFabricIntegrityError(
+        `Mission fabric integrity failure at sequence ${integrity.broken_at ?? 'head'}.`,
+      );
+    }
     if (state.fabric.version !== params.expectedVersion) {
       throw new MissionFabricConflictError(
         `Mission fabric version conflict: expected ${params.expectedVersion}, current ${state.fabric.version}.`,
@@ -324,9 +331,16 @@ export function getMissionFabric(missionId: string): MissionFabricProjection | n
 export function verifyMissionFabric(missionId: string): { valid: boolean; events: number; broken_at: number | null } | null {
   const mission = getMission(missionId);
   if (!mission) return null;
+  return verifyFabricState(mission.state.fabric);
+}
+
+function verifyFabricState(fabric: MissionFabricState): { valid: boolean; events: number; broken_at: number | null } {
+  if (fabric.version !== fabric.events.length) {
+    return { valid: false, events: fabric.events.length, broken_at: fabric.version };
+  }
   let previous: string | null = null;
-  for (let index = 0; index < mission.state.fabric.events.length; index += 1) {
-    const event = mission.state.fabric.events[index];
+  for (let index = 0; index < fabric.events.length; index += 1) {
+    const event = fabric.events[index];
     const core = {
       sequence: event.sequence,
       at: event.at,
@@ -337,14 +351,14 @@ export function verifyMissionFabric(missionId: string): { valid: boolean; events
     };
     const calculated = crypto.createHash('sha256').update(stableJson(core)).digest('hex');
     if (event.sequence !== index + 1 || event.previous_hash !== previous || event.event_hash !== calculated) {
-      return { valid: false, events: mission.state.fabric.events.length, broken_at: event.sequence };
+      return { valid: false, events: fabric.events.length, broken_at: event.sequence };
     }
     previous = event.event_hash;
   }
   return {
-    valid: previous === mission.state.fabric.event_head,
-    events: mission.state.fabric.events.length,
-    broken_at: previous === mission.state.fabric.event_head ? null : mission.state.fabric.version,
+    valid: previous === fabric.event_head,
+    events: fabric.events.length,
+    broken_at: previous === fabric.event_head ? null : fabric.version,
   };
 }
 

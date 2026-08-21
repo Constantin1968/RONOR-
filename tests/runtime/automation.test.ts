@@ -1,16 +1,24 @@
-import { createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import {
+  appendMissionFabricEvent,
+  createMission,
+  getMissionFabric,
+  MissionFabricIntegrityError,
+} from '../../src/runtime/mission/store';
+import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
-import { runExecutiveMission } from '../../src/runtime/automation/runner';
+import { runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
+import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
 const objective = 'Implement and verify a bounded RONOR feature.';
 const workspace = 'C:/sandbox/ronor';
 const branch = 'agent/mission-1';
+const authorityKey = 'test-runner-authority-key-0123456789abcdef';
 const testExecutor: TestExecutor = { run: () => ({ passed: true, claims: ['tests:pass'], artifact: { kind: 'test_report', sha256: 'f'.repeat(64), reference: 'run/test-report.json', bytes: 10 } }) };
 
 function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): ExecutionMandate {
-  return {
+  return signMandateAuthority({
     mandate_id: `mandate-${missionId}`,
     mission_id: missionId,
     issued_by: 'merlin',
@@ -26,8 +34,11 @@ function mandate(missionId: string, overrides: Partial<ExecutionMandate> = {}): 
     issued_at: '2026-08-20T00:00:00.000Z',
     expires_at: '2099-08-21T00:00:00.000Z',
     ...overrides,
-  };
+  }, authorityKey);
 }
+
+type MissionParams = Omit<Parameters<typeof executeMission>[0], 'authorityKey'>;
+const runExecutiveMission = (params: MissionParams) => executeMission({ ...params, authorityKey });
 
 function adapters(assignments: PlannedAssignment[]): AutomationAdapters & { executeCount: () => number } {
   let executions = 0;
@@ -100,6 +111,61 @@ describe('Executive Mission Runner · governed execution', () => {
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('action_outside_mandate:push');
     expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses a tampered mandate before invoking LangGraph or OpenHands', async () => {
+    const mission = createMission({ title: 'Forged mandate', objective, operatorId: 'merlin' });
+    const signed = mandate(mission.mission_id);
+    const forged = { ...signed, max_cost_usd: signed.max_cost_usd + 100 };
+    const a = adapters([{ id: 'must-not-plan-forged', instruction: 'Do not run', actions: ['read_repo'] }]);
+    const plan = jest.fn(a.langgraph.plan); a.langgraph.plan = plan;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: forged, adapters: a });
+    expect(result).toMatchObject({ status: 'blocked', reason: 'mandate_authority_invalid', cost_usd: 0 });
+    expect(plan).not.toHaveBeenCalled();
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses a corrupted Mission Fabric before invoking LangGraph or OpenHands', async () => {
+    const mission = createMission({ title: 'Corrupted automation', objective, operatorId: 'merlin' });
+    appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 0, type: 'checkpoint.created',
+      actor: { kind: 'langgraph', id: 'langgraph' }, payload: { id: 'integrity-seed', status: 'valid' },
+    });
+    const db = getDb();
+    const row = db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?').get(mission.mission_id) as { state_json: string };
+    const state = JSON.parse(row.state_json) as { fabric: { events: Array<{ payload: Record<string, unknown> }> } };
+    state.fabric.events[0].payload.status = 'tampered-without-rehash';
+    db.prepare('UPDATE runtime_missions SET state_json = ? WHERE mission_id = ?').run(JSON.stringify(state), mission.mission_id);
+
+    const a = adapters([{ id: 'must-not-plan', instruction: 'Do not run', actions: ['read_repo'] }]);
+    const plan = jest.fn(a.langgraph.plan); a.langgraph.plan = plan;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result).toMatchObject({ status: 'blocked', reason: 'mission_fabric_integrity_failed', cost_usd: 0 });
+    expect(plan).not.toHaveBeenCalled();
+    expect(a.executeCount()).toBe(0);
+  });
+
+  it('refuses every append over corrupted Mission Fabric history', () => {
+    const mission = createMission({ title: 'Corrupted writer', objective, operatorId: 'merlin' });
+    appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 0, type: 'checkpoint.created',
+      actor: { kind: 'langgraph', id: 'langgraph' }, payload: { id: 'writer-integrity-seed', status: 'valid' },
+    });
+    const db = getDb();
+    const row = db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?').get(mission.mission_id) as { state_json: string };
+    const state = JSON.parse(row.state_json) as { fabric: { events: Array<{ payload: Record<string, unknown> }> } };
+    state.fabric.events[0].payload.status = 'tampered-without-rehash';
+    db.prepare('UPDATE runtime_missions SET state_json = ? WHERE mission_id = ?').run(JSON.stringify(state), mission.mission_id);
+
+    expect(() => appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: 1, type: 'checkpoint.created',
+      actor: { kind: 'codex', id: 'codex' }, payload: { id: 'must-not-append', status: 'blocked' },
+    })).toThrow(MissionFabricIntegrityError);
+
+    const persisted = JSON.parse((db.prepare('SELECT state_json FROM runtime_missions WHERE mission_id = ?')
+      .get(mission.mission_id) as { state_json: string }).state_json) as { fabric: { version: number; events: unknown[] } };
+    expect(persisted.fabric.version).toBe(1);
+    expect(persisted.fabric.events).toHaveLength(1);
   });
 
   it('returns a completed mandate idempotently without adapter reinvocation', async () => {
@@ -211,6 +277,26 @@ describe('Executive Mission Runner · governed execution', () => {
     const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id, { max_cost_usd: 0.5 }), adapters: a });
     expect(result.reason).toBe('cost_limit_exceeded');
     expect(assuranceCalls).toBe(0);
+  });
+
+  it('restores cumulative cost on resume and blocks new verifier spend', async () => {
+    const mission = createMission({ title: 'Cumulative budget', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id, { max_cost_usd: 0.4 });
+    const first = adapters([{ id: 'costly-complete-task', instruction: 'Implement once', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => ({ ok: true, summary: 'implemented', evidence: ['diff:done'], cost_usd: 0.3 });
+    first.codex.verify = async () => ({ ok: true, verdict: 'fail', summary: 'retryable verification failure', evidence: ['codex:fail'], cost_usd: 0.1 });
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed.reason).toBe('codex_verification_failed');
+    expect(failed.cost_usd).toBe(0.4);
+
+    const resumed = adapters([{ id: 'different-plan', instruction: 'must not run', actions: ['edit_worktree'] }]);
+    const verify = jest.fn(resumed.codex.verify);
+    resumed.codex.verify = verify;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    expect(result.reason).toBe('cost_budget_exhausted_before_verification');
+    expect(result.cost_usd).toBe(0.4);
+    expect(resumed.executeCount()).toBe(0);
+    expect(verify).not.toHaveBeenCalled();
   });
 
   it('aborts an in-flight OpenHands call when the mandate runtime expires', async () => {

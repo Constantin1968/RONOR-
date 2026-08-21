@@ -12,6 +12,8 @@
 
 import express from 'express';
 import request from 'supertest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createMission } from '../../src/runtime/mission/store';
 import {
   INSECURE_DEFAULT_KEY,
@@ -642,6 +644,8 @@ describe('L0 · read surfaces', () => {
     expect(res.body.automation.adapters.langgraph).toBe('invalid-endpoint');
     expect(res.body.automation.adapters.openhands).toBe('not-connected');
     expect(res.body.automation.runner).toBe('implemented-disabled');
+    expect(res.body.automation.recovery).toMatchObject({ enabled: false, state: 'disabled', active_runs: 0 });
+    expect(JSON.stringify(res.body.automation.recovery)).not.toContain('owner');
   });
 
   it('rejects an architect-scoped credential that is not the Merlin identity', async () => {
@@ -677,6 +681,32 @@ describe('L0 · read surfaces', () => {
     expect(unavailable.body.automation.ready).toBe(false);
   });
 
+  it('requires an explicit runtime identity before recovery can be enabled', () => {
+    expect(() => createRuntimeRouter({
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_RECOVERY_ENABLED: 'true',
+    })).toThrow('automation_recovery_owner_required');
+  });
+
+  it('requires cryptographic mandate authority before recovery can be enabled', () => {
+    expect(() => createRuntimeRouter({
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_RECOVERY_ENABLED: 'true',
+      RONOR_AUTOMATION_RECOVERY_OWNER: 'recovery-worker-1',
+    })).toThrow('automation_recovery_mandate_authority_required');
+  });
+
+  it('exposes a graceful-shutdown hook without enabling recovery by default', () => {
+    const router = createRuntimeRouter({});
+    expect(typeof router.stopAutomationRecovery).toBe('function');
+    expect(() => router.stopAutomationRecovery()).not.toThrow();
+  });
+
+  it('uses bounded recovery audit codes rather than persisting exception details', () => {
+    const source = readFileSync(join(process.cwd(), 'src/runtime/api/routes.ts'), 'utf8');
+    expect(source).toContain("reason_code: 'interrupted_lease_reclaimed'");
+    expect(source).toContain("reason: 'automation_recovery_execution_failed'");
+    expect(source).not.toMatch(/automation_recovery_execution_failed[^\n]*(?:stack|message)/);
+  });
+
   it('reports automation ready only after authenticated identity and capability attestation', async () => {
     const env: NodeJS.ProcessEnv = {
       RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_CAPABILITY_KEY: 'k'.repeat(32),
@@ -684,12 +714,14 @@ describe('L0 · read surfaces', () => {
       RONOR_OPENHANDS_URL: 'https://hands.invalid', RONOR_OPENHANDS_TOKEN: 'hands-token',
       RONOR_CODEX_VERIFIER_URL: 'https://codex.invalid', RONOR_CODEX_VERIFIER_TOKEN: 'codex-token',
       RONOR_ASSURANCE_URL: 'https://assurance.invalid', RONOR_ASSURANCE_TOKEN: 'assurance-token',
+      RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005', RONOR_EVIDENCE_RUNNER_TOKEN: 'evidence-token',
     };
     const declarations: Record<string, [string, string, string]> = {
       'graph.invalid': ['ronor-langgraph/v1', 'langgraph', 'plan'],
       'hands.invalid': ['ronor-openhands-bridge/v1', 'openhands-bridge', 'execute,cancel'],
       'codex.invalid': ['ronor-codex-verifier/v1', 'codex-verifier', 'verify'],
       'assurance.invalid': ['ronor-assurance/v1', 'victoria-assurance', 'assure'],
+      'automation-evidence-runner': ['ronor-evidence-runner/v1', 'automation-evidence-runner', 'git-evidence,allowlisted-tests'],
     };
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
       const parsed = new URL(String(url));
@@ -702,14 +734,14 @@ describe('L0 · read surfaces', () => {
       expect(before.body.automation).toMatchObject({ configured: true, ready: false });
       const probe = await request(makeApp(env)).get('/api/runtime/control/automation/readiness').set('Authorization', `Bearer ${ARCHITECT_SECRET}`);
       expect(probe.status).toBe(200);
-      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified' } });
+      expect(probe.body.automation).toMatchObject({ configured: true, ready: true, adapters: { langgraph: 'verified', openhands: 'verified', codex: 'verified', assurance: 'verified', evidence: 'verified' } });
       expect(JSON.stringify(probe.body)).not.toContain('graph-token');
       const plan = await request(makeApp(env)).post('/api/runtime/control/automation/plan').set('Authorization', `Bearer ${ARCHITECT_SECRET}`).send({ objective: 'Plan the runtime inspection.' });
       expect(plan.status).toBe(201);
       expect(plan.body).toMatchObject({ ok: true, target: 'langgraph', assignments: [{ id: 'langgraph-runtime-1', actions: ['read_repo'] }] });
       expect(plan.body.mission_id).toMatch(/^msn_/);
       expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/v1/plan')).toHaveLength(1);
-      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(8);
+      expect(fetchMock.mock.calls.filter(([url]) => new URL(String(url)).pathname === '/health')).toHaveLength(10);
     } finally { fetchMock.mockRestore(); }
   });
 
@@ -788,6 +820,15 @@ describe('L0 · mission lifecycle', () => {
     expect(patched.status).toBe(200);
     expect(patched.body.mission.status).toBe('complete');
     expect(patched.body.mission.state.notes.operator).toBe('reviewed by operator');
+  });
+
+  it('derives mission ownership from the authenticated principal', async () => {
+    const created = await request(makeApp())
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Bound owner', objective: 'Reject attribution spoofing', operator_id: 'merlin' });
+    expect(created.status).toBe(201);
+    expect(created.body.mission.operator_id).toBe('test-operator');
   });
 
   it('rejects a mission with no title or objective', async () => {
@@ -936,6 +977,31 @@ describe('L0 · mission lifecycle', () => {
         payload: { id: '__proto__', status: 'assigned' },
       });
     expect(reserved.status).toBe(400);
+  });
+
+  it('requires an explicit service scope for service authorship', async () => {
+    const impostorSecret = 'test-codex-label-impostor-secret-012345';
+    const serviceSecret = 'test-codex-service-secret-012345678901';
+    upsertApiKey({ secret: impostorSecret, label: 'codex-impostor', role: 'operator', scopes: ['query'] });
+    upsertApiKey({ secret: serviceSecret, label: 'verification-worker', role: 'operator', scopes: ['query', 'fabric:codex'] });
+    const app = makeApp();
+    const created = await request(app)
+      .post('/api/runtime/missions')
+      .set('Authorization', `Bearer ${TEST_SECRET}`)
+      .send({ title: 'Service identity', objective: 'Bind service principals' });
+    const path = `/api/runtime/missions/${created.body.mission.mission_id}/fabric/events`;
+
+    const impostor = await request(app).post(path)
+      .set('Authorization', `Bearer ${impostorSecret}`)
+      .send({ expected_version: 0, actor: { kind: 'codex' }, type: 'message.recorded', payload: { id: 'impostor', text: 'claim' } });
+    expect(impostor.status).toBe(201);
+    expect(impostor.body.fabric.messages[0].actor).toEqual({ kind: 'agent', id: 'codex-impostor' });
+
+    const service = await request(app).post(path)
+      .set('Authorization', `Bearer ${serviceSecret}`)
+      .send({ expected_version: 1, actor: { kind: 'codex' }, type: 'message.recorded', payload: { id: 'service', text: 'verified' } });
+    expect(service.status).toBe(201);
+    expect(service.body.fabric.messages[1].actor).toEqual({ kind: 'codex', id: 'verification-worker' });
   });
 });
 

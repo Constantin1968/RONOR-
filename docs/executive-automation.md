@@ -47,18 +47,21 @@ manifest and issues its own assurance verdict; a Codex PASS is never converted
 automatically into a Victoria PASS.
 ## Live adapter boundary
 
-The runner connects through four small HTTP contracts: LangGraph `POST /v1/plan`,
+The runner connects through five small HTTP contracts: LangGraph `POST /v1/plan`,
 OpenHands `POST /v1/execute`, the independent Codex verifier `POST /v1/verify`,
-and Victoria assurance `POST /v1/assure`.
+Victoria assurance `POST /v1/assure`, and the isolated evidence runner
+`POST /v1/verify`.
 Remote endpoints require HTTPS; plaintext HTTP is accepted only on loopback.
 The sole production exception is an exact service identity on the pre-created
-internal Docker network: `langgraph`, `openhands-bridge`, `codex-verifier` and
-`victoria-assurance`. Each adapter accepts only its own hostname; arbitrary
+internal Docker network: `langgraph`, `openhands-bridge`, `codex-verifier`,
+`victoria-assurance` and `automation-evidence-runner`. Each adapter accepts only its own hostname; arbitrary
 container names and private-network addresses remain invalid.
 Credentials are read from environment variables and are never returned by the
 status API. The registry fails closed unless automation is explicitly enabled
-and all four endpoints are configured. OpenHands, Codex and Assurance must use
-distinct endpoint and credential identities; aliasing any of them fails closed.
+and all five endpoints are configured. OpenHands, Codex, Assurance and the
+evidence runner must use distinct endpoint and credential identities; aliasing
+any of them fails closed. The evidence runner is intentionally accepted only by
+its internal service-DNS identity, never as a remote HTTPS endpoint.
 Immediately before execution, the runtime performs authenticated `GET /health`
 attestation against every service and requires its pinned `ronor-*/v1` protocol.
 A configured URL is therefore never treated as proof of readiness, redirects are
@@ -77,6 +80,13 @@ service before activation.
 
 ```text
 RONOR_AUTOMATION_ENABLED=false
+RONOR_AUTOMATION_MANDATE_SIGNING_KEY=<minimum-32-byte-runtime-secret>
+
+The runtime authenticates each mandate again inside the execution runner before
+mission lookup, planning or worker invocation. Admission and recovery preflight
+checks therefore cannot be bypassed by replacing a mandate between stages.
+The persistent lease transaction and interrupted-run discovery independently
+verify the same authority signature, including after database recovery.
 RONOR_LANGGRAPH_URL=
 RONOR_LANGGRAPH_TOKEN=
 RONOR_OPENHANDS_URL=
@@ -91,6 +101,8 @@ RONOR_CODEX_VERIFIER_URL=
 RONOR_CODEX_VERIFIER_TOKEN=
 RONOR_ASSURANCE_URL=
 RONOR_ASSURANCE_TOKEN=
+RONOR_EVIDENCE_RUNNER_URL=http://automation-evidence-runner:3005
+RONOR_EVIDENCE_RUNNER_TOKEN=
 RONOR_CODEX_API_KEY=
 RONOR_CODEX_MODEL=
 RONOR_CODEX_INPUT_USD_PER_MTOK=
@@ -207,6 +219,35 @@ adapter or allowlisted test is interrupted when approved runtime expires. A zero
 or exhausted cost envelope stops OpenHands or Codex before invocation; reported
 spend is checked again after every paid stage.
 
+`POST /control/automation/run` acknowledges an admitted mandate with HTTP `202`
+and its deterministic `run_id` after the durable lease and initial `queued`
+Fabric event exist. Execution then continues under that lease independently of
+the browser request. CONTROL follows the mission Fabric, allowing Merlin to
+observe or cancel a live run without keeping one long HTTP connection open.
+`GET /control/automation/runs/:runId?mission_id=...` returns a safe durable
+projection without mandate JSON, lease tokens or owner identity. Cancellation
+is committed to the run ledger before the in-memory `AbortSignal` is fired;
+the active lease is revoked and the same mandate can never resurrect that run
+after a process restart.
+
+Codex signs every verification verdict with a short-lived Ed25519 receipt bound to
+the mission id, verdict and SHA-256 digest of the exact evidence envelope.
+Victoria has a separate service identity and token and accepts a verdict only
+after independently validating that receipt and re-reading the artifact hashes.
+Only Codex receives `codex_receipt_private_key`; Victoria receives the matching
+`assurance_receipt_public_key`, so Victoria can verify but cannot forge a Codex
+verdict. Neither key is exposed to CONTROL, LangGraph, OpenHands or the runtime.
+
+Post-OpenHands Git inspection and allowlisted tests execute in the dedicated
+`automation-evidence-runner`, not in the production runtime. Its worktree mount
+is read-only, its root filesystem is read-only, it has no model, GitHub, SSH,
+cloud or runtime credential, and it joins only the internal automation-control
+network. The runtime sends only opaque run/assignment ids and a `run_tests`
+boolean; workspace paths and command definitions remain server-side. The
+sidecar returns bounded artifact references and SHA-256 digests, which the
+runtime independently re-reads from the artifact volume before Codex receives
+them.
+
 After every completed OpenHands assignment, RONOR independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The
 files are written atomically beneath the pre-existing artifact root, bounded to
@@ -306,6 +347,10 @@ Secrets live outside Git under `RONOR_AUTOMATION_SECRET_DIR`; RONOR services
 consume Docker secret files through `*_FILE`. The upstream Agent Server's
 session key is supplied from ignored, permission-restricted `.env.automation`,
 never Compose or Mission Fabric. Each service identity must be distinct.
+OpenHands and Codex authenticate to the egress proxy with separate client
+tokens. A third `model_gateway_upstream_token` is used only from proxy to the
+approved provider; it is never accepted as a client identity or returned to an
+agent container.
 
 The `automation-control` and `ronor-model-egress` networks are internal.
 OpenHands and Codex join only `ronor-model-egress`; neither receives a general
@@ -357,6 +402,15 @@ docker compose --env-file .env.automation -f docker-compose.automation.yml confi
 npm run typecheck
 npm test -- --runInBand tests/runtime/automation-container-policy.test.ts
 ```
+
+The single read-only host preflight is `scripts/automation-preflight.sh`. Set
+the secret directory, dedicated worktree, expected origin/HEAD and automation
+env-file variables, then run it as the non-root `ronor` operator. It checks all
+required secret files and permissions, pairwise token separation, the Codex–
+Victoria Ed25519 key pair, exact Docker network isolation, clean Git identity,
+the pinned commit and `docker compose config --quiet`. It prints only named
+PASS/FAIL checks—never token values, key material or environment contents—and
+does not create networks, containers, files, commits or deployments.
 
 Activation is separately human-approved. Record the base commit/worktree,
 verify network policy and secret-file permissions, then require authenticated

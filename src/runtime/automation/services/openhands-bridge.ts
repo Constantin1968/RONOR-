@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, opendirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import { isAutomationAction, type AdapterResult, type OpenHandsExecutionEnvelope } from '../contracts';
 import { verifyExecutionCapability } from '../capability';
@@ -37,9 +37,27 @@ export class FileCapabilityNonceStore implements CapabilityNonceStore {
     if (lstatSync(requested).isSymbolicLink()) throw new Error('nonce_store_link_refused');
     this.root = realpathSync.native(requested);
   }
+  private pruneExpired(maxEntries = 256): void {
+    const directory = opendirSync(this.root);
+    try {
+      for (let scanned = 0; scanned < maxEntries; scanned += 1) {
+        const entry = directory.readSync();
+        if (!entry) break;
+        if (!entry.isFile() || !/^[a-f0-9]{64}\.nonce$/.test(entry.name)) continue;
+        const target = path.join(this.root, entry.name);
+        try {
+          const metadata = lstatSync(target);
+          if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 256) continue;
+          const stored = JSON.parse(readFileSync(target, 'utf8')) as { expires_at?: unknown };
+          if (typeof stored.expires_at === 'string' && Date.parse(stored.expires_at) <= this.now()) unlinkSync(target);
+        } catch { /* malformed or concurrently removed records remain fail-closed */ }
+      }
+    } finally { directory.closeSync(); }
+  }
   consume(nonce: string, expiresAt: string): boolean {
     const expiry = Date.parse(expiresAt);
     if (!nonce || nonce.length > 512 || !Number.isFinite(expiry) || expiry <= this.now()) return false;
+    this.pruneExpired();
     const name = `${crypto.createHash('sha256').update(nonce).digest('hex')}.nonce`;
     const target = path.join(this.root, name);
     let descriptor: number | undefined;

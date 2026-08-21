@@ -687,6 +687,13 @@ describe('L0 · read surfaces', () => {
     })).toThrow('automation_recovery_owner_required');
   });
 
+  it('requires cryptographic mandate authority before recovery can be enabled', () => {
+    expect(() => createRuntimeRouter({
+      RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_RECOVERY_ENABLED: 'true',
+      RONOR_AUTOMATION_RECOVERY_OWNER: 'recovery-worker-1',
+    })).toThrow('automation_recovery_mandate_authority_required');
+  });
+
   it('exposes a graceful-shutdown hook without enabling recovery by default', () => {
     const router = createRuntimeRouter({});
     expect(typeof router.stopAutomationRecovery).toBe('function');

@@ -11,6 +11,8 @@ export function isAutomationAction(value: unknown): value is AutomationAction {
 }
 
 export interface ExecutionMandate {
+  authority_version?: 'ronor-mandate/v1';
+  authority_signature?: string;
   mandate_id: string;
   mission_id: string;
   issued_by: 'merlin';

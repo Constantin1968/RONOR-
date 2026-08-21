@@ -76,7 +76,7 @@ import { inspectAndValidateWorkspace } from '../automation/workspace';
 import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
-import { issueArchitectMandate } from '../automation/mandate-issuer';
+import { issueArchitectMandate, verifyMandateAuthority } from '../automation/mandate-issuer';
 import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
 import { launchAutomationRun } from '../automation/background-run';
 import type { AutomationRun, ExecutionMandate } from '../automation/contracts';
@@ -102,6 +102,8 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     objective: string; branch: string;
   } | null> => {
     if (env.RONOR_AUTOMATION_ENABLED !== 'true' || env.RONOR_AUTOMATION_RECOVERY_ENABLED !== 'true') return null;
+    if (!env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY ||
+        !verifyMandateAuthority(mandate, env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY)) return null;
     const mission = getMission(mandate.mission_id);
     if (!mission || !env.RONOR_AUTOMATION_WORKSPACE_ROOT || !env.RONOR_AUTOMATION_ARTIFACT_ROOT ||
         !env.RONOR_AUTOMATION_EXPECTED_ORIGIN || !env.RONOR_EVIDENCE_RUNNER_URL || !env.RONOR_EVIDENCE_RUNNER_TOKEN) return null;
@@ -124,6 +126,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   const recoveryOwner = sanitiseIdentifier(env.RONOR_AUTOMATION_RECOVERY_OWNER, 120);
   if (env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true' && !recoveryOwner) {
     throw new Error('automation_recovery_owner_required');
+  }
+  if (env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true' &&
+      (!env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY || Buffer.byteLength(env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY, 'utf8') < 32)) {
+    throw new Error('automation_recovery_mandate_authority_required');
   }
   const recoverySupervisor = startAutomationRecoverySupervisor({
     enabled: env.RONOR_AUTOMATION_ENABLED === 'true' && env.RONOR_AUTOMATION_RECOVERY_ENABLED === 'true',
@@ -640,6 +646,11 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         res.status(503).json({ ok: false, error: 'automation_not_ready', automation: automationAdapterStatus(env) });
         return;
       }
+      const mandateSigningKey = env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY;
+      if (!mandateSigningKey || Buffer.byteLength(mandateSigningKey, 'utf8') < 32) {
+        res.status(503).json({ ok: false, error: 'mandate_authority_not_configured' });
+        return;
+      }
       let mandate;
       try {
         const optionalNumber = (value: unknown) => value === undefined ? undefined : Number(value);
@@ -653,7 +664,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
           maxCostUsd: Number(env.RONOR_AUTOMATION_MAX_COST_USD ?? 5),
           maxRuntimeMinutes: Number(env.RONOR_AUTOMATION_MAX_RUNTIME_MINUTES ?? 60),
           maxFixCycles: Number(env.RONOR_AUTOMATION_MAX_FIX_CYCLES ?? 3),
-        });
+        }, mandateSigningKey);
       } catch {
         res.status(422).json({ ok: false, error: 'mandate_policy_refused' });
         return;
@@ -692,6 +703,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       const adapters = configuredAutomationAdapters(env);
       if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
       const runId = executionRunId(mandate.mandate_id);
+      if (!verifyMandateAuthority(mandate, mandateSigningKey)) {
+        res.status(422).json({ ok: false, error: 'mandate_authority_invalid' });
+        return;
+      }
       const claim = claimAutomationRun({
         runId, mandate, owner: `${req.apiKey.key_id}:${req.provenance?.request_id ?? 'request'}`,
         leaseMs: Number(env.RONOR_AUTOMATION_LEASE_MS ?? 120_000),

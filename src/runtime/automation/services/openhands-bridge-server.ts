@@ -7,6 +7,12 @@ export async function startOpenHandsBridge() {
     baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
     sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
     plaintextServiceHosts: ['openhands-agent'],
+    llm: {
+      model: requiredSecret('RONOR_OPENHANDS_LLM_MODEL'),
+      apiKey: requiredSecret('RONOR_OPENHANDS_LLM_API_KEY'),
+      baseUrl: requiredSecret('RONOR_OPENHANDS_LLM_BASE_URL'),
+      apiMode: 'chat',
+    },
   });
   if (!await native.health()) throw new Error('openhands_agent_server_not_ready');
   const app = createOpenHandsBridgeApp({

@@ -120,9 +120,12 @@ services:
       RONOR_OPENHANDS_BRIDGE_PORT: "3001"
       RONOR_OPENHANDS_NONCE_DIR: /var/lib/ronor-nonces
       RONOR_OPENHANDS_SESSION_API_KEY_FILE: /run/secrets/openhands_session_key
+      RONOR_OPENHANDS_LLM_MODEL: ${RONOR_OPENHANDS_LLM_MODEL:?set in .env.automation}
+      RONOR_OPENHANDS_LLM_BASE_URL: http://model-egress-proxy:3004/v1
+      RONOR_OPENHANDS_LLM_API_KEY_FILE: /run/secrets/openhands_llm_api_key
       RONOR_OPENHANDS_BRIDGE_TOKEN_FILE: /run/secrets/openhands_bridge_token
       RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
-    secrets: [openhands_session_key, openhands_bridge_token, automation_capability_key]
+    secrets: [openhands_session_key, openhands_llm_api_key, openhands_bridge_token, automation_capability_key]
     volumes:
       - type: bind
         source: ${RONOR_AUTOMATION_NONCE_DIR:?absolute pre-created nonce directory required}

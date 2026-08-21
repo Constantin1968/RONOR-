@@ -215,6 +215,9 @@ services:
       RONOR_AUTOMATION_ARTIFACT_ROOT: /artifacts
       RONOR_AUTOMATION_TEST_COMMANDS_JSON: ${RONOR_AUTOMATION_TEST_COMMANDS_JSON:?bounded test commands required}
       RONOR_EVIDENCE_RUNNER_TOKEN_FILE: /run/secrets/evidence_runner_token
+      # Tests exercise the audit ledger; keep their database ephemeral while
+      # preserving the read-only repository and root filesystem.
+      AUDIT_DB_PATH: /tmp/ronor-automation-test-audit.sqlite
     secrets: [evidence_runner_token]
     volumes:
       - type: bind

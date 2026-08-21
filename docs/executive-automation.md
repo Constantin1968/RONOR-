@@ -392,6 +392,15 @@ npm run typecheck
 npm test -- --runInBand tests/runtime/automation-container-policy.test.ts
 ```
 
+The single read-only host preflight is `scripts/automation-preflight.sh`. Set
+the secret directory, dedicated worktree, expected origin/HEAD and automation
+env-file variables, then run it as the non-root `ronor` operator. It checks all
+required secret files and permissions, pairwise token separation, the Codex–
+Victoria Ed25519 key pair, exact Docker network isolation, clean Git identity,
+the pinned commit and `docker compose config --quiet`. It prints only named
+PASS/FAIL checks—never token values, key material or environment contents—and
+does not create networks, containers, files, commits or deployments.
+
 Activation is separately human-approved. Record the base commit/worktree,
 verify network policy and secret-file permissions, then require authenticated
 health attestation. On failure, stop the composition, rotate its identities and

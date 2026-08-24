@@ -18,8 +18,8 @@
 #   export RONOR_AUTOMATION_BASE_COMMIT=<approved-main-sha>
 #     NOTE: this variable belongs to THIS script only. automation-preflight.sh
 #     reads a different name, RONOR_AUTOMATION_EXPECTED_HEAD, and both must
-#     hold the same SHA. Current approved main after PR #22:
-#     0f80a60886abeca5f2205ed0fcef7ce908706933
+#     hold the same SHA. Read the approved SHA from the remote rather than
+#     hardcoding it:  git ls-remote origin refs/heads/main
 #   sudo -E bash scripts/automation-bootstrap.sh
 
 set -Eeuo pipefail

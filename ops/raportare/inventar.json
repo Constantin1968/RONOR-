@@ -205,6 +205,32 @@
     "ronor-tools-gateway",
     "ronor-langgraph"
   ],
+  "expunere": {
+    "descriere": "Suprafata de expunere a gazdei. Masurata strict prin citire: colectorul nu modifica niciodata parafocul, conturile, serviciile sau configuratia sshd. Cine repara nu masoara.",
+    "retele_cunoscute": [
+      "100.64.0.0/10",
+      "127.0.0.0/8",
+      "172.16.0.0/12",
+      "10.0.0.0/8"
+    ],
+    "nota_retele": "100.64.0.0/10 este spatiul Tailscale. O autentificare reusita de la orice adresa din afara acestor retele este un eveniment, nu o statistica, si scoate raportul din NOMINAL.",
+    "porturi_publice_asteptate": [
+      22,
+      80,
+      443,
+      41641,
+      8401,
+      8402
+    ],
+    "nota_porturi": "Porturile declarate deschise catre exterior. Orice alt port care ascultă pe interfata publica apare ca nedeclarat, pentru ca un port nou deschis fara decizie este chiar definitia unei regresii de expunere. 8401 si 8402 sunt legate pe 0.0.0.0 de proces, dar parafocul le admite doar din 172.20.0.0/16: socketul e larg, accesul nu.",
+    "procese_publice_asteptate": [
+      "tailscaled"
+    ],
+    "nota_procese": "Procese care isi aleg singure porturi efemere la fiecare pornire. Exceptarea se face pe numele procesului, nu pe numar: altfel fiecare repornire ar produce o alarma care nu inseamna nimic, si o alarma care nu inseamna nimic invata cititorul sa le ignore pe toate.",
+    "jurnal_autentificare": "/var/log/auth.log",
+    "stare_fisier": "/opt/ronor/raportare/expunere.stare.json",
+    "nota_stare": "Pastreaza numarul de tentative de la raportul precedent, ca sa se poata raporta diferenta si nu doar un total care creste mereu."
+  },
   "praguri": {
     "disc_atentie_pct": 80,
     "disc_degradat_pct": 90,

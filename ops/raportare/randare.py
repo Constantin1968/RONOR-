@@ -45,6 +45,21 @@ def linie(eticheta, masuratoare, sufix="", latime=17):
     return "%-46s %s %s" % (txt, semn, sursa_scurta(masuratoare))
 
 
+def taie(text, latime):
+    """Rupe un motiv lung pe cuvinte. Un rand tăiat la mijlocul cuvantului
+    intr-un raport citit in terminal e greu de citit si arata neglijent."""
+    cuvinte, linii, curent = (text or "").split(), [], ""
+    for c in cuvinte:
+        if curent and len(curent) + 1 + len(c) > latime:
+            linii.append(curent)
+            curent = c
+        else:
+            curent = (curent + " " + c).strip()
+    if curent:
+        linii.append(curent)
+    return linii
+
+
 def numar_necunoscute(cens):
     """Cate autentificari reusite vin de la o sursa necunoscuta. Returneaza
     None daca nu s-a putut masura: zero si nemasurat nu sunt acelasi lucru."""
@@ -71,8 +86,13 @@ def linie_expunere(cens):
     coada = ""
     if ca:
         coada = "; %d cont(uri) ghicibile prin parolă" % len(ca)
-    return ("EXPUNERE: nicio intrare neexplicată; %d port(uri) publice%s"
-            % (len(pp), coada))
+    ir = ex.get("intrari_reusite_necunoscute", {})
+    rec = ((ir.get("valoare") or {}).get("recunoscute") or [])
+    cap = "nicio intrare neexplicată"
+    if rec:
+        cap = ("nicio intrare neexplicată (%d recunoscută/e în registru)"
+               % len(rec))
+    return ("EXPUNERE: %s; %d port(uri) publice%s" % (cap, len(pp), coada))
 
 
 def sectiune_expunere(ex):
@@ -95,9 +115,25 @@ def sectiune_expunere(ex):
              SEMNE.get(ir.get("incredere", ""), " "), sursa_scurta(ir, 40)))
         for x in nec[:6]:
             A("      ! %s" % x)
+        rec = det.get("recunoscute") or []
         if not nec:
-            A("      Nicio autentificare de la o sursă din afara rețelelor")
-            A("      declarate cunoscute.")
+            if rec:
+                A("      Nicio autentificare neexplicată de la o sursă din")
+                A("      afara rețelelor declarate cunoscute.")
+            else:
+                A("      Nicio autentificare de la o sursă din afara rețelelor")
+                A("      declarate cunoscute.")
+        # Recunoscut nu inseamna ascuns: intrarea se arata in continuare, cu
+        # motivul si termenul, ca sa se vada ce anume nu mai degradeaza si de ce.
+        for x in rec[:6]:
+            A("      ~ %s — recunoscută până la %s"
+              % (x.get("intrare"), x.get("pana_la")))
+            for linie in taie(x.get("motiv") or "", 62):
+                A("        %s" % linie)
+        for x in (det.get("recunoasteri_nevalide") or [])[:4]:
+            A("      ! recunoaștere care nu se aplică: %s" % x)
+        for x in (det.get("recunoasteri_nefolosite") or [])[:4]:
+            A("      · recunoaștere fără intrare corespunzătoare: %s" % x)
         if det.get("sursa_nedecidabila"):
             A("      sursă nedecidabilă (nu e adresă IP): %s"
               % ", ".join(det["sursa_nedecidabila"]))

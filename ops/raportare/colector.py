@@ -454,14 +454,66 @@ def _tailscale_ssh():
 _ZILE_LAST = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
-def _intrari_reusite(retele):
+def _recunoscute(d):
+    """Registrul de intrari analizate si rezolvate.
+
+    O intrare din wtmp nu dispare cand cauza ei e reparata: wtmp e o arhiva,
+    nu o stare. Fara registru, un eveniment rezolvat ar degrada fiecare raport
+    pana iese singur din fereastra, iar un semnal care ramane aprins dupa
+    reparatie isi pierde intelesul -- si pe urma il pierd si celelalte.
+
+    Registrul nu ascunde nimic: intrarea recunoscuta apare in raport, cu
+    motivul si cu termenul ei. Recunoasterea fara motiv, fara termen, sau cu
+    termen trecut nu se aplica: altfel registrul devine o legatura la ochi
+    permanenta, adica exact ce ar trebui sa impiedice."""
+    brut = d.get("intrari_recunoscute")
+    if not isinstance(brut, list):
+        return {}, []
+    azi = datetime.now(timezone.utc).date()
+    valide, invalide = {}, []
+    for e in brut:
+        if not isinstance(e, dict):
+            invalide.append("intrare de registru care nu e obiect")
+            continue
+        cont = str(e.get("cont") or "").strip()
+        sursa = str(e.get("sursa") or "").strip()
+        motiv = str(e.get("motiv") or "").strip()
+        pana = str(e.get("pana_la") or "").strip()
+        eticheta = "%s de la %s" % (cont or "?", sursa or "?")
+        if not cont or not sursa:
+            invalide.append("%s -- lipseste contul sau sursa" % eticheta)
+            continue
+        if not motiv:
+            invalide.append("%s -- recunoastere fara motiv" % eticheta)
+            continue
+        if not pana:
+            invalide.append("%s -- recunoastere fara termen" % eticheta)
+            continue
+        try:
+            termen = datetime.strptime(pana, "%Y-%m-%d").date()
+        except ValueError:
+            invalide.append("%s -- termen nevalid: %s" % (eticheta, pana))
+            continue
+        if termen < azi:
+            invalide.append("%s -- recunoastere expirata la %s" % (eticheta, pana))
+            continue
+        valide["%s de la %s" % (cont, sursa)] = {
+            "motiv": motiv, "pana_la": pana,
+            "recunoscut_la": str(e.get("recunoscut_la") or "").strip() or None,
+        }
+    return valide, invalide
+
+
+def _intrari_reusite(retele, recunoscute=None, invalide=None):
     """Autentificari reusite si sursa lor. Acopera si Tailscale SSH, care nu
     scrie in jurnalul sshd dar apare in wtmp."""
+    recunoscute = recunoscute or {}
     sursa = "last -F -w -n 200 (wtmp) + Accepted din jurnalul sshd"
     ok, out = sh("last -F -w -n 200")
     if not ok:
         return neverif(sursa, "last a esuat"), None
     necunoscute, nedecidabile, cunoscute = [], [], 0
+    explicate = []
     for line in out.splitlines():
         camp = line.split()
         if len(camp) < 3 or camp[0] in ("wtmp", "reboot"):
@@ -477,15 +529,27 @@ def _intrari_reusite(retele):
             cunoscute += 1
         elif stare is False:
             intrare = "%s de la %s" % (camp[0], gazda)
-            if intrare not in necunoscute:
+            reg = recunoscute.get(intrare)
+            if reg is not None:
+                if not any(x["intrare"] == intrare for x in explicate):
+                    explicate.append(dict(reg, intrare=intrare))
+            elif intrare not in necunoscute:
                 necunoscute.append(intrare)
         else:
             if gazda not in nedecidabile:
                 nedecidabile.append(gazda)
+    # O recunoastere care nu se potriveste cu nicio intrare masurata e o
+    # ramasita: se raporteaza, ca registrul sa nu creasca nesupravegheat.
+    nefolosite = [k for k in recunoscute
+                  if not any(x["intrare"] == k for x in explicate)]
     det = {"necunoscute": necunoscute, "cunoscute": cunoscute,
-           "sursa_nedecidabila": nedecidabile[:6]}
+           "sursa_nedecidabila": nedecidabile[:6],
+           "recunoscute": explicate,
+           "recunoasteri_nefolosite": sorted(nefolosite),
+           "recunoasteri_nevalide": list(invalide or [])}
     return m(det, sursa, VERIFICAT,
-             "necunoscut = sursa care nu apartine niciunei retele declarate"), \
+             "necunoscut = sursa care nu apartine niciunei retele declarate "
+             "si nu e recunoscuta in registru"), \
         necunoscute
 
 
@@ -527,7 +591,8 @@ def expunere(inv, sec=False):
     cfg = _sshd_config()
     porturi, neasteptate = _porturi_publice(asteptate, procese)
     tent = _tentative(d.get("jurnal_autentificare", "/var/log/auth.log"), veche)
-    intrari, necunoscute = _intrari_reusite(retele)
+    reg, reg_invalide = _recunoscute(d)
+    intrari, necunoscute = _intrari_reusite(retele, reg, reg_invalide)
 
     rez = {
         "porturi_publice": porturi,
@@ -713,12 +778,22 @@ def verdict(cens, inv):
                                    % ir.get("motiv", ""),
                            "greutate": "atentie"})
         else:
-            nec = (ir.get("valoare") or {}).get("necunoscute") or []
+            det_ir = ir.get("valoare") or {}
+            nec = det_ir.get("necunoscute") or []
             if nec:
                 coduri.append({"cod": "EXP-INTRARE-NECUNOSCUTA",
                                "text": "autentificare reusita de la sursa "
                                        "necunoscuta: %s" % "; ".join(nec[:4]),
                                "greutate": "degradat"})
+            # O recunoastere care nu se aplica lasa intrarea sa degradeze din
+            # nou, deci nu e o scapare silentioasa; totusi se semnaleaza,
+            # pentru ca un registru stricat e o problema in sine.
+            inv_reg = det_ir.get("recunoasteri_nevalide") or []
+            if inv_reg:
+                coduri.append({"cod": "EXP-RECUNOASTERE-NEVALIDA",
+                               "text": "recunoasteri care nu se aplica: %s"
+                                       % "; ".join(inv_reg[:4]),
+                               "greutate": "atentie"})
         ca = (ex.get("conturi_atacabile", {}).get("valoare")) or []
         pp = (ex.get("porturi_publice", {}).get("valoare")) or []
         prot = (ex.get("protectie_ghicire", {}).get("valoare")) or {}

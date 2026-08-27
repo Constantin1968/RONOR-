@@ -60,12 +60,21 @@ interface Serviciu {
   nota?: string;
 }
 
+interface Recunoastere {
+  cont?: string;
+  sursa?: string;
+  pana_la?: string;
+  recunoscut_la?: string;
+  motiv?: string;
+}
+
 interface Expunere {
   retele_cunoscute: string[];
   porturi_publice_asteptate: number[];
   procese_publice_asteptate: string[];
   jurnal_autentificare: string;
   stare_fisier: string;
+  intrari_recunoscute?: Recunoastere[];
 }
 
 interface Inventar {
@@ -340,6 +349,97 @@ describe('verdict — exposure weighting', () => {
 
   it('states the widened degradation rule in the rendered report', () => {
     expect(randare).toContain('sursă necunoscută');
+  });
+});
+
+describe('registrul de intrări recunoscute — an acknowledgement is not a mute', () => {
+  // A recognised entry stops degrading the verdict. That is a deliberate
+  // weakening of the loudest signal the pipeline has, so every constraint
+  // that keeps it honest is enforced here rather than left to review.
+
+  const registru = inventar.expunere.intrari_recunoscute ?? [];
+
+  it('requires an account, a source, a reason and an expiry on every entry', () => {
+    for (const e of registru) {
+      expect(typeof e.cont).toBe('string');
+      expect((e.cont as string).length).toBeGreaterThan(0);
+      expect(typeof e.sursa).toBe('string');
+      expect((e.sursa as string).length).toBeGreaterThan(0);
+      // A reason long enough to be a reason. "resolved" explains nothing to
+      // whoever reads this registry six months from now.
+      expect((e.motiv ?? '').length).toBeGreaterThan(40);
+      expect(e.pana_la).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('never acknowledges a whole account, a whole network, or everything', () => {
+    // A wildcard would turn the registry from a record of decisions into a
+    // permanent exemption, which is the failure mode it exists to prevent.
+    for (const e of registru) {
+      for (const camp of [e.cont, e.sursa]) {
+        expect(camp).not.toContain('*');
+        expect(camp).not.toContain('/');
+        expect(camp).not.toMatch(/^(any|all|orice|to[a-z]*)$/i);
+      }
+    }
+  });
+
+  it('gives every acknowledgement an end, and none longer than a quarter', () => {
+    for (const e of registru) {
+      const termen = new Date(`${e.pana_la}T00:00:00Z`).getTime();
+      expect(Number.isNaN(termen)).toBe(false);
+      const inceput = e.recunoscut_la
+        ? new Date(`${e.recunoscut_la}T00:00:00Z`).getTime()
+        : termen;
+      const zile = (termen - inceput) / 86_400_000;
+      expect(zile).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('validates the registry in the collector rather than trusting the file', () => {
+    expect(colector).toContain('def _recunoscute');
+    const i = colector.indexOf('def _recunoscute');
+    const corp = colector.slice(i, i + 2600);
+    // Each of the four rejection paths must exist: a missing field, a missing
+    // reason, a missing expiry, and an expiry already past.
+    expect(corp).toContain('fara motiv');
+    expect(corp).toContain('fara termen');
+    expect(corp).toContain('expirata');
+    expect(corp).toMatch(/termen\s*<\s*azi/);
+  });
+
+  it('lets an expired acknowledgement degrade the verdict again', () => {
+    // The expiry is what makes the registry self-cleaning: nothing stays
+    // acknowledged because everyone forgot it was.
+    const i = colector.indexOf('def _recunoscute');
+    expect(colector.slice(i, i + 2600)).not.toMatch(/valide\[[^\]]*\]\s*=[\s\S]{0,80}expirata/);
+    expect(colector).toContain('EXP-RECUNOASTERE-NEVALIDA');
+    const j = colector.indexOf('EXP-RECUNOASTERE-NEVALIDA');
+    expect(colector.slice(j, j + 400)).toContain('"atentie"');
+  });
+
+  it('still shows the acknowledged entry, with its reason and its expiry', () => {
+    // Acknowledged must not mean invisible. If the report stopped printing
+    // it, the registry would be a way of deleting evidence.
+    expect(randare).toContain('recunoscută până la');
+    const i = randare.indexOf('recunoscută până la');
+    expect(randare.slice(i, i + 300)).toContain('motiv');
+  });
+
+  it('reports an acknowledgement that matches nothing, so the registry is pruned', () => {
+    expect(colector).toContain('recunoasteri_nefolosite');
+    expect(randare).toContain('fără intrare corespunzătoare');
+  });
+
+  it('keeps the registry in the repository, not in mutable state on the host', () => {
+    // An acknowledgement is a decision and must arrive through review. If the
+    // collector could write one, the host could silence itself.
+    const i = colector.indexOf('def _recunoscute');
+    const corp = colector.slice(i, i + 2600);
+    expect(corp).not.toMatch(/open\([^)]*["']w["']/);
+    expect(corp).not.toContain('json.dump');
+    const j = colector.indexOf('def _scrie_stare');
+    expect(colector.slice(j, j + 700)).not.toContain('recunosc');
   });
 });
 

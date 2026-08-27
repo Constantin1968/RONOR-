@@ -229,7 +229,17 @@
     "nota_procese": "Procese care isi aleg singure porturi efemere la fiecare pornire. Exceptarea se face pe numele procesului, nu pe numar: altfel fiecare repornire ar produce o alarma care nu inseamna nimic, si o alarma care nu inseamna nimic invata cititorul sa le ignore pe toate.",
     "jurnal_autentificare": "/var/log/auth.log",
     "stare_fisier": "/opt/ronor/raportare/expunere.stare.json",
-    "nota_stare": "Pastreaza numarul de tentative de la raportul precedent, ca sa se poata raporta diferenta si nu doar un total care creste mereu."
+    "nota_stare": "Pastreaza numarul de tentative de la raportul precedent, ca sa se poata raporta diferenta si nu doar un total care creste mereu.",
+    "nota_registru": "Intrari reusite analizate si rezolvate. wtmp e o arhiva, nu o stare: o intrare nu dispare cand cauza ei e reparata, deci fara registru un eveniment rezolvat ar degrada fiecare raport pana iese singur din fereastra. Recunoasterea nu ascunde intrarea: raportul o arata in continuare, cu motivul si termenul. Fiecare recunoastere cere obligatoriu cont, sursa, motiv si pana_la; una fara ele, sau cu termen trecut, nu se aplica si intrarea degradeaza din nou. Registrul trece prin acelasi PR ca orice alta schimbare, deci fiecare recunoastere e o decizie revizuita, nu o setare tacuta pe gazda.",
+    "intrari_recunoscute": [
+      {
+        "cont": "root",
+        "sursa": "54.87.21.82",
+        "pana_la": "2026-10-15",
+        "recunoscut_la": "2026-08-27",
+        "motiv": "Autentificare din 5 august cu cheia agentului extern ronor-agent-manus-20260808. Cheia a fost scoasa din /root/.ssh/authorized_keys pe 27 august, cu copie de rezerva in authorized_keys.inainte-27aug2026.bak, deci accesul nu mai e posibil. In aceeasi zi a fost revocata si cheia ronor@hetzner-secondary, din /root/.ssh/authorized_keys si /home/ronor/.ssh/authorized_keys, pentru ca jumatatea ei privata fusese copiata pe acelasi mediu extern. Intrarea ramane in wtmp pana la rotatia lui."
+      }
+    ]
   },
   "praguri": {
     "disc_atentie_pct": 80,

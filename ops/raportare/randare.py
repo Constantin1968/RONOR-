@@ -14,6 +14,14 @@ ZILE = ["luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică"
 
 SEMNE = {"verificat": "✓", "derivat": "≈", "neverificat": "?"}
 
+# Unde apare suprafata de expunere. Tabloul complet doar in raportul care se
+# citeste pe indelete; in cel de dimineata o singura linie, pentru ca o
+# secțiune lunga la ora aceea se sare, iar un raport pe care nu-l mai citesti
+# nu apara nimic. In raportul saptamanal, nimic: acela e despre ce urmeaza,
+# nu despre stare, iar a treia copie a acelorasi cifre le slabeste pe toate.
+EXPUNERE_COMPLETA = ("CBD", "SANATATE")
+EXPUNERE_LINIE = ("OBD",)
+
 
 def v(masuratoare, implicit="—"):
     if not isinstance(masuratoare, dict):
@@ -35,6 +43,138 @@ def linie(eticheta, masuratoare, sufix="", latime=17):
         if isinstance(masuratoare, dict) else " "
     txt = "  %-*s: %s%s" % (latime, eticheta, val, sufix)
     return "%-46s %s %s" % (txt, semn, sursa_scurta(masuratoare))
+
+
+def numar_necunoscute(cens):
+    """Cate autentificari reusite vin de la o sursa necunoscuta. Returneaza
+    None daca nu s-a putut masura: zero si nemasurat nu sunt acelasi lucru."""
+    ex = cens.get("expunere") or {}
+    if "eroare" in ex:
+        return None
+    ir = ex.get("intrari_reusite_necunoscute")
+    if not isinstance(ir, dict) or ir.get("incredere") == "neverificat":
+        return None
+    return len((ir.get("valoare") or {}).get("necunoscute") or [])
+
+
+def linie_expunere(cens):
+    """Condensatul de dimineata: o singura linie, doar semnalul."""
+    n = numar_necunoscute(cens)
+    if n is None:
+        return "EXPUNERE: nemăsurată — vezi raportul de închidere"
+    if n:
+        return ("EXPUNERE: %d autentificări reușite de la sursă necunoscută "
+                "— de verificat acum" % n)
+    ex = cens.get("expunere") or {}
+    pp = v(ex.get("porturi_publice", {}), []) or []
+    ca = v(ex.get("conturi_atacabile", {}), []) or []
+    coada = ""
+    if ca:
+        coada = "; %d cont(uri) ghicibile prin parolă" % len(ca)
+    return ("EXPUNERE: nicio intrare neexplicată; %d port(uri) publice%s"
+            % (len(pp), coada))
+
+
+def sectiune_expunere(ex):
+    L = []
+    A = L.append
+    A("SUPRAFAȚĂ DE EXPUNERE")
+    if "eroare" in ex:
+        A("  NEMĂSURAT — %s" % ex["eroare"].get("motiv"))
+        return L
+
+    ir = ex.get("intrari_reusite_necunoscute", {})
+    if ir.get("incredere") == "neverificat":
+        A("  Intrări reușite: NEMĂSURAT — %s" % ir.get("motiv"))
+    else:
+        det = ir.get("valoare") or {}
+        nec = det.get("necunoscute") or []
+        A("%-46s %s %s"
+          % ("  %-17s: %d necunoscute, %d cunoscute"
+             % ("Intrări reușite", len(nec), det.get("cunoscute", 0)),
+             SEMNE.get(ir.get("incredere", ""), " "), sursa_scurta(ir, 40)))
+        for x in nec[:6]:
+            A("      ! %s" % x)
+        if not nec:
+            A("      Nicio autentificare de la o sursă din afara rețelelor")
+            A("      declarate cunoscute.")
+        if det.get("sursa_nedecidabila"):
+            A("      sursă nedecidabilă (nu e adresă IP): %s"
+              % ", ".join(det["sursa_nedecidabila"]))
+
+    pp = ex.get("porturi_publice", {})
+    lista = v(pp, []) or []
+    A("%-46s %s %s" % ("  %-17s: %d" % ("Porturi publice", len(lista)),
+                       SEMNE.get(pp.get("incredere", ""), " "),
+                       sursa_scurta(pp, 40)))
+    if lista:
+        A("      " + ", ".join(lista))
+    ned = v(ex.get("porturi_neasteptate", {}), []) or []
+    if ned:
+        A("      ! nedeclarate: %s" % ", ".join(ned))
+
+    ap = ex.get("autentificare_parola", {})
+    val = ap.get("valoare")
+    if isinstance(val, dict):
+        A("%-46s %s %s" % ("  %-17s: %s" % ("Parolă în SSH",
+                                            "activă" if val.get("activa")
+                                            else "oprită"),
+                           SEMNE.get(ap.get("incredere", ""), " "),
+                           sursa_scurta(ap, 40)))
+        A("      root: %s · conturi permise: %s · încercări maxime: %s"
+          % (val.get("root"), val.get("conturi_permise"),
+             val.get("incercari_maxime")))
+    else:
+        A("  Parolă în SSH   : NEMĂSURAT — %s" % ap.get("motiv"))
+
+    ca = ex.get("conturi_atacabile", {})
+    lc = v(ca, []) or []
+    A("%-46s %s %s" % ("  %-17s: %d" % ("Conturi ghicibile", len(lc)),
+                       SEMNE.get(ca.get("incredere", ""), " "),
+                       sursa_scurta(ca, 40)))
+    if lc:
+        A("      ! %s — parolă utilizabilă, permis în SSH, port public"
+          % ", ".join(lc))
+
+    pg = ex.get("protectie_ghicire", {})
+    vp = pg.get("valoare") or {}
+    A("%-46s %s %s" % ("  %-17s: %s" % ("Protecție ghicire",
+                                        "da" if vp.get("activa") else "NU"),
+                       SEMNE.get(pg.get("incredere", ""), " "),
+                       sursa_scurta(pg, 40)))
+    A("      fail2ban: %s · sshguard: %s · reguli de limitare: %s"
+      % (vp.get("fail2ban", "?"), vp.get("sshguard", "?"),
+         vp.get("reguli_limitare", "?")))
+
+    tt = ex.get("tentative", {})
+    vt = tt.get("valoare")
+    if isinstance(vt, dict):
+        d = vt.get("delta")
+        sufix = "" if d is None else "  (+%d de la raportul precedent)" % d
+        A("%-46s %s %s" % ("  %-17s: %s%s" % ("Tentative eșuate",
+                                              vt.get("esuate"), sufix),
+                           SEMNE.get(tt.get("incredere", ""), " "),
+                           sursa_scurta(tt, 40)))
+        A("      cont inexistent: %s · acceptate de sshd: %s"
+          % (vt.get("utilizator_inexistent"), vt.get("acceptate_sshd")))
+        if vt.get("nota"):
+            A("      notă: %s" % vt["nota"])
+    else:
+        A("  Tentative eșuate : NEMĂSURAT — %s" % tt.get("motiv"))
+
+    ts = ex.get("tailscale_ssh", {})
+    if ts.get("incredere") == "neverificat":
+        A("  Tailscale SSH   : NEMĂSURAT — %s" % ts.get("motiv"))
+    else:
+        A("%-46s %s %s" % ("  %-17s: %s" % ("Tailscale SSH",
+                                            "activ" if ts.get("valoare")
+                                            else "inactiv"),
+                           SEMNE.get(ts.get("incredere", ""), " "),
+                           sursa_scurta(ts, 40)))
+        if ts.get("valoare") and ts.get("motiv"):
+            A("      %s" % ts["motiv"])
+    A("  Măsurat strict prin citire: raportul nu schimbă nimic din ce observă.")
+    return L
 
 
 def randeaza(cens, tip="CBD", cu_provenienta=True):
@@ -67,8 +207,13 @@ def randeaza(cens, tip="CBD", cu_provenienta=True):
         A("  [%s] %s  (%s)" % (c["greutate"][:3].upper(), c["text"], c["cod"]))
     A("")
     A("  Regula: DEGRADAT doar la serviciu critic căzut sau container oprit")
-    A("  nedeclarat. Ce e oprit deliberat nu produce niciodată degradare.")
+    A("  nedeclarat, ori autentificare reușită de la o sursă necunoscută.")
+    A("  Ce e oprit deliberat nu produce niciodată degradare.")
     A("")
+
+    if tip in EXPUNERE_LINIE:
+        A(linie_expunere(cens))
+        A("")
 
     # ---------------------------------------------------------- infrastructura
     A("INFRASTRUCTURĂ")
@@ -115,6 +260,12 @@ def randeaza(cens, tip="CBD", cu_provenienta=True):
         if s.get("motiv"):
             A("        motiv: %s" % s["motiv"])
     A("")
+
+    # ---------------------------------------------------------- expunere
+    if tip in EXPUNERE_COMPLETA:
+        for x in sectiune_expunere(cens.get("expunere") or {}):
+            A(x)
+        A("")
 
     # ---------------------------------------------------------- resurse
     A("RESURSE")

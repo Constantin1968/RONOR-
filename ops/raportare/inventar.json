@@ -1,0 +1,220 @@
+{
+  "schema": "ronor.inventar/1",
+  "descriere": "Inventar declarat. Codul nu mai stie ce e critic; afla de aici.",
+  "actualizat": "2026-08-27",
+  "servicii_critice": [
+    {
+      "nume": "ronor-governance",
+      "sonda": "http",
+      "url": "http://172.20.0.17:3000/api/runtime/health",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "status"
+    },
+    {
+      "nume": "ronor-r-memory",
+      "sonda": "http",
+      "url": "http://127.0.0.1:8101/health",
+      "asteptat_cod": 200
+    },
+    {
+      "nume": "ronor-langgraph",
+      "sonda": "http",
+      "url": "http://127.0.0.1:2024/ok",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "ok"
+    },
+    {
+      "nume": "ronor-tools-gateway",
+      "sonda": "http",
+      "url": "http://127.0.0.1:8400/health",
+      "asteptat_cod": 200
+    },
+    {
+      "nume": "ronor-orchestrator",
+      "sonda": "lucrator",
+      "nota": "lucrator fara server HTTP (python main.py, retea gazda); dovada e procesul viu plus jurnal"
+    },
+    {
+      "nume": "cidavault",
+      "sonda": "http",
+      "url": "http://127.0.0.1:3100/api/trpc/auth.me",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "result",
+      "nota": "serverul returneaza pagina SPA pe orice ruta necunoscuta; singura ruta care dovedeste stratul de API este o procedura tRPC reala"
+    },
+    {
+      "nume": "ronor-qdrant-tls",
+      "sonda": "antet",
+      "url": "http://127.0.0.1:6333/healthz",
+      "nume_antet": "api-key",
+      "cheie_din_mediu": "QDRANT_API_KEY",
+      "asteptat_cod": 200,
+      "asteptat_text": "healthz check passed"
+    },
+    {
+      "nume": "ronor-n8n",
+      "sonda": "http",
+      "url": "http://127.0.0.1:5678/healthz",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "status"
+    },
+    {
+      "nume": "ronor-gov-postgres",
+      "sonda": "exec",
+      "comanda": "pg_isready -U postgres",
+      "asteptat_text": "accepting connections"
+    },
+    {
+      "nume": "ronor-gov-redis",
+      "sonda": "exec",
+      "comanda": "redis-cli ping",
+      "asteptat_text": "PONG"
+    },
+    {
+      "nume": "ronor-guardrails-ai",
+      "sonda": "container"
+    },
+    {
+      "nume": "ronor-nemo-guardrails",
+      "sonda": "container"
+    },
+    {
+      "nume": "ronor-llm-guard",
+      "sonda": "container"
+    },
+    {
+      "nume": "ronor-prefect",
+      "sonda": "http",
+      "url": "http://127.0.0.1:4200/api/health",
+      "asteptat_cod": 200
+    },
+    {
+      "nume": "ronor-mlflow",
+      "sonda": "http",
+      "url": "http://127.0.0.1:5050/health",
+      "asteptat_cod": 200
+    },
+    {
+      "nume": "ronor-dify-api",
+      "sonda": "http",
+      "url": "http://127.0.0.1:5001/health",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "status"
+    },
+    {
+      "nume": "ronor-dify-db",
+      "sonda": "exec",
+      "comanda": "pg_isready",
+      "asteptat_text": "accepting connections"
+    },
+    {
+      "nume": "ronor-dify-redis",
+      "sonda": "exec",
+      "comanda": "redis-cli ping",
+      "asteptat_text": "PONG"
+    },
+    {
+      "nume": "langfuse-langfuse-web-1",
+      "sonda": "http",
+      "url": "http://127.0.0.1:3000/api/public/health",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "status"
+    },
+    {
+      "nume": "langfuse-langfuse-worker-1",
+      "sonda": "http",
+      "url": "http://127.0.0.1:3030/",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "message"
+    },
+    {
+      "nume": "ronor-temporal-ui",
+      "sonda": "http",
+      "url": "http://127.0.0.1:8233/api/v1/namespaces",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "namespaces"
+    },
+    {
+      "nume": "ronor-autogen",
+      "sonda": "http",
+      "url": "http://127.0.0.1:8085/api/version",
+      "asteptat_cod": 200,
+      "asteptat_cheie": "status"
+    },
+    {
+      "nume": "ronor-dify-web",
+      "sonda": "pagina",
+      "url": "http://127.0.0.1:3001/",
+      "asteptat_cod": 200,
+      "asteptat_text": "<!DOCTYPE html",
+      "nota": "interfata web: sonda dovedeste doar ca pagina se serveste; sanatatea API-ului e masurata separat pe ronor-dify-api"
+    },
+    {
+      "nume": "ronor-temporal-admin-tools",
+      "sonda": "exec",
+      "comanda": "tctl --version",
+      "asteptat_text": "tctl",
+      "nota": "cutie de unelte fara server (tini -- sleep infinity); sonda executa binarul in container"
+    }
+  ],
+  "oprite_deliberat": {
+    "sufixe": [
+      "-vechi",
+      "-vechi2",
+      "-backup-manual",
+      "-snapshot",
+      "-old"
+    ],
+    "prefixe_nume": [
+      "prev-",
+      "pre-",
+      "prek",
+      "broken-"
+    ],
+    "nume": [
+      "ronor-telegram-gov"
+    ],
+    "motive": {
+      "ronor-telegram-gov": "generatia 1, oprit 10.08.2026, in asteptarea deciziei generatie 1 vs 2",
+      "-vechi": "instantaneu pastrat ca plasa dupa preluarea declarativa",
+      "-vechi2": "instantaneu pastrat ca plasa dupa preluarea declarativa",
+      "-old": "instantaneu pastrat inainte de reconstructia din 5-10.08.2026",
+      "prev-": "instantaneu pastrat inainte de reconstructia din 5-10.08.2026",
+      "pre-": "instantaneu pastrat inainte de reconstructia din 5-10.08.2026",
+      "broken-": "instanta defecta pastrata pentru analiza, 8-9.08.2026",
+      "prek": "instantaneu pastrat inainte de trecerea la Kubernetes, 9.08.2026",
+      "ronor-automation-automation-evidence-runner-1": "sarcina care se termina intentionat: restart \"no\" e declarat in compose, cap_drop ALL, read_only, utilizator 10001",
+      "-backup-manual": "instantaneu luat manual inainte de o interventie, pastrat ca plasa",
+      "-snapshot": "instantaneu de stare pastrat pentru comparatie, nu e serviciu"
+    },
+    "sarcini_efemere": [
+      "ronor-automation-automation-evidence-runner-1"
+    ]
+  },
+  "servicii_declarative": [
+    "ronor-governance",
+    "ronor-guardrails-ai",
+    "ronor-nemo-guardrails",
+    "ronor-llm-guard",
+    "cidavault",
+    "ronor-gov-redis",
+    "ronor-gov-postgres",
+    "ronor-qdrant-tls",
+    "ronor-backup",
+    "ronor-orchestrator",
+    "ronor-tools-gateway",
+    "ronor-langgraph"
+  ],
+  "praguri": {
+    "disc_atentie_pct": 80,
+    "disc_degradat_pct": 90,
+    "ram_atentie_pct": 85
+  },
+  "batai_de_inima": {
+    "fisier": "/opt/ronor/raportare/batai.log",
+    "lipsa_consecutive_alerta": 2
+  },
+  "note": {
+    "fara_sonda": "Containerele fara verificare de sanatate proprie nu sunt declarate sanatoase. Cele importante primesc o sonda declarata aici, masurata la fiecare rulare; restul rămân raportate ca stare necunoscuta, nu ca sanatoase."
+  }
+}

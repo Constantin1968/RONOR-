@@ -23,6 +23,7 @@ import {
   construiesteRandAudit,
   configureazaOglindire,
   esteTipEvenimentPermis,
+  interogheazaAccesibilitate,
   necesitaCosemnaturaUmana,
   oglindesteVeriga,
   programeazaOglindire,
@@ -510,5 +511,108 @@ describe('confirmarea scrierii relaționale', () => {
     expect(raport.degradari).toBe(1);
     expect(raport.esuate).toBe(1);
     expect(raport.oglindite).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7 · Interogarea de accesibilitate — lentoarea nu e dovadă de absență
+// ---------------------------------------------------------------------------
+//
+// Al doilea audit a găsit aici cuplajul periculos: termenul propriu de 2 s
+// returna `false`, adică „inaccesibil". Cât timp persistența e opțională e
+// inofensiv, dar la poarta următoare — PERSISTENCE_REQUIRED=true — un singur
+// răspuns lent ar fi retras pregătirea și ar fi oprit serviciile care așteaptă
+// acest runtime: o indisponibilitate fabricată de propria verificare de
+// sănătate.
+
+describe('interogarea de accesibilitate', () => {
+  test('a prompt confirmation is reported as reachable', async () => {
+    await expect(interogheazaAccesibilitate({ ping: async () => true })).resolves.toBe('accesibil');
+  });
+
+  test('a refusal is reported as unreachable', async () => {
+    await expect(interogheazaAccesibilitate({ ping: async () => false })).resolves.toBe(
+      'inaccesibil',
+    );
+    await expect(
+      interogheazaAccesibilitate({
+        ping: async () => {
+          throw new Error('ECONNREFUSED');
+        },
+      }),
+    ).resolves.toBe('inaccesibil');
+  });
+
+  test('running out of time is inconclusive, never a verdict of absence', async () => {
+    const stare = await interogheazaAccesibilitate({
+      ping: () => new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2_600)),
+    });
+    expect(stare).toBe('nedeterminat');
+  });
+
+  test('the late answer of a slow probe is still learned', async () => {
+    let apeluri = 0;
+    const adaptorLent = {
+      ping: () => {
+        apeluri += 1;
+        return new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2_400));
+      },
+    };
+
+    expect(await interogheazaAccesibilitate(adaptorLent)).toBe('nedeterminat');
+    // Sonda a continuat după ce a pierdut cursa; răspunsul ei întârziat se
+    // consemnează, deci apelul următor nu mai deschide un socket nou.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await interogheazaAccesibilitate(adaptorLent)).toBe('accesibil');
+    expect(apeluri).toBe(1);
+  });
+
+  test('only a confirmation is memoised — a failure is never cached', async () => {
+    let apeluri = 0;
+    const adaptorPicat = {
+      ping: async () => {
+        apeluri += 1;
+        return false;
+      },
+    };
+
+    expect(await interogheazaAccesibilitate(adaptorPicat)).toBe('inaccesibil');
+    expect(await interogheazaAccesibilitate(adaptorPicat)).toBe('inaccesibil');
+    // Fără memorare la eșec, revenirea se vede la primul apel următor, nu după
+    // expirarea unei memorii.
+    expect(apeluri).toBe(2);
+
+    let apeluriReusite = 0;
+    const adaptorReusit = {
+      ping: async () => {
+        apeluriReusite += 1;
+        return true;
+      },
+    };
+    expect(await interogheazaAccesibilitate(adaptorReusit)).toBe('accesibil');
+    expect(await interogheazaAccesibilitate(adaptorReusit)).toBe('accesibil');
+    expect(apeluriReusite).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 · Calea de producție cere confirmare explicită
+// ---------------------------------------------------------------------------
+
+describe('managerul care nu raportează nimic', () => {
+  test('on the production path, silence is a failure and not a mirrored link', async () => {
+    // Fără manager injectat: mediul e configurat, deci oglindirea rezolvă
+    // managerul real. Cheia de test nu duce nicăieri, deci scrierea nu poate fi
+    // confirmată — și neconfirmat înseamnă eșec, nu reușită presupusă.
+    configureazaOglindire({ manager: null, env: MEDIU_CONFIGURAT });
+
+    const rezultat = await oglindesteVeriga(veriga({ seq: 4 }));
+
+    expect(rezultat).toBe(false);
+    const raport = await raporteazaPersistenta(4);
+    expect(raport.oglindite).toBe(0);
+    expect(raport.esuate).toBeGreaterThan(0);
+    expect(raport.ultimul_seq_oglindit).toBeNull();
+    expect(raport.degradat).toBe(true);
   });
 });

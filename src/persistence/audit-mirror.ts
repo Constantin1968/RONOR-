@@ -278,6 +278,7 @@ export function reseteazaOglindire(): void {
   managerInjectat = null;
   mediu = process.env;
   memoAccesibil = null;
+  ultimaConfirmareLa = null;
 }
 
 export function persistentaEsteConfigurata(env: NodeJS.ProcessEnv = mediu): boolean {
@@ -362,15 +363,18 @@ export async function oglindesteVeriga(record: AuditRecord): Promise<boolean> {
       return false;
     }
 
-    // A manager that reports nothing (an older implementation, or an injected
-    // test double typed as returning void) leaves only the weaker signal: the
-    // adapter's reachability plus the absence of a throw. Kept as a fallback so
-    // no caller silently loses coverage, never as the primary evidence.
+    // A manager that reports nothing. On the PRODUCTION path this is now a
+    // failure, full stop: the real manager always answers, so silence means an
+    // implementation that cannot confirm its own write, and accepting it would
+    // leave the retired reachability heuristic as a back door through which the
+    // false green returns. Only an injected double (tests) keeps the weaker
+    // signal — absence of a throw — and only because no adapter exists to ask.
     if (confirmare !== true) {
-      const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
-      const accesibil = adaptor ? adaptor.isAvailable : true;
-      if (!accesibil) {
-        inregistreazaEsec(record, new Error('scrierea relațională nu a fost confirmată'));
+      if (!managerInjectat) {
+        inregistreazaEsec(
+          record,
+          new Error('scrierea relațională nu a fost confirmată de managerul de memorie'),
+        );
         return false;
       }
     }
@@ -455,29 +459,63 @@ export interface RaportPersistenta {
  * anyone; without a memo each call opens a fresh socket to the register.
  *
  * `LIMITA_INTEROGARE_MS` therefore stays well under the probe's own timeout, and
- * `TTL_MEMO_MS` under the polling interval, so freshness is never traded away.
+ * the memo lives well under the polling interval, so freshness is never traded
+ * away. Running out of time yields `nedeterminat` — never a verdict of absence.
  */
 const LIMITA_INTEROGARE_MS = 2_000;
-const TTL_MEMO_MS = 10_000;
+/**
+ * Only a CONFIRMED contact is memoised, and briefly. A failure is never cached,
+ * so recovery is visible on the very next call instead of up to a TTL later — a
+ * stale `true` is the more dangerous of the two errors, and this bounds it.
+ */
+const TTL_MEMO_REUSITA_MS = 5_000;
+/**
+ * How long a confirmed contact keeps standing in for an inconclusive probe. Wide
+ * enough to absorb one slow answer between two 30 s probe cycles, short enough
+ * that a register which really went away is reported as gone.
+ */
+const FERESTRA_CONFIRMARE_MS = 60_000;
 
-let memoAccesibil: { valoare: boolean; la: number } | null = null;
+/** `nedeterminat` = the probe ran out of time. Slowness is not proof of absence. */
+export type Accesibilitate = 'accesibil' | 'inaccesibil' | 'nedeterminat';
 
-async function interogheazaCuLimita(adaptor: { ping: () => Promise<boolean> }): Promise<boolean> {
-  const acum = Date.now();
-  if (memoAccesibil && acum - memoAccesibil.la < TTL_MEMO_MS) return memoAccesibil.valoare;
+let memoAccesibil: { la: number } | null = null;
+let ultimaConfirmareLa: number | null = null;
+
+export async function interogheazaAccesibilitate(adaptor: {
+  ping: () => Promise<boolean>;
+}): Promise<Accesibilitate> {
+  if (memoAccesibil && Date.now() - memoAccesibil.la < TTL_MEMO_REUSITA_MS) return 'accesibil';
 
   let cronometru: NodeJS.Timeout | undefined;
   try {
-    const valoare = await Promise.race<boolean>([
-      adaptor.ping(),
-      new Promise<boolean>((resolve) => {
-        cronometru = setTimeout(() => resolve(false), LIMITA_INTEROGARE_MS);
+    // The probe keeps running after the race is lost, and its late answer is
+    // still recorded. A register that answers in 3 s therefore teaches the next
+    // call that it is alive, instead of being written off twice.
+    const interogare: Promise<Accesibilitate> = adaptor.ping().then(
+      (valoare) => {
+        if (valoare) {
+          ultimaConfirmareLa = Date.now();
+          memoAccesibil = { la: ultimaConfirmareLa };
+        } else {
+          memoAccesibil = null;
+        }
+        return valoare ? 'accesibil' : 'inaccesibil';
+      },
+      () => {
+        memoAccesibil = null;
+        return 'inaccesibil';
+      },
+    );
+
+    return await Promise.race<Accesibilitate>([
+      interogare,
+      new Promise<Accesibilitate>((resolve) => {
+        cronometru = setTimeout(() => resolve('nedeterminat'), LIMITA_INTEROGARE_MS);
         // Do not hold the event loop open on this timer.
         if (typeof cronometru.unref === 'function') cronometru.unref();
       }),
     ]);
-    memoAccesibil = { valoare, la: Date.now() };
-    return valoare;
   } finally {
     if (cronometru) clearTimeout(cronometru);
   }
@@ -507,8 +545,24 @@ export async function raporteazaPersistenta(seqLocalMaxim?: number): Promise<Rap
   try {
     const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
     if (adaptor) {
-      accesibil = await interogheazaCuLimita(adaptor);
-      if (!accesibil) motiv = 'baza de guvernanță configurată dar inaccesibilă';
+      const stareAcces = await interogheazaAccesibilitate(adaptor);
+      if (stareAcces === 'accesibil') {
+        accesibil = true;
+      } else if (stareAcces === 'inaccesibil') {
+        accesibil = false;
+        motiv = 'baza de guvernanță configurată dar inaccesibilă';
+      } else {
+        // Inconclusive, not negative. Left as a refusal, one slow answer would
+        // withdraw readiness once persistence is mandatory and stop every
+        // service that waits on this runtime — an outage manufactured by the
+        // health check itself. A recent confirmed contact therefore stands in,
+        // and the delay is stated rather than hidden.
+        const varsta = ultimaConfirmareLa === null ? null : Date.now() - ultimaConfirmareLa;
+        accesibil = varsta !== null && varsta < FERESTRA_CONFIRMARE_MS;
+        motiv = accesibil
+          ? `interogare peste termenul de ${LIMITA_INTEROGARE_MS} ms; ultima confirmare acum ${Math.round((varsta as number) / 1000)} s`
+          : `interogare peste termenul de ${LIMITA_INTEROGARE_MS} ms, fără confirmare recentă`;
+      }
     } else {
       // Injected manager (tests) or adapter absent: fall back to the observed
       // outcome of the last mirroring attempt rather than claiming reachability.

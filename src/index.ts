@@ -35,7 +35,7 @@ import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
 import { getDb, countRecords } from './audit/hash-chain';
-import { raporteazaPersistenta } from './persistence/audit-mirror';
+import { raporteazaPersistenta, persistentaEsteObligatorie } from './persistence/audit-mirror';
 import { RGatewayPlane } from './planes/r-gateway';
 import { RContextPlane } from './planes/r-context';
 import { RModelFabricPlane } from './planes/r-model-fabric';
@@ -268,15 +268,22 @@ async function bootstrap(): Promise<void> {
   app.get('/health', async (_req, res) => {
     const health = await orchestrator.getSystemHealth();
     const sentinelHealth = await sentinel.health();
-    // Honest persistence reporting. A relational register that is configured but
-    // unreachable — or not configured at all — makes this runtime degraded, and
-    // saying `ok` in that state is the false green this block removes. The HTTP
-    // code stays 200: liveness is real, only durability is impaired, and a
-    // non-200 here would make the container health check restart a runtime that
-    // is answering correctly.
+    // Honest persistence reporting: the register's real state is always present
+    // under `persistence`, with its reason, whatever the flag says.
+    //
+    // Whether it degrades the overall STATUS follows the same rule as the
+    // readiness probe in `runtime/api/routes.ts`, deliberately — two health
+    // endpoints on one runtime that disagree about whether it is degraded teach
+    // an operator to trust neither, and a script reading the wrong one draws the
+    // wrong conclusion. One rule, stated once: an impaired register degrades the
+    // status when the deployment declared persistence mandatory.
+    //
+    // The HTTP code stays 200 either way: liveness is real, only durability is
+    // impaired, and a non-200 here would make the container health check restart
+    // a runtime that is answering correctly.
     const persistenta = await raporteazaPersistenta(countRecords());
     const motiveDegradare: string[] = [];
-    if (persistenta.degradat) {
+    if (persistenta.degradat && persistentaEsteObligatorie()) {
       motiveDegradare.push(
         `persistență relațională: ${persistenta.motiv ?? 'stare necunoscută'}`
       );

@@ -148,8 +148,12 @@ describe('sonda de accesibilitate a registrului', () => {
     expect(adaptor.stareRegistru).toBe('refuzat');
   });
 
-  test('un 500 este o pană: nimeni nu a răspuns util', async () => {
-    registru = await registruFals(503);
+  // Exact 500 şi exact 300 sunt incluse deliberat: sunt marginile pe care o
+  // testare prin mutaţii le-a găsit neacoperite. Un `>= 500` mutat în `> 500`, sau
+  // un `< 300` mutat în `<= 300`, trece neobservat dacă suita sare peste valoarea
+  // exactă a pragului.
+  test.each([500, 503])('un %i este o pană: nimeni nu a răspuns util', async (status) => {
+    registru = await registruFals(status);
     const adaptor = new SupabaseAdapter(configuratie(registru.url));
 
     expect(await adaptor.ping()).toBe(false);
@@ -200,7 +204,7 @@ describe('confirmarea scrierii în registru', () => {
     expect(registru.cereri[0]).toEqual({ metoda: 'POST', cale: '/rest/v1/audit_events' });
   });
 
-  test.each([301, 302, 307, 308])(
+  test.each([300, 301, 302, 307, 308])(
     'un %i NU confirmă scrierea — pragul retras `status >= 400` îl număra drept inserare reuşită',
     async (status) => {
       registru = await registruFals(status);

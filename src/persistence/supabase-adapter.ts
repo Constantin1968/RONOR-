@@ -277,8 +277,46 @@ export class SupabaseAdapter {
 
   // ---- Audit events --------------------------------------------------------
 
-  async insertAuditEvent(row: AuditEventRow): Promise<void> {
-    await this.write('/rest/v1/audit_events', 'POST', row, { Prefer: 'return=minimal' });
+  /**
+   * Insert one audit event and report whether the register CONFIRMED the write.
+   *
+   * Returns true only for a 2xx. A rejection — 400 from a CHECK constraint, 401
+   * from an expired token, 403 from a missing grant — returns false, because a
+   * rejected row is a lost row. The distinction exists because `available` is a
+   * REACHABILITY flag and stays true on a 4xx (the register answered, it simply
+   * refused), so reachability must never be read as proof of a successful write.
+   * Conflating the two is precisely the false green this work exists to remove.
+   */
+  async insertAuditEvent(row: AuditEventRow): Promise<boolean> {
+    return this.writeConfirmed('/rest/v1/audit_events', 'POST', row, { Prefer: 'return=minimal' });
+  }
+
+  /**
+   * Like `write`, but the return value is the confirmation of the write itself
+   * rather than the response body. Kept separate so no existing caller changes
+   * meaning.
+   */
+  private async writeConfirmed(
+    path: string,
+    method: 'POST' | 'PATCH' | 'DELETE',
+    body: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<boolean> {
+    try {
+      const { status, data } = await supabaseRequest<unknown>(this.config, method, path, body, extraHeaders);
+      if (status >= 400) {
+        logger.warn(`Supabase write ${method} ${path} → HTTP ${status} (rejected, row lost)`, data);
+        this.available = status < 500;
+        return false;
+      }
+      this.available = true;
+      return true;
+    } catch (err) {
+      logger.error(`Supabase write error on ${path}:`, err);
+      this.available = false;
+      if (this.config.required) throw err;
+      return false;
+    }
   }
 
   async listAuditEvents(limit = 100): Promise<AuditEventRow[]> {

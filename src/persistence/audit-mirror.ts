@@ -235,7 +235,22 @@ const contoare: Contoare = {
   accesibil: null,
 };
 
-let managerInjectat: Pick<MemoryManager, 'recordAuditEvent'> | null = null;
+/**
+ * The mirror's view of a memory manager.
+ *
+ * The return type is deliberately `boolean | void`: the real manager CONFIRMS
+ * the write, and that confirmation is the primary evidence of success, but an
+ * older implementation or a test double that reports nothing must remain usable
+ * without silently being counted as a success. `oglindesteVeriga` handles the
+ * three cases separately — confirmed, rejected, unreported.
+ */
+export interface ManagerOglindire {
+  recordAuditEvent(
+    rand: Parameters<MemoryManager['recordAuditEvent']>[0],
+  ): Promise<boolean | void>;
+}
+
+let managerInjectat: ManagerOglindire | null = null;
 let mediu: NodeJS.ProcessEnv = process.env;
 
 /**
@@ -244,7 +259,7 @@ let mediu: NodeJS.ProcessEnv = process.env;
  * credential.
  */
 export function configureazaOglindire(options: {
-  manager?: Pick<MemoryManager, 'recordAuditEvent'> | null;
+  manager?: ManagerOglindire | null;
   env?: NodeJS.ProcessEnv;
 }): void {
   if (options.manager !== undefined) managerInjectat = options.manager;
@@ -262,6 +277,7 @@ export function reseteazaOglindire(): void {
   contoare.accesibil = null;
   managerInjectat = null;
   mediu = process.env;
+  memoAccesibil = null;
 }
 
 export function persistentaEsteConfigurata(env: NodeJS.ProcessEnv = mediu): boolean {
@@ -301,7 +317,7 @@ export function stareOglindire(seqLocalMaxim?: number): StareOglindire {
 // Oglindirea
 // ---------------------------------------------------------------------------
 
-function manager(): Pick<MemoryManager, 'recordAuditEvent'> | null {
+function manager(): ManagerOglindire | null {
   if (managerInjectat) return managerInjectat;
   // Resolved lazily, and only when persistence is configured, so no adapter is
   // constructed and no credential is read in an unconfigured deployment.
@@ -331,17 +347,32 @@ export async function oglindesteVeriga(record: AuditRecord): Promise<boolean> {
       return false;
     }
     const rand = construiesteRandAudit(record);
-    await m.recordAuditEvent(rand);
+    const confirmare = await m.recordAuditEvent(rand);
 
-    // `recordAuditEvent` swallows its own errors by contract, so success is
-    // confirmed against the adapter's availability flag rather than assumed. With
-    // an injected manager (tests) there is no adapter to consult and the absence
-    // of a throw is the whole signal.
-    const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
-    const accesibil = adaptor ? adaptor.isAvailable : true;
-    if (!accesibil) {
-      inregistreazaEsec(record, new Error('scrierea relațională nu a fost confirmată'));
+    // Success is the register's OWN confirmation of the write, never an
+    // inference from reachability. A rejection — 400 from the constrained
+    // vocabulary, 401 from an expired token, 403 from a missing grant — leaves
+    // the register reachable and the row lost, so counting it as mirrored would
+    // manufacture the exact false green this module exists to remove.
+    if (confirmare === false) {
+      inregistreazaEsec(
+        record,
+        new Error('scrierea relațională a fost respinsă sau neconfirmată de registru'),
+      );
       return false;
+    }
+
+    // A manager that reports nothing (an older implementation, or an injected
+    // test double typed as returning void) leaves only the weaker signal: the
+    // adapter's reachability plus the absence of a throw. Kept as a fallback so
+    // no caller silently loses coverage, never as the primary evidence.
+    if (confirmare !== true) {
+      const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
+      const accesibil = adaptor ? adaptor.isAvailable : true;
+      if (!accesibil) {
+        inregistreazaEsec(record, new Error('scrierea relațională nu a fost confirmată'));
+        return false;
+      }
     }
 
     contoare.oglindite += 1;
@@ -413,6 +444,46 @@ export interface RaportPersistenta {
 }
 
 /**
+ * Reachability probe with its OWN deadline and a short memo.
+ *
+ * Two faults are being avoided, and neither is hypothetical. First, the
+ * adapter's request deadline is 10 s while the container probe that calls
+ * `/health` gives up at 5 s: a register that HANGS rather than refuses would
+ * make the probe expire and the orchestrator mark a correctly answering runtime
+ * unhealthy — a fault caused entirely by the health check. Second, `/health`
+ * and `/api/runtime/health` are polled every 30 s by probes and freely by
+ * anyone; without a memo each call opens a fresh socket to the register.
+ *
+ * `LIMITA_INTEROGARE_MS` therefore stays well under the probe's own timeout, and
+ * `TTL_MEMO_MS` under the polling interval, so freshness is never traded away.
+ */
+const LIMITA_INTEROGARE_MS = 2_000;
+const TTL_MEMO_MS = 10_000;
+
+let memoAccesibil: { valoare: boolean; la: number } | null = null;
+
+async function interogheazaCuLimita(adaptor: { ping: () => Promise<boolean> }): Promise<boolean> {
+  const acum = Date.now();
+  if (memoAccesibil && acum - memoAccesibil.la < TTL_MEMO_MS) return memoAccesibil.valoare;
+
+  let cronometru: NodeJS.Timeout | undefined;
+  try {
+    const valoare = await Promise.race<boolean>([
+      adaptor.ping(),
+      new Promise<boolean>((resolve) => {
+        cronometru = setTimeout(() => resolve(false), LIMITA_INTEROGARE_MS);
+        // Do not hold the event loop open on this timer.
+        if (typeof cronometru.unref === 'function') cronometru.unref();
+      }),
+    ]);
+    memoAccesibil = { valoare, la: Date.now() };
+    return valoare;
+  } finally {
+    if (cronometru) clearTimeout(cronometru);
+  }
+}
+
+/**
  * Honest persistence health. A configured-but-unreachable relational register
  * is a DEGRADED runtime, and an unconfigured one is degraded too, with the
  * reason stated. Reporting `healthy` in either case is the false green this
@@ -436,7 +507,7 @@ export async function raporteazaPersistenta(seqLocalMaxim?: number): Promise<Rap
   try {
     const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
     if (adaptor) {
-      accesibil = await adaptor.ping();
+      accesibil = await interogheazaCuLimita(adaptor);
       if (!accesibil) motiv = 'baza de guvernanță configurată dar inaccesibilă';
     } else {
       // Injected manager (tests) or adapter absent: fall back to the observed

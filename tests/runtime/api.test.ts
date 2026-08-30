@@ -546,12 +546,16 @@ describe('L0 · health endpoint', () => {
   it('distinguishes live from ready using generative capability and durable persistence', async () => {
     const res = await request(makeApp()).get('/api/runtime/health');
     // The deterministic core is always invocable, so a runtime with no vendor
-    // credentials must still not claim readiness. Since the audit mirror landed,
-    // a relational register that is unconfigured or unreachable also blocks
-    // readiness: the decisions are recorded locally but the sovereign register an
-    // auditor reads is not receiving them.
-    const degradat =
-      res.body.providers.generative_invocable === 0 || res.body.persistence.degradat === true;
+    // credentials must still not claim readiness.
+    //
+    // An impaired relational register blocks readiness only when the deployment
+    // declared persistence mandatory. Otherwise durability is degraded while
+    // availability is intact, and withholding readiness would convert one into
+    // the other behind a flag set to false to prevent exactly that. Either way
+    // the register's real state is reported under `persistence`.
+    const persistentaBlocheaza =
+      res.body.persistence.degradat === true && process.env.PERSISTENCE_REQUIRED === 'true';
+    const degradat = res.body.providers.generative_invocable === 0 || persistentaBlocheaza;
     if (degradat) {
       expect(res.status).toBe(503);
       expect(res.body.status).toBe('degraded');
@@ -561,6 +565,10 @@ describe('L0 · health endpoint', () => {
       expect(res.body.status).toBe('ready');
       expect(res.body.degradation_reasons).toEqual([]);
     }
+    // Reported unconditionally, whether or not it gates readiness.
+    expect(res.body.persistence).toEqual(
+      expect.objectContaining({ configurat: expect.any(Boolean), degradat: expect.any(Boolean) }),
+    );
   });
 
   it('reports the audit chain head hash', async () => {

@@ -125,17 +125,28 @@ export class MemoryManager {
 
   // ---- Audit events --------------------------------------------------------
 
-  async recordAuditEvent(event: Omit<AuditEventRow, 'id' | 'occurred_at'>): Promise<void> {
+  /**
+   * Record one audit event. Still fire-and-forget for the CALLER — it never
+   * throws — but it now REPORTS the outcome instead of hiding it: true only when
+   * the register confirmed the write, false when the write was rejected, when
+   * the register was unreachable, or when persistence is not configured.
+   *
+   * The audit mirror needs this answer. Inferring success from a reachability
+   * flag counts a rejected row as mirrored, which turns a register with holes
+   * into a register that looks complete.
+   */
+  async recordAuditEvent(event: Omit<AuditEventRow, 'id' | 'occurred_at'>): Promise<boolean> {
     if (!this.supabase) {
       logger.debug('audit event not persisted — Supabase not configured');
-      return;
+      return false;
     }
     try {
-      await this.supabase.insertAuditEvent(event as AuditEventRow);
+      return await this.supabase.insertAuditEvent(event as AuditEventRow);
     } catch (err) {
       // Audit events are fire-and-forget. A failure to persist an event must not
       // prevent the runtime from answering the query it is recording.
       logger.error('recordAuditEvent() failed (non-fatal):', err);
+      return false;
     }
   }
 

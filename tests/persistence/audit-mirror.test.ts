@@ -432,3 +432,83 @@ describe('sănătatea persistenței relaționale', () => {
     expect(serializat).not.toContain('test-token-not-a-real-credential');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6 · Confirmarea scrierii — o respingere nu e o reușită
+// ---------------------------------------------------------------------------
+//
+// Auditul dinaintea fuziunii a găsit aici defectul de fond: reușita era dedusă
+// din steagul de accesibilitate al adaptorului, iar acel steag rămâne adevărat
+// la o respingere 4xx, fiindcă registrul a răspuns — doar că a refuzat. Un rând
+// respins avansa contoarele ca oglindit. Registrul rămânea cu găuri și arăta
+// complet, adică exact verdele fals pe care lucrarea aceasta există să îl
+// elimine.
+
+describe('confirmarea scrierii relaționale', () => {
+  test('a rejected write is counted as a failure, not as a mirrored link', async () => {
+    let apeluri = 0;
+    configureazaOglindire({
+      manager: {
+        async recordAuditEvent() {
+          apeluri += 1;
+          // Registrul a răspuns și a refuzat: rândul e pierdut.
+          return false;
+        },
+      },
+      env: MEDIU_CONFIGURAT,
+    });
+
+    const rezultat = await oglindesteVeriga(veriga({ seq: 7 }));
+
+    expect(apeluri).toBe(1);
+    expect(rezultat).toBe(false);
+    const raport = await raporteazaPersistenta(7);
+    expect(raport.oglindite).toBe(0);
+    expect(raport.esuate).toBe(1);
+    expect(raport.ultimul_seq_oglindit).toBeNull();
+    expect(raport.verigi_neoglindite).toBe(7);
+    expect(raport.degradat).toBe(true);
+    expect(raport.ultima_eroare).toContain('respins');
+  });
+
+  test('a confirmed write advances the mirrored counters', async () => {
+    configureazaOglindire({
+      manager: {
+        async recordAuditEvent() {
+          return true;
+        },
+      },
+      env: MEDIU_CONFIGURAT,
+    });
+
+    const rezultat = await oglindesteVeriga(veriga({ seq: 11 }));
+
+    expect(rezultat).toBe(true);
+    const raport = await raporteazaPersistenta(11);
+    expect(raport.oglindite).toBe(1);
+    expect(raport.esuate).toBe(0);
+    expect(raport.ultimul_seq_oglindit).toBe(11);
+    expect(raport.verigi_neoglindite).toBe(0);
+  });
+
+  test('a rejection with PERSISTENCE_REQUIRED=true is a degradation, never a refusal', async () => {
+    configureazaOglindire({
+      manager: {
+        async recordAuditEvent() {
+          return false;
+        },
+      },
+      env: { ...MEDIU_CONFIGURAT, PERSISTENCE_REQUIRED: 'true' },
+    });
+
+    // Nu aruncă și nu blochează: veriga locală era deja scrisă când oglindirea
+    // rulează, iar stratul de audit nu are voie să suprime consemnarea unei
+    // decizii care s-a întâmplat deja.
+    await expect(oglindesteVeriga(veriga({ seq: 3 }))).resolves.toBe(false);
+
+    const raport = await raporteazaPersistenta(3);
+    expect(raport.degradari).toBe(1);
+    expect(raport.esuate).toBe(1);
+    expect(raport.oglindite).toBe(0);
+  });
+});

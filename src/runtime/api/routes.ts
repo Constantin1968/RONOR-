@@ -40,6 +40,7 @@ import {
   verifyChain,
 } from '../../audit/hash-chain';
 import { getPolicyVersion } from '../../governance/mi9-gate';
+import { raporteazaPersistenta } from '../../persistence/audit-mirror';
 import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
 import { asyncHandler, rateLimit, requireArchitect, requireAuth } from './middleware';
 import { runQueryPipeline, type QueryRequest } from './pipeline';
@@ -195,6 +196,13 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       const invocable = providers.filter((p) => p.invocable);
       const knowledge = await knowledgeStatus();
       const insecureKey = insecureDefaultActive();
+      // The relational register's real state, not an assumption about it. A
+      // configured-but-unreachable register, and an unconfigured one, both
+      // degrade readiness: the local chain keeps every decision, but the
+      // sovereign register that an auditor reads is not receiving them, and a
+      // probe that reported `ready` in that state would hide exactly the
+      // condition it exists to surface.
+      const persistence = await raporteazaPersistenta(countRecords());
 
       // READY requires at least one invocable provider. The deterministic core is
       // always invocable, so this asks the sharper question: is there a
@@ -202,10 +210,17 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       // live but not ready, and conflating the two would let a deployment with
       // no credentials pass a readiness probe.
       const generative = invocable.filter((p) => p.provider !== 'deterministic');
-      const ready = generative.length > 0;
+      const ready = generative.length > 0 && !persistence.degradat;
 
       res.status(ready ? 200 : 503).json({
         status: ready ? 'ready' : 'degraded',
+        degradation_reasons: [
+          ...(generative.length > 0 ? [] : ['no generative provider is invocable']),
+          ...(persistence.degradat
+            ? [`relational persistence: ${persistence.motiv ?? 'state unknown'}`]
+            : []),
+        ],
+        persistence,
         live: true,
         runtime: 'runtime-active',
         policy_version: getPolicyVersion(),

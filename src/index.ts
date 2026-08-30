@@ -34,7 +34,8 @@ import { modelExchangeRouter } from './api/model-exchange-router';
 import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
-import { getDb } from './audit/hash-chain';
+import { getDb, countRecords } from './audit/hash-chain';
+import { raporteazaPersistenta } from './persistence/audit-mirror';
 import { RGatewayPlane } from './planes/r-gateway';
 import { RContextPlane } from './planes/r-context';
 import { RModelFabricPlane } from './planes/r-model-fabric';
@@ -267,8 +268,23 @@ async function bootstrap(): Promise<void> {
   app.get('/health', async (_req, res) => {
     const health = await orchestrator.getSystemHealth();
     const sentinelHealth = await sentinel.health();
+    // Honest persistence reporting. A relational register that is configured but
+    // unreachable — or not configured at all — makes this runtime degraded, and
+    // saying `ok` in that state is the false green this block removes. The HTTP
+    // code stays 200: liveness is real, only durability is impaired, and a
+    // non-200 here would make the container health check restart a runtime that
+    // is answering correctly.
+    const persistenta = await raporteazaPersistenta(countRecords());
+    const motiveDegradare: string[] = [];
+    if (persistenta.degradat) {
+      motiveDegradare.push(
+        `persistență relațională: ${persistenta.motiv ?? 'stare necunoscută'}`
+      );
+    }
     res.json({
-      status: 'ok',
+      status: motiveDegradare.length > 0 ? 'degraded' : 'ok',
+      degradation_reasons: motiveDegradare,
+      persistence: persistenta,
       version: '1.0.0',
       planes: [...health, sentinelHealth],
       sentinel: {

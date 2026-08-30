@@ -543,16 +543,23 @@ describe('L0 · health endpoint', () => {
     expect(body).not.toMatch(/sk-[a-zA-Z0-9]/);
   });
 
-  it('distinguishes live from ready using generative capability', async () => {
+  it('distinguishes live from ready using generative capability and durable persistence', async () => {
     const res = await request(makeApp()).get('/api/runtime/health');
     // The deterministic core is always invocable, so a runtime with no vendor
-    // credentials must still not claim readiness.
-    if (res.body.providers.generative_invocable === 0) {
+    // credentials must still not claim readiness. Since the audit mirror landed,
+    // a relational register that is unconfigured or unreachable also blocks
+    // readiness: the decisions are recorded locally but the sovereign register an
+    // auditor reads is not receiving them.
+    const degradat =
+      res.body.providers.generative_invocable === 0 || res.body.persistence.degradat === true;
+    if (degradat) {
       expect(res.status).toBe(503);
       expect(res.body.status).toBe('degraded');
+      expect(res.body.degradation_reasons.length).toBeGreaterThan(0);
     } else {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ready');
+      expect(res.body.degradation_reasons).toEqual([]);
     }
   });
 

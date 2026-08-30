@@ -1,0 +1,46 @@
+name: CodeQL
+
+# Analiza semantica CodeQL: urmareste fluxurile de date intre functii,
+# ceea ce analiza statica pe modele (Semgrep) nu poate face.
+# Depozitul este public, deci scanarea de cod este disponibila fara licenta suplimentara.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # luni, 04:17 UTC - decalat fata de ora exacta, ca sa nu concureze cu varful de rulari
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

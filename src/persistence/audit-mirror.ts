@@ -34,7 +34,12 @@
 
 import { createLogger } from '../utils/logger';
 import { getMemoryManager, type MemoryManager } from './memory-manager';
-import { loadSupabaseConfig, getSupabaseAdapter, type AuditEventRow } from './supabase-adapter';
+import {
+  loadSupabaseConfig,
+  getSupabaseAdapter,
+  type AuditEventRow,
+  type StareRegistru,
+} from './supabase-adapter';
 import type { AuditRecord } from '../audit/hash-chain';
 
 const logger = createLogger('RONOR:Persistence:AuditMirror');
@@ -206,7 +211,19 @@ export interface StareOglindire {
   esuate: number;
   ultimul_seq_oglindit: number | null;
   ultimul_seq_local: number | null;
+  /**
+   * Count of links in the observed window that the register never confirmed —
+   * actual HOLES, not a distance between two high-water marks.
+   */
   verigi_neoglindite: number | null;
+  /**
+   * The lowest sequence number this process has observed and NOT had confirmed:
+   * the start of the window `verigi_neoglindite` counts over. Stated explicitly
+   * because a count of holes without its window is not an auditable figure, and
+   * because links written before this process started are unknown to it rather
+   * than missing.
+   */
+  seq_prima_neoglindita: number | null;
   ultima_eroare: string | null;
   ultima_reusita_la: string | null;
   degradari: number;
@@ -222,6 +239,15 @@ interface Contoare {
   ultima_reusita_la: string | null;
   degradari: number;
   accesibil: boolean | null;
+  /**
+   * Lowest sequence number seen by this process that is not yet confirmed. The
+   * contiguous confirmed prefix is compacted into this number, so the set below
+   * only ever holds links confirmed OUT OF ORDER — which keeps memory flat on the
+   * healthy path instead of growing by one entry per audited decision.
+   */
+  seq_baza: number | null;
+  /** Confirmed sequence numbers above `seq_baza` (the out-of-order stragglers). */
+  seq_oglindite: Set<number>;
 }
 
 const contoare: Contoare = {
@@ -233,7 +259,52 @@ const contoare: Contoare = {
   ultima_reusita_la: null,
   degradari: 0,
   accesibil: null,
+  seq_baza: null,
+  seq_oglindite: new Set<number>(),
 };
+
+/**
+ * Note a link seen on the local chain, and open the counting window at the first
+ * one this process observes.
+ */
+function noteazaSeqLocal(seq: number): void {
+  contoare.ultimul_seq_local = Math.max(contoare.ultimul_seq_local ?? 0, seq);
+  if (contoare.seq_baza === null) contoare.seq_baza = seq;
+}
+
+/** Note a link the register CONFIRMED, then compact the contiguous prefix. */
+function noteazaSeqOglindit(seq: number): void {
+  contoare.ultimul_seq_oglindit = Math.max(contoare.ultimul_seq_oglindit ?? 0, seq);
+  if (contoare.seq_baza === null) contoare.seq_baza = seq;
+  if (seq < contoare.seq_baza) return;
+  contoare.seq_oglindite.add(seq);
+  while (contoare.seq_oglindite.delete(contoare.seq_baza)) {
+    contoare.seq_baza += 1;
+  }
+}
+
+/**
+ * Number of links in `[seq_baza .. seqLocal]` that were never confirmed.
+ *
+ * The retired formula was `Math.max(0, seqLocal - (ultimul_seq_oglindit ?? 0))`,
+ * a DISTANCE between two high-water marks. It reported zero missing links in the
+ * case that matters most: mirror links 1–9, lose link 10, mirror link 11, and
+ * the high-water mark reaches 11 while row 10 exists nowhere — `11 - 11 = 0`,
+ * a hole in the audit trail reported as a complete trail. Counting membership
+ * instead of subtracting maxima cannot produce that answer.
+ */
+function numaraVerigiNeoglindite(seqLocal: number | null): number | null {
+  if (seqLocal === null) return null;
+  const baza = contoare.seq_baza;
+  if (baza === null) return null;
+  if (seqLocal < baza) return 0;
+  const fereastra = seqLocal - baza + 1;
+  let confirmateInFereastra = 0;
+  for (const s of contoare.seq_oglindite) {
+    if (s >= baza && s <= seqLocal) confirmateInFereastra += 1;
+  }
+  return Math.max(0, fereastra - confirmateInFereastra);
+}
 
 /**
  * The mirror's view of a memory manager.
@@ -275,6 +346,8 @@ export function reseteazaOglindire(): void {
   contoare.ultima_reusita_la = null;
   contoare.degradari = 0;
   contoare.accesibil = null;
+  contoare.seq_baza = null;
+  contoare.seq_oglindite.clear();
   managerInjectat = null;
   mediu = process.env;
   memoAccesibil = null;
@@ -295,10 +368,7 @@ export function persistentaEsteObligatorie(env: NodeJS.ProcessEnv = mediu): bool
 export function stareOglindire(seqLocalMaxim?: number): StareOglindire {
   const configurat = persistentaEsteConfigurata();
   const seqLocal = typeof seqLocalMaxim === 'number' ? seqLocalMaxim : contoare.ultimul_seq_local;
-  const neoglindite =
-    seqLocal === null
-      ? null
-      : Math.max(0, seqLocal - (contoare.ultimul_seq_oglindit ?? 0));
+  const neoglindite = numaraVerigiNeoglindite(seqLocal);
   return {
     configurat,
     accesibil: configurat ? contoare.accesibil : false,
@@ -307,6 +377,7 @@ export function stareOglindire(seqLocalMaxim?: number): StareOglindire {
     ultimul_seq_oglindit: contoare.ultimul_seq_oglindit,
     ultimul_seq_local: seqLocal,
     verigi_neoglindite: neoglindite,
+    seq_prima_neoglindita: contoare.seq_baza,
     ultima_eroare: contoare.ultima_eroare,
     ultima_reusita_la: contoare.ultima_reusita_la,
     degradari: contoare.degradari,
@@ -331,7 +402,7 @@ function manager(): ManagerOglindire | null {
  * relational write was attempted and believed successful.
  */
 export async function oglindesteVeriga(record: AuditRecord): Promise<boolean> {
-  contoare.ultimul_seq_local = Math.max(contoare.ultimul_seq_local ?? 0, record.seq);
+  noteazaSeqLocal(record.seq);
 
   if (!persistentaEsteConfigurata()) {
     contoare.accesibil = false;
@@ -380,7 +451,7 @@ export async function oglindesteVeriga(record: AuditRecord): Promise<boolean> {
     }
 
     contoare.oglindite += 1;
-    contoare.ultimul_seq_oglindit = Math.max(contoare.ultimul_seq_oglindit ?? 0, record.seq);
+    noteazaSeqOglindit(record.seq);
     contoare.ultima_reusita_la = new Date().toISOString();
     contoare.accesibil = true;
     return true;
@@ -416,7 +487,7 @@ function inregistreazaEsec(record: AuditRecord, err: unknown): void {
 export function programeazaOglindire(record: AuditRecord): void {
   try {
     if (!persistentaEsteConfigurata()) {
-      contoare.ultimul_seq_local = Math.max(contoare.ultimul_seq_local ?? 0, record.seq);
+      noteazaSeqLocal(record.seq);
       return;
     }
     void oglindesteVeriga(record).catch((err) => {
@@ -437,8 +508,16 @@ export interface RaportPersistenta {
   configurat: boolean;
   accesibil: boolean;
   motiv: string | null;
+  /**
+   * The register's own observed state when an adapter exists: `accesibil`,
+   * `refuzat_autorizare`, `refuzat`, `inaccesibil`, `necunoscut`. Present so an
+   * operator can tell a refusal that needs a credential rotated from an outage
+   * that may heal by itself — `accesibil: false` alone cannot say which.
+   */
+  stare_registru: StareRegistru | null;
   ultimul_seq_oglindit: number | null;
   verigi_neoglindite: number | null;
+  seq_prima_neoglindita: number | null;
   ultima_eroare: string | null;
   ultima_reusita_la: string | null;
   oglindite: number;
@@ -535,6 +614,7 @@ export async function raporteazaPersistenta(seqLocalMaxim?: number): Promise<Rap
       ...comun(stare),
       configurat: false,
       accesibil: false,
+      stare_registru: null,
       motiv: 'persistență relațională neconfigurată (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY absente)',
       degradat: true,
     };
@@ -542,15 +622,21 @@ export async function raporteazaPersistenta(seqLocalMaxim?: number): Promise<Rap
 
   let accesibil = false;
   let motiv: string | null = null;
+  let stareRegistru: StareRegistru | null = null;
   try {
     const adaptor = managerInjectat ? null : getSupabaseAdapter(mediu);
     if (adaptor) {
       const stareAcces = await interogheazaAccesibilitate(adaptor);
+      stareRegistru = adaptor.stareRegistru;
       if (stareAcces === 'accesibil') {
         accesibil = true;
       } else if (stareAcces === 'inaccesibil') {
         accesibil = false;
-        motiv = 'baza de guvernanță configurată dar inaccesibilă';
+        // The adapter distinguishes a refusal from an outage; carrying its own
+        // reason forward means a 401 is reported as an expired authorisation
+        // instead of as an unreachable database, which sends the operator to the
+        // wrong place.
+        motiv = adaptor.motivulStarii ?? 'baza de guvernanță configurată dar inaccesibilă';
       } else {
         // Inconclusive, not negative. Left as a refusal, one slow answer would
         // withdraw readiness once persistence is mandatory and stop every
@@ -575,19 +661,39 @@ export async function raporteazaPersistenta(seqLocalMaxim?: number): Promise<Rap
   }
   contoare.accesibil = accesibil;
 
+  // Health judges CONFIRMED WRITES, not reachability alone. A register that is
+  // answering while links 10 and 14 exist only on the local chain is not a
+  // healthy register: the two trails no longer reconcile, and reporting green
+  // would leave the gap to be discovered during an audit rather than now.
+  const gauri = stare.verigi_neoglindite;
+  const motiveDegradare: string[] = [];
+  if (!accesibil) motiveDegradare.push(motiv ?? 'accesibilitate neconfirmată');
+  if (gauri !== null && gauri > 0) {
+    motiveDegradare.push(
+      `${gauri} verigă${gauri === 1 ? '' : 'i'} neconfirmată${gauri === 1 ? '' : 'e'} de registru ` +
+        `de la seq=${stare.seq_prima_neoglindita ?? '?'} până la seq=${stare.ultimul_seq_local ?? '?'}`,
+    );
+  }
+
   return {
     ...comun(stare),
     configurat: true,
     accesibil,
-    motiv,
-    degradat: !accesibil,
+    stare_registru: stareRegistru,
+    // When nothing degrades, any informative note the probe produced (a slow but
+    // confirmed answer, say) is still reported rather than dropped.
+    motiv: motiveDegradare.length > 0 ? motiveDegradare.join('; ') : motiv,
+    degradat: motiveDegradare.length > 0,
   };
 }
 
-function comun(stare: StareOglindire): Omit<RaportPersistenta, 'configurat' | 'accesibil' | 'motiv' | 'degradat'> {
+function comun(
+  stare: StareOglindire,
+): Omit<RaportPersistenta, 'configurat' | 'accesibil' | 'motiv' | 'degradat' | 'stare_registru'> {
   return {
     ultimul_seq_oglindit: stare.ultimul_seq_oglindit,
     verigi_neoglindite: stare.verigi_neoglindite,
+    seq_prima_neoglindita: stare.seq_prima_neoglindita,
     ultima_eroare: stare.ultima_eroare,
     ultima_reusita_la: stare.ultima_reusita_la,
     oglindite: stare.oglindite,

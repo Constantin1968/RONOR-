@@ -256,7 +256,15 @@ describe('G5 · Composition-root gating, proved by static analysis', () => {
     // a structural diff in the response body; an absent key is not.
     expect(executable).toMatch(/\.\.\.\(knowledge !== null[\s\S]{0,160}?\{ knowledge:/);
     // And no unconditional knowledge key exists in the payload.
-    const healthBlock = executable.match(/res\.json\(\{[\s\S]*?uptime: process\.uptime\(\),/);
+    // Ancorat pe CONȚINUTUL corpului de sănătate, nu pe forma lui sintactică.
+    // Corpul este acum compus într-o funcție și trimis de gestionar, fiindcă
+    // gestionarul trebuie să prindă orice excepție din compunere; o ancoră pe
+    // `res.json({` ar fi verificat plasarea codului, nu proprietatea cerută.
+    // `persistence: persistenta` distinge corpul real de corpul de rezervă al
+    // căii degradate, care conține și el `uptime`.
+    const healthBlock = executable.match(
+      /\{[\s\S]*?persistence: persistenta,[\s\S]*?uptime: process\.uptime\(\),/,
+    );
     expect(healthBlock).not.toBeNull();
     expect(healthBlock![0]).not.toMatch(/^\s*knowledge:/m);
   });

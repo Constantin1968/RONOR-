@@ -426,6 +426,80 @@ describe('sănătatea persistenței relaționale', () => {
     expect(raport.verigi_neoglindite).toBe(14);
   });
 
+  // R3 · Defectul confirmat de 6 din 6 auditori independenți. Formula retrasă era
+  // `Math.max(0, seqLocal − ultimul_seq_oglindit)`: o DISTANȚĂ între două maxime,
+  // nu un număr de găuri. Testul de mai jos e exact cazul în care distanța minte.
+  test('a hole between two mirrored links is counted, not erased by the high-water mark', async () => {
+    let respinge = false;
+    configureazaOglindire({
+      manager: {
+        async recordAuditEvent() {
+          return !respinge;
+        },
+      },
+      env: MEDIU_CONFIGURAT,
+    });
+
+    for (let seq = 1; seq <= 9; seq += 1) {
+      await oglindesteVeriga(veriga({ seq }));
+    }
+    respinge = true;
+    await oglindesteVeriga(veriga({ seq: 10 })); // veriga pierdută
+    respinge = false;
+    await oglindesteVeriga(veriga({ seq: 11 }));
+
+    const raport = await raporteazaPersistenta(11);
+
+    // Reperul a ajuns la 11, deci formula retrasă dă `11 − 11 = 0`: o gaură în
+    // pista de audit raportată drept pistă completă. Numărarea apartenenței nu
+    // poate produce acel răspuns.
+    expect(raport.ultimul_seq_oglindit).toBe(11);
+    expect(raport.verigi_neoglindite).toBe(1);
+    expect(raport.seq_prima_neoglindita).toBe(10);
+    // Și sănătatea judecă scrierile confirmate, nu doar accesibilitatea: registrul
+    // răspunde, dar cele două registre nu se mai reconciliază.
+    expect(raport.degradat).toBe(true);
+    expect(raport.motiv).toMatch(/neconfirmat/);
+    expect(raport.motiv).toContain('seq=10');
+  });
+
+  test('two holes far apart are both counted', async () => {
+    const pierdute = new Set([4, 12]);
+    let curent = 0;
+    configureazaOglindire({
+      manager: {
+        async recordAuditEvent() {
+          return !pierdute.has(curent);
+        },
+      },
+      env: MEDIU_CONFIGURAT,
+    });
+
+    for (let seq = 1; seq <= 15; seq += 1) {
+      curent = seq;
+      await oglindesteVeriga(veriga({ seq }));
+    }
+
+    const raport = await raporteazaPersistenta(15);
+    expect(raport.verigi_neoglindite).toBe(2);
+    expect(raport.seq_prima_neoglindita).toBe(4);
+    expect(raport.degradat).toBe(true);
+  });
+
+  test('a fully mirrored chain reports zero holes and is not degraded', async () => {
+    configureazaOglindire({ manager: managerCareReuseste(), env: MEDIU_CONFIGURAT });
+    for (let seq = 1; seq <= 12; seq += 1) {
+      await oglindesteVeriga(veriga({ seq }));
+    }
+    const raport = await raporteazaPersistenta(12);
+    expect(raport.verigi_neoglindite).toBe(0);
+    // Prefixul confirmat contiguu e compactat: prima verigă neconfirmată este cea
+    // care urmează, nu una existentă. Astfel memoria rămâne plată pe calea
+    // sănătoasă, în loc să crească cu o intrare pe decizie auditată.
+    expect(raport.seq_prima_neoglindita).toBe(13);
+    expect(raport.degradat).toBe(false);
+  });
+
   test('no configuration value is echoed into the health report', async () => {
     configureazaOglindire({ manager: null, env: MEDIU_CONFIGURAT });
     const raport = await raporteazaPersistenta(0);
@@ -467,7 +541,12 @@ describe('confirmarea scrierii relaționale', () => {
     expect(raport.oglindite).toBe(0);
     expect(raport.esuate).toBe(1);
     expect(raport.ultimul_seq_oglindit).toBeNull();
-    expect(raport.verigi_neoglindite).toBe(7);
+    // O singură verigă a fost observată și o singură verigă lipsește. Verigile 1–6
+    // nu au trecut prin acest proces, deci nu pot fi declarate neoglindite:
+    // formula retrasă le număra (7 − 0 = 7) și pretindea astfel o cunoaștere pe
+    // care procesul nu o are. Fereastra de numărare este declarată explicit.
+    expect(raport.verigi_neoglindite).toBe(1);
+    expect(raport.seq_prima_neoglindita).toBe(7);
     expect(raport.degradat).toBe(true);
     expect(raport.ultima_eroare).toContain('respins');
   });

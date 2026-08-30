@@ -64,6 +64,10 @@ function main(): number {
   const approvedSpineHashes: Record<string, string> = {
     // Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
     'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
+    // Approved audit-mirror hook: one fire-and-forget call inside append(), after
+    // the local insert and before the return. Hashing, ordering, verification and
+    // export are byte-for-byte unchanged; the mirror cannot block or throw here.
+    'src/audit/hash-chain.ts': '3c2b9e848684c1e6953516a6c8f4f0f794ffc50f',
   };
   const spineDetail: Record<string, { baseline: string; expected: string; current: string; identical: boolean }> = {};
   let spineOk = true;

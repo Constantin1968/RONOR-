@@ -34,7 +34,9 @@ import { modelExchangeRouter } from './api/model-exchange-router';
 import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
-import { getDb } from './audit/hash-chain';
+import { getDb, countRecords } from './audit/hash-chain';
+import { raporteazaPersistenta, persistentaEsteObligatorie } from './persistence/audit-mirror';
+import { compuneSauDegradat, masoaraSauNecunoscut } from './health/protejare';
 import { RGatewayPlane } from './planes/r-gateway';
 import { RContextPlane } from './planes/r-context';
 import { RModelFabricPlane } from './planes/r-model-fabric';
@@ -264,11 +266,69 @@ async function bootstrap(): Promise<void> {
   app.use('/', express.static('web'));
 
   // Health endpoint
+  //
+  // The whole handler is wrapped. Every line below can throw — `getSystemHealth`
+  // and `sentinel.health()` are async and touch subsystems, `countRecords()` is a
+  // SYNCHRONOUS read of the local chain added on this path, and an unhandled
+  // rejection inside an Express handler yields no response at all: the probe times
+  // out and the orchestrator restarts a runtime that was answering every other
+  // route correctly. A health endpoint that can take the process down is worse
+  // than no health endpoint, so a failure to COMPOSE health is reported as
+  // degraded, with the reason, rather than thrown.
   app.get('/health', async (_req, res) => {
+    const corp = await compuneSauDegradat<Record<string, unknown>>(
+      () => compuneSanatate(),
+      (motiv) => {
+        logger.error(`compunerea sănătății a eșuat: ${motiv}`);
+        return {
+          status: 'degraded',
+          degradation_reasons: [`sănătatea nu a putut fi compusă: ${motiv}`],
+          version: '1.0.0',
+          uptime: process.uptime(),
+        };
+      },
+    );
+    // HTTP 200 for the same reason the degraded path keeps it: the process is
+    // demonstrably alive — it is answering this request — and only our ability to
+    // describe it failed. The body says so plainly, so no reader mistakes this
+    // for a green runtime.
+    res.status(200).json(corp);
+  });
+
+  async function compuneSanatate(): Promise<Record<string, unknown>> {
     const health = await orchestrator.getSystemHealth();
     const sentinelHealth = await sentinel.health();
-    res.json({
-      status: 'ok',
+    // Honest persistence reporting: the register's real state is always present
+    // under `persistence`, with its reason, whatever the flag says.
+    //
+    // Whether it degrades the overall STATUS follows the same rule as the
+    // readiness probe in `runtime/api/routes.ts`, deliberately — two health
+    // endpoints on one runtime that disagree about whether it is degraded teach
+    // an operator to trust neither, and a script reading the wrong one draws the
+    // wrong conclusion. One rule, stated once: an impaired register degrades the
+    // status when the deployment declared persistence mandatory.
+    //
+    // The HTTP code stays 200 either way: liveness is real, only durability is
+    // impaired, and a non-200 here would make the container health check restart
+    // a runtime that is answering correctly.
+    // The local-chain count is read inside its own guard: it is the newest and
+    // least exercised call on this path, and if it fails the register report must
+    // still be produced — without a link count rather than not at all.
+    const seqLocal = masoaraSauNecunoscut(
+      () => countRecords(),
+      (motiv) => logger.warn(`citirea lanțului local pentru /health a eșuat: ${motiv}`),
+    );
+    const persistenta = await raporteazaPersistenta(seqLocal);
+    const motiveDegradare: string[] = [];
+    if (persistenta.degradat && persistentaEsteObligatorie()) {
+      motiveDegradare.push(
+        `persistență relațională: ${persistenta.motiv ?? 'stare necunoscută'}`
+      );
+    }
+    return {
+      status: motiveDegradare.length > 0 ? 'degraded' : 'ok',
+      degradation_reasons: motiveDegradare,
+      persistence: persistenta,
       version: '1.0.0',
       planes: [...health, sentinelHealth],
       sentinel: {
@@ -283,8 +343,8 @@ async function bootstrap(): Promise<void> {
       ...(knowledge !== null
         ? { knowledge: { degradationLevel: knowledge.getDegradation().level } }
         : {}),
-    });
-  });
+    };
+  }
 
   if (knowledge !== null) {
     logger.info(`Knowledge: http://localhost:${PORT}/api/v1/knowledge/status`);

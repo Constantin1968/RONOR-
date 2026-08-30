@@ -23,6 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger';
+import { programeazaOglindire } from '../persistence/audit-mirror';
 import type { MI9Result, DecisionContext } from '../governance/mi9-gate';
 
 const logger = createLogger('Audit:HashChain');
@@ -200,6 +201,20 @@ export function append(payload: AuditPayload): AuditRecord {
   logger.info(
     `Audit seq=${record.seq} decision=${payload.decisionId} verdict=${payload.mi9Result.verdict} chain=${chainHash.slice(0, 16)}…`
   );
+
+  // Mirror the freshly committed link into the sovereign relational register.
+  // Placed AFTER the local insert and BEFORE the return, fire-and-forget: this
+  // chain stays authoritative, `append()` stays synchronous, and no relational
+  // fault can refuse, delay or corrupt an audit link. The call cannot throw —
+  // `programeazaOglindire` absorbs everything — and the try/catch is a second
+  // barrier rather than a redundancy, because a throw here would lose a record
+  // that has already been written.
+  try {
+    programeazaOglindire(record);
+  } catch (err) {
+    logger.warn(`Audit mirror scheduling failed for seq=${record.seq}: ${String(err)}`);
+  }
+
   return record;
 }
 

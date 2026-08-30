@@ -40,6 +40,7 @@ import {
   verifyChain,
 } from '../../audit/hash-chain';
 import { getPolicyVersion } from '../../governance/mi9-gate';
+import { raporteazaPersistenta, persistentaEsteObligatorie } from '../../persistence/audit-mirror';
 import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
 import { asyncHandler, rateLimit, requireArchitect, requireAuth } from './middleware';
 import { runQueryPipeline, type QueryRequest } from './pipeline';
@@ -195,6 +196,21 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       const invocable = providers.filter((p) => p.invocable);
       const knowledge = await knowledgeStatus();
       const insecureKey = insecureDefaultActive();
+      // The relational register's real state, not an assumption about it. It is
+      // always REPORTED under `persistence`, so an operator sees the truth
+      // whatever the flag says.
+      //
+      // Whether it BLOCKS readiness is governed by PERSISTENCE_REQUIRED, and the
+      // reason is operational, not cosmetic. This probe is what the container
+      // health check reads, and a dependent interface refuses to start against an
+      // unhealthy runtime. Making an unreachable register fail readiness while
+      // the deployment still declares persistence optional would turn a
+      // degradation of DURABILITY into an outage of AVAILABILITY — and it would
+      // do so behind a flag that was set to false precisely to prevent that.
+      // With the flag true, the operator has asked for the stricter contract and
+      // gets it.
+      const persistence = await raporteazaPersistenta(countRecords());
+      const persistenceBlocks = persistence.degradat && persistentaEsteObligatorie(env);
 
       // READY requires at least one invocable provider. The deterministic core is
       // always invocable, so this asks the sharper question: is there a
@@ -202,10 +218,20 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       // live but not ready, and conflating the two would let a deployment with
       // no credentials pass a readiness probe.
       const generative = invocable.filter((p) => p.provider !== 'deterministic');
-      const ready = generative.length > 0;
+      const ready = generative.length > 0 && !persistenceBlocks;
 
       res.status(ready ? 200 : 503).json({
         status: ready ? 'ready' : 'degraded',
+        // Reasons readiness is withheld — not a list of everything imperfect.
+        // An impaired register that does not block readiness is still fully
+        // visible under `persistence`, with its reason.
+        degradation_reasons: [
+          ...(generative.length > 0 ? [] : ['no generative provider is invocable']),
+          ...(persistenceBlocks
+            ? [`relational persistence: ${persistence.motiv ?? 'state unknown'}`]
+            : []),
+        ],
+        persistence,
         live: true,
         runtime: 'runtime-active',
         policy_version: getPolicyVersion(),

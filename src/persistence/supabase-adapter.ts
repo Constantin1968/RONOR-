@@ -194,17 +194,106 @@ export interface AuditEventRow {
 // Adapter
 // ---------------------------------------------------------------------------
 
+/**
+ * The register's state as OBSERVED, not as hoped.
+ *
+ * Four values, because three distinct faults were previously collapsed into the
+ * single word `available`:
+ *
+ *   · `accesibil`            — the register answered with a 2xx. The only state
+ *                              in which a caller may treat it as usable.
+ *   · `refuzat_autorizare`   — 401 or 403. The register is alive and REFUSING:
+ *                              an expired service-role key, a revoked grant, a
+ *                              row-level-security policy denying the write. Rows
+ *                              are being lost, and no retry will land until a
+ *                              human fixes the credential.
+ *   · `refuzat`              — any other 4xx (a 404 on a missing table, a 400
+ *                              from the constrained event-type vocabulary), and
+ *                              any 3xx, which PostgREST does not issue on these
+ *                              paths and therefore signals something other than
+ *                              the register in front of us.
+ *   · `inaccesibil`          — 5xx, a transport error, or a timeout. Nobody
+ *                              answered.
+ *   · `necunoscut`           — no contact attempted yet. Not a verdict.
+ *
+ * The distinction is the whole point. The retired rule `available = status < 500`
+ * reported a register that answers `401 Unauthorized` to every write as
+ * AVAILABLE, so a runtime losing every audit row looked healthy. Reachability is
+ * not usability, and a refusal is not an outage: it is a louder fault, because
+ * it will not heal on its own.
+ */
+export type StareRegistru =
+  | 'necunoscut'
+  | 'accesibil'
+  | 'refuzat_autorizare'
+  | 'refuzat'
+  | 'inaccesibil';
+
 export class SupabaseAdapter {
   private readonly config: SupabaseConfig;
-  private available = true;
+  private stare: StareRegistru = 'necunoscut';
+  private motivStare: string | null = null;
 
   constructor(config: SupabaseConfig) {
     this.config = config;
     logger.info(`Supabase adapter initialised → ${config.url} (schema: ${config.schema}, required: ${config.required})`);
   }
 
+  /**
+   * True ONLY for an observed 2xx. A refusal (401/403/404/400) and an outage
+   * both return false, because in all of them a write does not land.
+   *
+   * `necunoscut` returns false as well: before the first contact there is no
+   * evidence of availability, and the previous optimistic initial value `true`
+   * meant the very first health report could claim a register nobody had spoken
+   * to yet.
+   */
   get isAvailable(): boolean {
-    return this.available;
+    return this.stare === 'accesibil';
+  }
+
+  /** The observed state, for callers that must tell a refusal from an outage. */
+  get stareRegistru(): StareRegistru {
+    return this.stare;
+  }
+
+  /** Human-readable reason for the current state; null when accessible. */
+  get motivulStarii(): string | null {
+    return this.stare === 'accesibil' ? null : this.motivStare;
+  }
+
+  /**
+   * Record the state implied by one observed HTTP status.
+   *
+   * Returns whether the status is a CONFIRMATION (2xx), so callers never have to
+   * restate the boundary. Restating it is how `>= 400` came to mean "confirmed"
+   * for every 3xx.
+   */
+  private noteazaStatus(status: number, context: string): boolean {
+    if (status >= 200 && status < 300) {
+      this.stare = 'accesibil';
+      this.motivStare = null;
+      return true;
+    }
+    if (status === 401 || status === 403) {
+      this.stare = 'refuzat_autorizare';
+      this.motivStare = `registrul a refuzat autorizarea (HTTP ${status}) la ${context}`;
+      return false;
+    }
+    if (status >= 500) {
+      this.stare = 'inaccesibil';
+      this.motivStare = `registrul a răspuns cu eroare de server (HTTP ${status}) la ${context}`;
+      return false;
+    }
+    this.stare = 'refuzat';
+    this.motivStare = `registrul a respins cererea (HTTP ${status}) la ${context}`;
+    return false;
+  }
+
+  /** Record a transport-level fault: nobody answered. */
+  private noteazaEroare(err: unknown, context: string): void {
+    this.stare = 'inaccesibil';
+    this.motivStare = `${context}: ${err instanceof Error ? err.message : String(err)}`;
   }
 
   // ---- Conversations -------------------------------------------------------
@@ -277,8 +366,51 @@ export class SupabaseAdapter {
 
   // ---- Audit events --------------------------------------------------------
 
-  async insertAuditEvent(row: AuditEventRow): Promise<void> {
-    await this.write('/rest/v1/audit_events', 'POST', row, { Prefer: 'return=minimal' });
+  /**
+   * Insert one audit event and report whether the register CONFIRMED the write.
+   *
+   * Returns true only for a 2xx. A rejection — 400 from a CHECK constraint, 401
+   * from an expired token, 403 from a missing grant, and equally a 3xx redirect —
+   * returns false, because a row that was not confirmed is a lost row.
+   *
+   * `isAvailable` follows the same 2xx boundary, so a refusal can no longer be
+   * read as proof that writes are landing. What the two still say separately is
+   * WHICH fault occurred: `stareRegistru` distinguishes a refusal that will not
+   * heal without a human from an outage that may.
+   */
+  async insertAuditEvent(row: AuditEventRow): Promise<boolean> {
+    return this.writeConfirmed('/rest/v1/audit_events', 'POST', row, { Prefer: 'return=minimal' });
+  }
+
+  /**
+   * Like `write`, but the return value is the confirmation of the write itself
+   * rather than the response body. Kept separate so no existing caller changes
+   * meaning.
+   */
+  private async writeConfirmed(
+    path: string,
+    method: 'POST' | 'PATCH' | 'DELETE',
+    body: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<boolean> {
+    try {
+      const { status, data } = await supabaseRequest<unknown>(this.config, method, path, body, extraHeaders);
+      // A write is confirmed by a 2xx and by nothing else. The retired test
+      // `status >= 400` counted every 3xx as a confirmed insertion: a redirect —
+      // from a proxy in front of the register, or a URL that moved — would have
+      // been recorded as a mirrored link, and the row would exist nowhere.
+      const confirmat = this.noteazaStatus(status, `${method} ${path}`);
+      if (!confirmat) {
+        logger.warn(`Supabase write ${method} ${path} → HTTP ${status} (neconfirmat, rândul e pierdut)`, data);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      logger.error(`Supabase write error on ${path}:`, err);
+      this.noteazaEroare(err, `scriere ${method} ${path}`);
+      if (this.config.required) throw err;
+      return false;
+    }
   }
 
   async listAuditEvents(limit = 100): Promise<AuditEventRow[]> {
@@ -290,13 +422,20 @@ export class SupabaseAdapter {
 
   // ---- Health check --------------------------------------------------------
 
+  /**
+   * Reachability probe. True only on a 2xx.
+   *
+   * The retired rule was `status < 500`, which answered TRUE to a register that
+   * replies 401 to every request. Health then reported green while every audit
+   * row was being dropped — the exact false green this module exists to remove.
+   * A refusal is now false, and `stareRegistru` says which refusal it was.
+   */
   async ping(): Promise<boolean> {
     try {
       const { status } = await supabaseRequest<unknown>(this.config, 'GET', '/rest/v1/', undefined);
-      this.available = status < 500;
-      return this.available;
-    } catch {
-      this.available = false;
+      return this.noteazaStatus(status, 'GET /rest/v1/ (sondă)');
+    } catch (err) {
+      this.noteazaEroare(err, 'sondă GET /rest/v1/');
       return false;
     }
   }
@@ -311,16 +450,14 @@ export class SupabaseAdapter {
   ): Promise<T | null> {
     try {
       const { status, data } = await supabaseRequest<T>(this.config, method, path, body, extraHeaders);
-      if (status >= 400) {
+      if (!this.noteazaStatus(status, `${method} ${path}`)) {
         logger.warn(`Supabase write ${method} ${path} → HTTP ${status}`, data);
-        this.available = status < 500;
         return null;
       }
-      this.available = true;
       return data;
     } catch (err) {
       logger.error(`Supabase write error on ${path}:`, err);
-      this.available = false;
+      this.noteazaEroare(err, `scriere ${method} ${path}`);
       if (this.config.required) throw err;
       return null;
     }
@@ -329,16 +466,14 @@ export class SupabaseAdapter {
   private async read<T>(path: string): Promise<{ data: T | null }> {
     try {
       const { status, data } = await supabaseRequest<T>(this.config, 'GET', path);
-      if (status >= 400) {
+      if (!this.noteazaStatus(status, `GET ${path}`)) {
         logger.warn(`Supabase read GET ${path} → HTTP ${status}`);
-        this.available = status < 500;
         return { data: null };
       }
-      this.available = true;
       return { data };
     } catch (err) {
       logger.error(`Supabase read error on ${path}:`, err);
-      this.available = false;
+      this.noteazaEroare(err, `citire GET ${path}`);
       if (this.config.required) throw err;
       return { data: null };
     }

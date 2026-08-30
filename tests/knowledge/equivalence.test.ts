@@ -256,7 +256,15 @@ describe('G5 · Composition-root gating, proved by static analysis', () => {
     // a structural diff in the response body; an absent key is not.
     expect(executable).toMatch(/\.\.\.\(knowledge !== null[\s\S]{0,160}?\{ knowledge:/);
     // And no unconditional knowledge key exists in the payload.
-    const healthBlock = executable.match(/res\.json\(\{[\s\S]*?uptime: process\.uptime\(\),/);
+    // Ancorat pe CONȚINUTUL corpului de sănătate, nu pe forma lui sintactică.
+    // Corpul este acum compus într-o funcție și trimis de gestionar, fiindcă
+    // gestionarul trebuie să prindă orice excepție din compunere; o ancoră pe
+    // `res.json({` ar fi verificat plasarea codului, nu proprietatea cerută.
+    // `persistence: persistenta` distinge corpul real de corpul de rezervă al
+    // căii degradate, care conține și el `uptime`.
+    const healthBlock = executable.match(
+      /\{[\s\S]*?persistence: persistenta,[\s\S]*?uptime: process\.uptime\(\),/,
+    );
     expect(healthBlock).not.toBeNull();
     expect(healthBlock![0]).not.toMatch(/^\s*knowledge:/m);
   });
@@ -311,11 +319,12 @@ describe('G5 · Isolation from the governance and audit spine', () => {
         cwd: REPO_ROOT,
         encoding: 'utf8',
       }).trim(),
-      'src/audit/hash-chain.ts': execFileSync(
-        'git',
-        ['rev-parse', `${baseline}:src/audit/hash-chain.ts`],
-        { cwd: REPO_ROOT, encoding: 'utf8' },
-      ).trim(),
+      // Approved audit-mirror hook: a single fire-and-forget call inside
+      // append(), placed after the local insert and before the return, so the
+      // local chain remains authoritative and the sovereign relational register
+      // receives a copy it can be reconciled against. Hashing, ordering,
+      // verification and export are untouched.
+      'src/audit/hash-chain.ts': '3c2b9e848684c1e6953516a6c8f4f0f794ffc50f',
       // Approved repair for D-1: pure evaluation plus post-execution accounting.
       'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
     };

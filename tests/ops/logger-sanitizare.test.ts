@@ -47,8 +47,9 @@ describe('sanitizarea argumentelor de jurnal', () => {
     const logger = createLogger('Test');
     logger.warn('a\r\nb\rc\nd');
 
-    const argumente = capturat[0].slice(1) as string[];
-    expect(argumente[0]).not.toMatch(/[\r\n]/);
+    const text = (capturat[0].slice(1) as string[]).join(' ');
+    expect(text).not.toMatch(/[\r\n]/);
+    expect(text).toContain('d');
   });
 
   it('pastreaza urma de stiva a unei erori, pe o singura linie', () => {
@@ -68,9 +69,9 @@ describe('sanitizarea argumentelor de jurnal', () => {
     const logger = createLogger('Test');
     logger.error(new Error('prima linie\na doua linie injectata'));
 
-    const argumente = capturat[0].slice(1) as string[];
-    expect(argumente[0]).not.toMatch(/[\r\n]/);
-    expect(argumente[0]).toContain('a doua linie injectata');
+    const text = (capturat[0].slice(1) as string[]).join(' ');
+    expect(text).not.toMatch(/[\r\n]/);
+    expect(text).toContain('a doua linie injectata');
   });
 
   it('nu cade pe valori care nu se pot serializa', () => {
@@ -84,5 +85,7 @@ describe('sanitizarea argumentelor de jurnal', () => {
       expect(typeof valoare).toBe('string');
       expect(valoare).not.toMatch(/[\r\n]/);
     }
+    // Obiectul ciclic devine o descriere de forma, nu o serializare integrala.
+    expect(argumente.join(' ')).toContain('chei=[eu]');
   });
 });

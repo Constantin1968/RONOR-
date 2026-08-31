@@ -224,8 +224,21 @@ export function errorHandler(
   const safeMethod = sanitizeForLog(req.method);
   const safePath = sanitizeForLog(req.path);
   const safeRequestId = sanitizeForLog(requestId);
-  // eslint-disable-next-line no-console
-  console.error(`[RONOR:L0] unhandled error on ${safeMethod} ${safePath} (${safeRequestId}):`, err);
+  // Sablon fix, valorile trec ca argumente. Un sablon construit din date de
+  // cerere ar fi un format controlat din exterior, chiar si sanitizat. Urma de
+  // stiva se pastreaza, comprimata pe o singura linie.
+  const stiva =
+    err instanceof Error && typeof err.stack === 'string'
+      ? sanitizeForLog(err.stack.split(/[\r\n]+/).slice(1).join(' | '))
+      : '';
+  console.error(
+    '[RONOR:L0] unhandled error on %s %s (%s): %s %s',
+    safeMethod,
+    safePath,
+    safeRequestId,
+    sanitizeForLog(message),
+    stiva,
+  );
   if (res.headersSent) return;
   res.status(500).json({
     ok: false,

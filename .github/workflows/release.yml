@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
 
+# Privilegiu minim: fluxul doar citeste depozitul, construieste si testeaza.
+# Incarcarea artefactelor foloseste jetonul propriu al actiunii, nu contents.
+permissions:
+  contents: read
+
 jobs:
   verify-release:
     name: Verify Release

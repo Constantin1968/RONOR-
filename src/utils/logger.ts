@@ -15,8 +15,21 @@ function sanitizeLogArg(arg: unknown): string {
     return sanitizeLogText(arg);
   }
 
+  // Erorile isi pastreaza urma de stiva, altfel remedierea de injectie in jurnal
+  // ar distruge singura informatie utila la depanare. Separatorul de cadre este
+  // vizibil, dar linia ramane unica, deci injectia nu mai e posibila.
   if (arg instanceof Error) {
-    return `${arg.name}: ${sanitizeLogText(arg.message)}`;
+    const cap = `${arg.name}: ${sanitizeLogText(arg.message)}`;
+    if (typeof arg.stack !== 'string' || arg.stack.length === 0) {
+      return cap;
+    }
+    const stiva = arg.stack
+      .split(/[\r\n]+/)
+      .map((linie) => linie.trim())
+      .filter((linie) => linie.length > 0)
+      .slice(1)
+      .join(' | ');
+    return stiva.length > 0 ? `${cap} | ${stiva}` : cap;
   }
 
   try {

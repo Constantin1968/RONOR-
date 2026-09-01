@@ -162,17 +162,33 @@ const WINDOW_MS = 60_000;
  */
 const limiterStore = new MemoryStore();
 
-const limiter = expressRateLimit({
+/**
+ * Exported as the limiter itself rather than as a wrapper around it. An earlier
+ * revision wrapped the library handler in a local function to attach one custom
+ * header; that wrapper was invisible to static analysis, which then reported
+ * six guarded routes as unprotected. A control a reviewer cannot see is a
+ * control that will be argued about, so the library handler is the exported
+ * middleware and the custom header is attached from inside the limiter's own
+ * quota resolver, which runs on every limited request.
+ */
+export const rateLimit = expressRateLimit({
   windowMs: WINDOW_MS,
   // The quota travels with the key, so it is resolved per request.
-  limit: (req: Request): number => req.apiKey?.rate_limit_rpm ?? Number.MAX_SAFE_INTEGER,
+  limit: (req: Request, res: Response): number => {
+    // Declared explicitly so no operator mistakes a per-instance limiter for a
+    // cluster-wide quota.
+    res.setHeader('X-RateLimit-Scope', 'per-instance');
+    return req.apiKey?.rate_limit_rpm ?? Number.MAX_SAFE_INTEGER;
+  },
   // Unauthenticated traffic is skipped rather than pooled under one shared
   // bucket, which would let one anonymous caller starve another.
   skip: (req: Request): boolean => !req.apiKey,
   keyGenerator: (req: Request): string => req.apiKey?.key_id ?? 'anonymous',
-  // Headers are emitted by hand below so the existing contract is unchanged.
-  standardHeaders: false,
-  legacyHeaders: false,
+  // `legacyHeaders` emits exactly the X-RateLimit-Limit / -Remaining / -Reset
+  // trio this surface has always published, so the response contract is
+  // unchanged. The draft standard headers are published alongside them.
+  standardHeaders: 'draft-7',
+  legacyHeaders: true,
   requestWasSuccessful: () => true,
   handler: (req: Request, res: Response): void => {
     const limit = req.apiKey?.rate_limit_rpm ?? 0;
@@ -202,27 +218,6 @@ function resetSecondsFrom(res: Response): number {
  */
 export function resetRateLimiter(): void {
   void limiterStore.resetAll();
-}
-
-export function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const key = req.apiKey;
-  if (!key) {
-    next();
-    return;
-  }
-
-  const limit = key.rate_limit_rpm;
-  res.setHeader('X-RateLimit-Limit', String(limit));
-  // Declared explicitly so no operator mistakes a per-instance limiter for a
-  // cluster-wide quota.
-  res.setHeader('X-RateLimit-Scope', 'per-instance');
-
-  limiter(req, res, ((err?: unknown) => {
-    const info = (res as Response & { rateLimit?: { remaining?: number } }).rateLimit;
-    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, info?.remaining ?? limit)));
-    res.setHeader('X-RateLimit-Reset', String(resetSecondsFrom(res)));
-    next(err as never);
-  }) as NextFunction);
 }
 
 // ---------------------------------------------------------------------------

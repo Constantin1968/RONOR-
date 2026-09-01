@@ -119,14 +119,23 @@ function main(): number {
     'zod',
   ].sort();
   const actualProduction = Object.keys(pkg.dependencies).sort();
-  const unexpected = actualProduction.filter((d) => !EXPECTED_PRODUCTION_DEPENDENCIES.includes(d));
-  const missing = EXPECTED_PRODUCTION_DEPENDENCIES.filter((d) => !actualProduction.includes(d));
+  const unexpectedDependencies = actualProduction.filter(
+    (d) => !EXPECTED_PRODUCTION_DEPENDENCIES.includes(d)
+  );
+  const missingDependencies = EXPECTED_PRODUCTION_DEPENDENCIES.filter(
+    (d) => !actualProduction.includes(d)
+  );
   record(
     'CONF-2',
     `Dependency surface: ${EXPECTED_PRODUCTION_DEPENDENCIES.length} authorised production packages by name, development at or above baseline`,
     true,
-    unexpected.length === 0 && missing.length === 0 && devCount >= 16,
-    { production: depCount, development: devCount, unexpected, missing }
+    unexpectedDependencies.length === 0 && missingDependencies.length === 0 && devCount >= 16,
+    {
+      production: depCount,
+      development: devCount,
+      unexpected: unexpectedDependencies,
+      missing: missingDependencies,
+    }
   );
 
   const lockUnchanged =

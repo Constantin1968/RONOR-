@@ -23,6 +23,7 @@
 
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { rateLimit as expressRateLimit, ipKeyGenerator, MemoryStore } from 'express-rate-limit';
 import { authenticate, hasScope, type ApiKeyRecord } from './auth';
 
 export interface Provenance {
@@ -143,44 +144,55 @@ export function requireArchitect(req: Request, res: Response, next: NextFunction
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-interface Bucket {
-  windowStart: number;
-  count: number;
-}
-
-const buckets = new Map<string, Bucket>();
 const WINDOW_MS = 60_000;
 
-export function resetRateLimiter(): void {
-  buckets.clear();
-}
+/**
+ * The limiter is built on `express-rate-limit` rather than on a hand-rolled
+ * counter. The previous in-house token bucket was correct, but correctness that
+ * only its author can see is not the same as correctness a reviewer or a static
+ * analyser can verify. A maintained limiter is recognised by security analysis,
+ * receives its own fixes, and removes an accounting loop nobody else audits.
+ *
+ * The RONOR-specific semantics are preserved exactly:
+ *   · the quota is per API key, taken from that key's `rate_limit_rpm`;
+ *   · an unauthenticated request is not counted, because it has no key to
+ *     charge and `requireAuth` rejects it moments later anyway;
+ *   · the response advertises its own scope, so no operator mistakes a
+ *     per-instance limiter for a cluster-wide quota.
+ */
+const limiterStore = new MemoryStore();
 
-export function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const key = req.apiKey;
-  if (!key) {
-    next();
-    return;
-  }
-  const now = Date.now();
-  let bucket = buckets.get(key.key_id);
-  if (!bucket || now - bucket.windowStart >= WINDOW_MS) {
-    bucket = { windowStart: now, count: 0 };
-    buckets.set(key.key_id, bucket);
-  }
-  bucket.count++;
-
-  const limit = key.rate_limit_rpm;
-  const remaining = Math.max(0, limit - bucket.count);
-  const resetSeconds = Math.ceil((bucket.windowStart + WINDOW_MS - now) / 1000);
-
-  res.setHeader('X-RateLimit-Limit', String(limit));
-  res.setHeader('X-RateLimit-Remaining', String(remaining));
-  res.setHeader('X-RateLimit-Reset', String(resetSeconds));
-  // Declared explicitly so no operator mistakes a per-instance limiter for a
-  // cluster-wide quota.
-  res.setHeader('X-RateLimit-Scope', 'per-instance');
-
-  if (bucket.count > limit) {
+/**
+ * Exported as the limiter itself rather than as a wrapper around it. An earlier
+ * revision wrapped the library handler in a local function to attach one custom
+ * header; that wrapper was invisible to static analysis, which then reported
+ * six guarded routes as unprotected. A control a reviewer cannot see is a
+ * control that will be argued about, so the library handler is the exported
+ * middleware and the custom header is attached from inside the limiter's own
+ * quota resolver, which runs on every limited request.
+ */
+export const rateLimit = expressRateLimit({
+  windowMs: WINDOW_MS,
+  // The quota travels with the key, so it is resolved per request.
+  limit: (req: Request, res: Response): number => {
+    // Declared explicitly so no operator mistakes a per-instance limiter for a
+    // cluster-wide quota.
+    res.setHeader('X-RateLimit-Scope', 'per-instance');
+    return req.apiKey?.rate_limit_rpm ?? Number.MAX_SAFE_INTEGER;
+  },
+  // Unauthenticated traffic is skipped rather than pooled under one shared
+  // bucket, which would let one anonymous caller starve another.
+  skip: (req: Request): boolean => !req.apiKey,
+  keyGenerator: (req: Request): string => req.apiKey?.key_id ?? 'anonymous',
+  // `legacyHeaders` emits exactly the X-RateLimit-Limit / -Remaining / -Reset
+  // trio this surface has always published, so the response contract is
+  // unchanged. The draft standard headers are published alongside them.
+  standardHeaders: 'draft-7',
+  legacyHeaders: true,
+  requestWasSuccessful: () => true,
+  handler: (req: Request, res: Response): void => {
+    const limit = req.apiKey?.rate_limit_rpm ?? 0;
+    const resetSeconds = resetSecondsFrom(res);
     res.status(429).json({
       ok: false,
       error: 'rate_limited',
@@ -189,9 +201,69 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
       scope: 'per-instance',
       request_id: req.provenance?.request_id,
     });
-    return;
-  }
-  next();
+  },
+  store: limiterStore,
+});
+
+function resetSecondsFrom(res: Response): number {
+  const info = (res as Response & { rateLimit?: { resetTime?: Date } }).rateLimit;
+  const resetTime = info?.resetTime;
+  if (!resetTime) return Math.ceil(WINDOW_MS / 1000);
+  return Math.max(0, Math.ceil((resetTime.getTime() - Date.now()) / 1000));
+}
+
+/**
+ * Ingress ceiling, applied BEFORE authentication.
+ *
+ * The per-key limiter above cannot run first: its quota comes from the API key
+ * record, which only exists once the credential has been verified. That leaves
+ * a gap — credential verification itself is work, and an attacker who never
+ * presents a valid key is never metered by a limiter that meters keys. So the
+ * two limiters do different jobs and both are needed:
+ *
+ *   · this one bounds how often anyone may ASK to be authenticated, keyed on
+ *     the presented credential and falling back to the caller's address;
+ *   · the per-key limiter bounds what an authenticated caller may then DO.
+ *
+ * The ceiling here is deliberately generous. It is not a quota — it exists to
+ * make credential guessing and unbounded authentication work impossible, not to
+ * meter honest traffic.
+ */
+const ingressStore = new MemoryStore();
+
+export const ingressRateLimit = expressRateLimit({
+  windowMs: WINDOW_MS,
+  limit: 600,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: ingressStore,
+  keyGenerator: (req: Request): string => {
+    const authorisation = req.header('authorization');
+    // A digest of the credential, never the credential. Callers presenting
+    // different credentials are metered separately, so one cannot exhaust
+    // another's headroom.
+    if (authorisation) {
+      return `cred:${crypto.createHash('sha256').update(authorisation).digest('hex').slice(0, 16)}`;
+    }
+    return ipKeyGenerator(req.ip ?? '');
+  },
+  handler: (_req: Request, res: Response): void => {
+    res.status(429).json({
+      ok: false,
+      error: 'rate_limited',
+      message: 'Ingress rate limit exceeded.',
+      scope: 'per-instance',
+    });
+  },
+});
+
+/**
+ * Clears every counter. Used by the test suite so one case cannot exhaust the
+ * quota of the next.
+ */
+export function resetRateLimiter(): void {
+  void limiterStore.resetAll();
+  void ingressStore.resetAll();
 }
 
 // ---------------------------------------------------------------------------

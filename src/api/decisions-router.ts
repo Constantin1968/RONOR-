@@ -16,6 +16,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { createServiceRateLimit } from '../runtime/automation/services/rate-limit';
 import { createLogger } from '../utils/logger';
 import { runDecisionLoop, type DecisionRequest } from '../decision-loop/orchestrator';
 import {
@@ -33,6 +34,12 @@ const logger = createLogger('DecisionsAPI');
 
 export function createDecisionsRouter(): Router {
   const router = Router();
+
+  // This surface is deliberately CORS-open so a static UI or a reviewer with
+  // `curl` can exercise the stack. Open to everyone means open to abuse, so an
+  // ingress ceiling applies to the whole router: `/audit/verify` walks and
+  // rehashes the entire chain, which is cheap once and expensive in a loop.
+  router.use(createServiceRateLimit());
 
   // Ensure policy is loaded once at boot
   try {

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createServiceRateLimit } from './rate-limit';
 import net from 'node:net';
 import express, { type Request } from 'express';
 
@@ -40,7 +41,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
   }
   const upstream = modelGatewayBaseUrl(config.gatewayBaseUrl, config.allowTailscale);
   const fetcher = config.fetcher ?? fetch;
-  const app = express(); app.disable('x-powered-by'); app.use(express.raw({ type: 'application/json', limit: '1mb' }));
+  const app = express(); app.disable('x-powered-by'); app.use(express.raw({ type: 'application/json', limit: '1mb' })); app.use(createServiceRateLimit());
   app.get('/health', (req, res) => authorised(req, config.clientTokens)
     ? res.json({ ok: true, protocol: 'ronor-model-egress/v1', service_id: 'model-egress-proxy', capabilities: ['responses', 'chat-completions', 'models'] })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));

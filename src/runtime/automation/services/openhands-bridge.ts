@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServiceRateLimit } from './rate-limit';
 import crypto from 'crypto';
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, opendirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
@@ -100,6 +101,7 @@ export function createOpenHandsBridgeApp(config: {
   now?: () => Date;
 }) {
   const app = express();
+  app.use(createServiceRateLimit());
   const nonces = config.nonces ?? new MemoryCapabilityNonceStore();
   const now = config.now ?? (() => new Date());
   const active = new Map<string, AbortController>();

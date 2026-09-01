@@ -498,6 +498,7 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
       'cors',
       'dotenv',
       'express',
+      'express-rate-limit',
       'js-yaml',
       'openai',
       'uuid',

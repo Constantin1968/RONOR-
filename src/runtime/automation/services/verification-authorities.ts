@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServiceRateLimit } from './rate-limit';
 import type { EvidenceArtifact, VerificationEvidence, VerificationVerdict } from '../contracts';
 import type { WorkspaceArtifactCollector } from '../artifacts';
 import { signVerificationReceipt, verifyVerificationReceipt } from '../verification-receipt';
@@ -59,7 +60,7 @@ function testMaterialsProvePass(evidence: VerificationEvidence, materials: Verif
 }
 
 export function createCodexVerifierApp(config: { serviceToken: string; receiptPrivateKey: string; artifacts: WorkspaceArtifactCollector; evaluator: CodexEvaluationPort; now?: () => Date }) {
-  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
+  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' })); app.use(createServiceRateLimit());
   app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-codex-verifier/v1', service_id: 'codex-verifier', capabilities: ['verify'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/verify', async (req, res) => {
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
@@ -82,7 +83,7 @@ export function createCodexVerifierApp(config: { serviceToken: string; receiptPr
 }
 
 export function createAssuranceAuthorityApp(config: { serviceToken: string; receiptPublicKey: string; artifacts: WorkspaceArtifactCollector; now?: () => Date }) {
-  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' }));
+  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '256kb' })); app.use(createServiceRateLimit());
   app.get('/health', (req, res) => authorised(req.header('authorization'), config.serviceToken) ? res.json({ ok: true, protocol: 'ronor-assurance/v1', service_id: 'victoria-assurance', capabilities: ['assure'] }) : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/assure', (req, res) => {
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }

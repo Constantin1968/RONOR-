@@ -42,7 +42,13 @@ import {
 import { getPolicyVersion } from '../../governance/mi9-gate';
 import { raporteazaPersistenta, persistentaEsteObligatorie } from '../../persistence/audit-mirror';
 import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
-import { asyncHandler, rateLimit, requireArchitect, requireAuth } from './middleware';
+import {
+  asyncHandler,
+  ingressRateLimit,
+  rateLimit,
+  requireArchitect,
+  requireAuth,
+} from './middleware';
 import { runQueryPipeline, type QueryRequest } from './pipeline';
 import { sanitiseFreeText, sanitiseIdentifier } from './sanitize';
 import { providerStatuses } from '../providers/registry';
@@ -98,6 +104,14 @@ export type RuntimeRouter = Router & { stopAutomationRecovery(): void };
  */
 export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): RuntimeRouter {
   const router = Router();
+
+  // Mounted first, so it runs ahead of every authorisation check on this
+  // surface. Verifying a credential is itself work; without a ceiling in front
+  // of it, a caller who never presents a valid credential is never metered,
+  // because the per-key limiter downstream meters keys and such a caller has
+  // none. `/health` is included deliberately: it is the one unauthenticated
+  // route, which makes it the cheapest thing to flood.
+  router.use(ingressRateLimit);
 
   const recoveryPreflight = async (mandate: ExecutionMandate): Promise<{
     objective: string; branch: string;

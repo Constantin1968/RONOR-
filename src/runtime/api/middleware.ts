@@ -23,7 +23,7 @@
 
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { rateLimit as expressRateLimit, MemoryStore } from 'express-rate-limit';
+import { rateLimit as expressRateLimit, ipKeyGenerator, MemoryStore } from 'express-rate-limit';
 import { authenticate, hasScope, type ApiKeyRecord } from './auth';
 
 export interface Provenance {
@@ -213,11 +213,57 @@ function resetSecondsFrom(res: Response): number {
 }
 
 /**
+ * Ingress ceiling, applied BEFORE authentication.
+ *
+ * The per-key limiter above cannot run first: its quota comes from the API key
+ * record, which only exists once the credential has been verified. That leaves
+ * a gap — credential verification itself is work, and an attacker who never
+ * presents a valid key is never metered by a limiter that meters keys. So the
+ * two limiters do different jobs and both are needed:
+ *
+ *   · this one bounds how often anyone may ASK to be authenticated, keyed on
+ *     the presented credential and falling back to the caller's address;
+ *   · the per-key limiter bounds what an authenticated caller may then DO.
+ *
+ * The ceiling here is deliberately generous. It is not a quota — it exists to
+ * make credential guessing and unbounded authentication work impossible, not to
+ * meter honest traffic.
+ */
+const ingressStore = new MemoryStore();
+
+export const ingressRateLimit = expressRateLimit({
+  windowMs: WINDOW_MS,
+  limit: 600,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: ingressStore,
+  keyGenerator: (req: Request): string => {
+    const authorisation = req.header('authorization');
+    // A digest of the credential, never the credential. Callers presenting
+    // different credentials are metered separately, so one cannot exhaust
+    // another's headroom.
+    if (authorisation) {
+      return `cred:${crypto.createHash('sha256').update(authorisation).digest('hex').slice(0, 16)}`;
+    }
+    return ipKeyGenerator(req.ip ?? '');
+  },
+  handler: (_req: Request, res: Response): void => {
+    res.status(429).json({
+      ok: false,
+      error: 'rate_limited',
+      message: 'Ingress rate limit exceeded.',
+      scope: 'per-instance',
+    });
+  },
+});
+
+/**
  * Clears every counter. Used by the test suite so one case cannot exhaust the
  * quota of the next.
  */
 export function resetRateLimiter(): void {
   void limiterStore.resetAll();
+  void ingressStore.resetAll();
 }
 
 // ---------------------------------------------------------------------------

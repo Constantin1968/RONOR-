@@ -205,6 +205,13 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
  * goes to the server log with the request id, so an operator can correlate a user
  * complaint to a specific failure without the failure itself being disclosed.
  */
+function sanitizeForLog(value: unknown): string {
+  return String(value)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .slice(0, 2048);
+}
+
 export function errorHandler(
   err: unknown,
   req: Request,
@@ -214,8 +221,24 @@ export function errorHandler(
 ): void {
   const requestId = req.provenance?.request_id ?? 'unknown';
   const message = err instanceof Error ? err.message : String(err);
-  // eslint-disable-next-line no-console
-  console.error(`[RONOR:L0] unhandled error on ${req.method} ${req.path} (${requestId}):`, err);
+  const safeMethod = sanitizeForLog(req.method);
+  const safePath = sanitizeForLog(req.path);
+  const safeRequestId = sanitizeForLog(requestId);
+  // Sablon fix, valorile trec ca argumente. Un sablon construit din date de
+  // cerere ar fi un format controlat din exterior, chiar si sanitizat. Urma de
+  // stiva se pastreaza, comprimata pe o singura linie.
+  const stiva =
+    err instanceof Error && typeof err.stack === 'string'
+      ? sanitizeForLog(err.stack.split(/[\r\n]+/).slice(1).join(' | '))
+      : '';
+  console.error(
+    '[RONOR:L0] unhandled error on %s %s (%s): %s %s',
+    safeMethod,
+    safePath,
+    safeRequestId,
+    sanitizeForLog(message),
+    stiva,
+  );
   if (res.headersSent) return;
   res.status(500).json({
     ok: false,

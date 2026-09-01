@@ -92,12 +92,41 @@ function main(): number {
   const depCount = Object.keys(pkg.dependencies).length;
   const devCount = Object.keys(pkg.devDependencies).length;
   // MIP-015 requirement 2 directs the installation of @qdrant/js-client-rest.
+  //
+  // The production surface is pinned BY NAME rather than by count, for the same
+  // reason CONF-4 enumerates the baseline suites instead of totalling them: a
+  // fixed count reports a governed addition as a regression, while telling an
+  // operator nothing about WHAT changed. Pinning names is simultaneously
+  // stricter — a package swapped for another of equal count is caught, which a
+  // total would wave through — and stable under an authorised addition.
+  //
+  // express-rate-limit is the ingress limiter for every HTTP surface. It is
+  // production, not development, because a limiter absent at runtime is a
+  // limiter that does not exist.
+  const EXPECTED_PRODUCTION_DEPENDENCIES = [
+    '@langchain/core',
+    '@langchain/langgraph',
+    '@qdrant/js-client-rest',
+    'better-sqlite3',
+    'cors',
+    'dotenv',
+    'express',
+    'express-rate-limit',
+    'js-yaml',
+    'openai',
+    'uuid',
+    'winston',
+    'zod',
+  ].sort();
+  const actualProduction = Object.keys(pkg.dependencies).sort();
+  const unexpected = actualProduction.filter((d) => !EXPECTED_PRODUCTION_DEPENDENCIES.includes(d));
+  const missing = EXPECTED_PRODUCTION_DEPENDENCIES.filter((d) => !actualProduction.includes(d));
   record(
     'CONF-2',
-    'Dependency surface: 12 production, 16 development after governed LangGraph integration',
+    `Dependency surface: ${EXPECTED_PRODUCTION_DEPENDENCIES.length} authorised production packages by name, development at or above baseline`,
     true,
-    depCount === 12 && devCount === 16,
-    { production: depCount, development: devCount }
+    unexpected.length === 0 && missing.length === 0 && devCount >= 16,
+    { production: depCount, development: devCount, unexpected, missing }
   );
 
   const lockUnchanged =

@@ -1,0 +1,17 @@
+name: "RONOR CodeQL config"
+
+# Setul de interogari ramane cel extins, ca inainte.
+queries:
+  - uses: security-extended
+
+paths-ignore:
+  # Copii istorice pastrate intentionat, nu cod care se executa.
+  #
+  # docs/reference/ contine originalele versionate ale unor componente
+  # anterioare, pastrate ca dovada pentru rapoartele de constatare. Nu sunt
+  # incluse in compilare (tsconfig.json include doar src/**/*), nu sunt
+  # importate de nicio cale de executie, si integritatea lor este fixata in
+  # checksums.sha256 - deci o modificare "de remediere" ar invalida chiar
+  # dovada pentru care exista fisierul. Se exclud din analiza in loc sa fie
+  # modificate.
+  - docs/reference

@@ -23,6 +23,7 @@
 
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { rateLimit as expressRateLimit, MemoryStore } from 'express-rate-limit';
 import { authenticate, hasScope, type ApiKeyRecord } from './auth';
 
 export interface Provenance {
@@ -143,44 +144,39 @@ export function requireArchitect(req: Request, res: Response, next: NextFunction
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-interface Bucket {
-  windowStart: number;
-  count: number;
-}
-
-const buckets = new Map<string, Bucket>();
 const WINDOW_MS = 60_000;
 
-export function resetRateLimiter(): void {
-  buckets.clear();
-}
+/**
+ * The limiter is built on `express-rate-limit` rather than on a hand-rolled
+ * counter. The previous in-house token bucket was correct, but correctness that
+ * only its author can see is not the same as correctness a reviewer or a static
+ * analyser can verify. A maintained limiter is recognised by security analysis,
+ * receives its own fixes, and removes an accounting loop nobody else audits.
+ *
+ * The RONOR-specific semantics are preserved exactly:
+ *   · the quota is per API key, taken from that key's `rate_limit_rpm`;
+ *   · an unauthenticated request is not counted, because it has no key to
+ *     charge and `requireAuth` rejects it moments later anyway;
+ *   · the response advertises its own scope, so no operator mistakes a
+ *     per-instance limiter for a cluster-wide quota.
+ */
+const limiterStore = new MemoryStore();
 
-export function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const key = req.apiKey;
-  if (!key) {
-    next();
-    return;
-  }
-  const now = Date.now();
-  let bucket = buckets.get(key.key_id);
-  if (!bucket || now - bucket.windowStart >= WINDOW_MS) {
-    bucket = { windowStart: now, count: 0 };
-    buckets.set(key.key_id, bucket);
-  }
-  bucket.count++;
-
-  const limit = key.rate_limit_rpm;
-  const remaining = Math.max(0, limit - bucket.count);
-  const resetSeconds = Math.ceil((bucket.windowStart + WINDOW_MS - now) / 1000);
-
-  res.setHeader('X-RateLimit-Limit', String(limit));
-  res.setHeader('X-RateLimit-Remaining', String(remaining));
-  res.setHeader('X-RateLimit-Reset', String(resetSeconds));
-  // Declared explicitly so no operator mistakes a per-instance limiter for a
-  // cluster-wide quota.
-  res.setHeader('X-RateLimit-Scope', 'per-instance');
-
-  if (bucket.count > limit) {
+const limiter = expressRateLimit({
+  windowMs: WINDOW_MS,
+  // The quota travels with the key, so it is resolved per request.
+  limit: (req: Request): number => req.apiKey?.rate_limit_rpm ?? Number.MAX_SAFE_INTEGER,
+  // Unauthenticated traffic is skipped rather than pooled under one shared
+  // bucket, which would let one anonymous caller starve another.
+  skip: (req: Request): boolean => !req.apiKey,
+  keyGenerator: (req: Request): string => req.apiKey?.key_id ?? 'anonymous',
+  // Headers are emitted by hand below so the existing contract is unchanged.
+  standardHeaders: false,
+  legacyHeaders: false,
+  requestWasSuccessful: () => true,
+  handler: (req: Request, res: Response): void => {
+    const limit = req.apiKey?.rate_limit_rpm ?? 0;
+    const resetSeconds = resetSecondsFrom(res);
     res.status(429).json({
       ok: false,
       error: 'rate_limited',
@@ -189,9 +185,44 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
       scope: 'per-instance',
       request_id: req.provenance?.request_id,
     });
+  },
+  store: limiterStore,
+});
+
+function resetSecondsFrom(res: Response): number {
+  const info = (res as Response & { rateLimit?: { resetTime?: Date } }).rateLimit;
+  const resetTime = info?.resetTime;
+  if (!resetTime) return Math.ceil(WINDOW_MS / 1000);
+  return Math.max(0, Math.ceil((resetTime.getTime() - Date.now()) / 1000));
+}
+
+/**
+ * Clears every counter. Used by the test suite so one case cannot exhaust the
+ * quota of the next.
+ */
+export function resetRateLimiter(): void {
+  void limiterStore.resetAll();
+}
+
+export function rateLimit(req: Request, res: Response, next: NextFunction): void {
+  const key = req.apiKey;
+  if (!key) {
+    next();
     return;
   }
-  next();
+
+  const limit = key.rate_limit_rpm;
+  res.setHeader('X-RateLimit-Limit', String(limit));
+  // Declared explicitly so no operator mistakes a per-instance limiter for a
+  // cluster-wide quota.
+  res.setHeader('X-RateLimit-Scope', 'per-instance');
+
+  limiter(req, res, ((err?: unknown) => {
+    const info = (res as Response & { rateLimit?: { remaining?: number } }).rateLimit;
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, info?.remaining ?? limit)));
+    res.setHeader('X-RateLimit-Reset', String(resetSecondsFrom(res)));
+    next(err as never);
+  }) as NextFunction);
 }
 
 // ---------------------------------------------------------------------------

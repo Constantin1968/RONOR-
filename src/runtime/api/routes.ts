@@ -400,6 +400,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/missions',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const limit = coercePositiveNumber(req.query.limit) ?? 50;
       res.json({ ok: true, missions: listMissions(limit) });
@@ -409,6 +410,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/missions/:id',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const mission = id ? getMission(id) : null;
@@ -423,6 +425,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.patch(
     '/missions/:id',
     requireAuth('query'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -449,6 +452,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/missions/:id/fabric',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const fabric = id ? getMissionFabric(id) : null;
@@ -534,6 +538,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/agents',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, agents: agentPassports() });
     }),
@@ -542,11 +547,11 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   // -------------------------------------------------------------------------
   // CONTROL · Executive Intelligence Council
   // -------------------------------------------------------------------------
-  router.get('/control/session', requireArchitect, (_req, res) => {
+  router.get('/control/session', requireArchitect, rateLimit, (_req, res) => {
     res.json({ ok: true, interface: 'CONTROL', identity: 'merlin', role: 'architect' });
   });
 
-  router.get('/control/overview', requireArchitect, (_req, res) => {
+  router.get('/control/overview', requireArchitect, rateLimit, (_req, res) => {
     const missions = listMissions(100);
     const integrity = missions.map((mission) => verifyMissionFabric(mission.mission_id));
     res.json({
@@ -567,7 +572,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     });
   });
 
-  router.get('/control/council', requireArchitect, (_req, res) => {
+  router.get('/control/council', requireArchitect, rateLimit, (_req, res) => {
     res.json({ ok: true, architect: 'merlin', management: managementAgents() });
   });
 
@@ -579,7 +584,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     res.json({ ok: true, automation: automationAdapterStatus(env) });
   }));
 
-  router.get('/control/models', requireArchitect, (_req, res) => {
+  router.get('/control/models', requireArchitect, rateLimit, (_req, res) => {
     res.json({ ok: true, cabinet: modelCabinet(env), providers: providerStatuses(env) });
   });
 
@@ -611,7 +616,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     }
   }));
 
-  router.get('/control/council/:id', requireArchitect, (req, res) => {
+  router.get('/control/council/:id', requireArchitect, rateLimit, (req, res) => {
     const id = sanitiseIdentifier(req.params.id);
     const member = id ? getManagementAgent(id) : null;
     if (!member) {
@@ -621,7 +626,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
     res.json({ ok: true, management_agent: member });
   });
 
-  router.get('/control/missions/:id/fabric', requireArchitect, (req, res) => {
+  router.get('/control/missions/:id/fabric', requireArchitect, rateLimit, (req, res) => {
     const id = sanitiseIdentifier(req.params.id);
     const fabric = id ? getMissionFabric(id) : null;
     if (!id || !fabric) {
@@ -836,6 +841,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/management',
     requireArchitect,
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, architect: 'merlin', management: managementAgents() });
     }),
@@ -844,6 +850,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/management/:id',
     requireArchitect,
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const member = id ? getManagementAgent(id) : null;
@@ -976,6 +983,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/knowledge/status',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, knowledge: await knowledgeStatus() });
     }),
@@ -987,6 +995,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/providers',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       const statuses = providerStatuses();
       res.json({
@@ -1006,6 +1015,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/catalogue',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       const statuses = new Map(providerStatuses().map((s) => [s.provider, s]));
       res.json({
@@ -1029,6 +1039,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/telemetry',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, telemetry: allTelemetry() });
     }),
@@ -1040,6 +1051,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/ledger/work',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const limit = coercePositiveNumber(req.query.limit) ?? 50;
       const offset = coercePositiveNumber(req.query.offset) ?? 0;
@@ -1050,6 +1062,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/ledger/work/:id',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const id = sanitiseIdentifier(req.params.id);
       const work = id ? getWork(id) : null;
@@ -1064,6 +1077,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/ledger/cost',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const since = typeof req.query.since === 'string' ? req.query.since : undefined;
       res.json({ ok: true, cost: getCostSummary(since) });
@@ -1073,6 +1087,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/ledger/value',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ ok: true, value: getValueSummary() });
     }),
@@ -1084,6 +1099,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/audit',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const limit = coercePositiveNumber(req.query.limit) ?? 50;
       const offset = coercePositiveNumber(req.query.offset) ?? 0;
@@ -1099,6 +1115,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/audit/verify',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       const result = verifyChain();
       // 409 on a broken chain. A tampered audit chain is not a successful
@@ -1115,6 +1132,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/status',
     requireAuth('read'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       const providers = providerStatuses();
       const cost = getCostSummary();
@@ -1154,6 +1172,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.get(
     '/admin/keys',
     requireAuth('admin'),
+    rateLimit,
     asyncHandler(async (_req: Request, res: Response) => {
       // Returns metadata only. The secrets are not stored, so they cannot be
       // returned even by a caller entitled to see them.
@@ -1164,6 +1183,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.post(
     '/admin/keys',
     requireAuth('admin'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const secret = typeof body.secret === 'string' ? body.secret : null;
@@ -1190,6 +1210,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
   router.delete(
     '/admin/keys/:keyId',
     requireAuth('admin'),
+    rateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const keyId = sanitiseIdentifier(req.params.keyId);
       const revoked = keyId ? revokeApiKey(keyId) : false;

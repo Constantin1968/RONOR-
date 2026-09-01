@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServiceRateLimit } from './rate-limit';
 import type { WorkspaceArtifactCollector } from '../artifacts';
 import type { TestExecutor } from '../test-executor';
 
@@ -7,7 +8,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 export function createEvidenceRunnerApp(config: {
   token: string; workspaceRoot: string; artifacts: WorkspaceArtifactCollector; tests: TestExecutor;
 }) {
-  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '8kb' }));
+  const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '8kb' })); app.use(createServiceRateLimit());
   const authorised = (header: string | undefined) => header === `Bearer ${config.token}`;
   app.get('/health', (req, res) => authorised(req.header('authorization'))
     ? res.json({ ok: true, protocol: 'ronor-evidence-runner/v1', service_id: 'automation-evidence-runner', capabilities: ['git-evidence', 'allowlisted-tests'] })

@@ -21,7 +21,7 @@ services:
       - MI9_POLICY_PATH=/app/src/governance/policies.yaml
       - REDIS_URL=redis://redis:6379
       - REDIS_ENABLED=${REDIS_ENABLED:-false}
-      - DATABASE_URL=postgresql://ronor:ronor_dev@postgres:5432/ronor
+      - DATABASE_URL=postgresql://ronor:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD trebuie definit in .env}@postgres:5432/ronor
       - DATABASE_ENABLED=${DATABASE_ENABLED:-false}
       # ---- R-Knowledge (MIP-014 / MIP-015) ----
       # Every variable defaults to the DISABLED or ABSENT value. A deployment that
@@ -175,10 +175,12 @@ services:
     image: postgres:16-alpine
     container_name: ronor-postgres
     ports:
-      - "5432:5432"
+      # Legare implicita pe interfata locala. O gazda care are nevoie de acces
+      # din reteaua privata pune POSTGRES_BIND_ADDR pe adresa acelei retele.
+      - "${POSTGRES_BIND_ADDR:-127.0.0.1}:5432:5432"
     environment:
       - POSTGRES_USER=ronor
-      - POSTGRES_PASSWORD=ronor_dev
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD trebuie definit in .env}
       - POSTGRES_DB=ronor
     volumes:
       - postgres-data:/var/lib/postgresql/data

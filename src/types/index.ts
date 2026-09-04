@@ -94,6 +94,8 @@ export interface RONORResponse {
     gatesEvaluated: number;
     blockingGates: string[];
     sovereigntyGate?: { verdict: string; reason: string };
+    enforcement?: 'allowed' | 'blocked' | 'held-for-cosign' | 'recorded-only';
+    cosign?: { recordId: string; releaseWith: string; escalationTarget?: string };
     assuranceClaimed?: boolean;
   };
   auditRecordId?: string;

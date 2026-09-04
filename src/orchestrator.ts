@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from './utils/logger';
 import * as mi9 from './governance/mi9-gate';
 import * as auditChain from './audit/hash-chain';
+import * as cosign from './governance/cosign-store';
 import type { DecisionContext } from './governance/mi9-gate';
 import type {
   RONORRequest,
@@ -171,6 +172,39 @@ export class RONOROrchestrator {
         response.auditRecordId = rec.recordId;
         response.auditSeq = Number(rec.seq);
         response.auditChainHash = rec.chainHash;
+
+        // impunere-verdict: block refuza, escalate si cosemnarea retin raspunsul
+        if (process.env.MI9_ENFORCE === 'off') {
+          response.governance.enforcement = 'recorded-only';
+        } else if (mi9Result.verdict === 'block') {
+          response.governance.enforcement = 'blocked';
+          response.content =
+            'Refuzat de poarta constitutionala MI9. Motiv: ' +
+            (mi9Result.blockReason || 'politica nu permite acest act') + '.';
+        } else if (
+          mi9Result.verdict === 'escalate' ||
+          mi9Result.verdict === 'allow-with-cosign'
+        ) {
+          cosign.hold({
+            recordId: rec.recordId,
+            requestId: request.id,
+            sessionId: request.sessionId,
+            verdict: mi9Result.verdict,
+            content: response.content,
+            modelUsed: economicsResult.modelUsed,
+            contextJson: JSON.stringify(ctx),
+            mi9Json: JSON.stringify(mi9Result),
+          });
+          response.governance.enforcement = 'held-for-cosign';
+          response.governance.cosign = {
+            recordId: rec.recordId,
+            releaseWith: 'POST /api/v1/cosign',
+            escalationTarget: mi9Result.escalationTarget,
+          };
+          response.content = '';
+        } else {
+          response.governance.enforcement = 'allowed';
+        }
       } catch (e) {
         this.logger.error(
           `Poarta MI9 sau depunerea in lantul de audit a esuat: ${(e as Error).message}`,

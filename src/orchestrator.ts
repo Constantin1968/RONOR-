@@ -108,6 +108,31 @@ export class RONOROrchestrator {
         const evidenceCount = Array.isArray(assuranceResult.evidenceChain)
           ? assuranceResult.evidenceChain.length
           : 0;
+
+        // Sursa independenta = ceva din afara acestui raspuns: un document
+        // regasit, un apel de unealta, o verificare umana. Un element e
+        // independent doar daca nu e marcat explicit ca neindependent.
+        const independentEvidence = (
+          Array.isArray(assuranceResult.evidenceChain) ? assuranceResult.evidenceChain : []
+        ).filter(
+          (e) =>
+            (e.metadata as { independent?: boolean } | undefined)?.independent !== false &&
+            e.type !== 'model-output' &&
+            e.type !== 'computation',
+        );
+
+        // Cand nu exista nicio sursa independenta, vechimea nu e zero: e
+        // necunoscuta. O raportam ca depasind orice prag de prospetime.
+        const evidenceAgeMs =
+          independentEvidence.length === 0
+            ? Number.MAX_SAFE_INTEGER
+            : Math.max(
+                0,
+                Date.now() -
+                  Math.max(
+                    ...independentEvidence.map((e) => new Date(e.timestamp).getTime()),
+                  ),
+              );
         const costUsd = economicsResult.tokensUsed?.estimatedCostUsd ?? 0;
         const ctx: DecisionContext = {
           decisionId: request.id,
@@ -123,13 +148,19 @@ export class RONOROrchestrator {
           impactMagnitude: { unit: 'EUR', value: costUsd },
           sovereignty: { dataResidency: 'eu', subjectJurisdiction: 'RO' },
           evidence: {
-            sourceCount: evidenceCount,
-            lastRefreshMs: 0,
-            consensusReached: Boolean(assuranceResult.sovereigntyVerified),
+            // evidenta-onesta: numaram doar sursele independente. Iesirea
+            // modelului si calculul propriu nu sunt surse — altfel runtime-ul
+            // s-ar cita pe sine si poarta 6 ar trece pe o dovada inexistenta.
+            sourceCount: independentEvidence.length,
+            // Vechimea reala a celei mai proaspete surse independente. Zero ar
+            // fi o afirmatie de prospetime perfecta pe care nu o putem sustine.
+            lastRefreshMs: evidenceAgeMs,
+            consensusReached: independentEvidence.length >= 2,
           },
           operator: { userId: request.sessionId, role: 'operator' },
           metadata: { surface: 'api.v1.inference', latencyMs: totalLatency },
         };
+        response.independentEvidenceCount = independentEvidence.length;
         const mi9Result = mi9.evaluate(ctx);
         const outcomeAction =
           mi9Result.verdict === 'allow'

@@ -94,6 +94,8 @@ export class RAssurancePlane {
         metadata: {
           model: input.selectedModel.id,
           tokens: input.tokensUsed.totalTokens,
+          // Iesirea modelului nu e o sursa: modelul s-ar cita pe sine.
+          independent: false,
         },
       },
     ];
@@ -105,6 +107,8 @@ export class RAssurancePlane {
         content: `Agent loop: ${input.agentSteps.length} iterations`,
         confidence: 0.9,
         timestamp: new Date(),
+        // Calculul propriu al runtime-ului nu e nici el o sursa externa.
+        metadata: { independent: false },
       });
     }
 

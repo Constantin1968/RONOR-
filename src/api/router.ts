@@ -53,6 +53,7 @@ export function createRouter(orchestrator: RONOROrchestrator): Router {
         latencyMs: response.latencyMs,
         sovereigntyVerified: response.sovereigntyVerified,
         evidenceCount: response.evidenceChain.length,
+        independentEvidenceCount: response.independentEvidenceCount,
         governance: response.governance,
         auditRecordId: response.auditRecordId,
         auditSeq: response.auditSeq,

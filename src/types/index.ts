@@ -84,6 +84,7 @@ export interface RONORResponse {
   planeTrace: PlaneTrace[];
   ems: EMSScore;
   evidenceChain: EvidenceItem[];
+  independentEvidenceCount?: number;
   tokensUsed: TokenUsage;
   latencyMs: number;
   sovereigntyVerified: boolean;

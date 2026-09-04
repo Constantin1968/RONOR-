@@ -87,6 +87,17 @@ export interface RONORResponse {
   tokensUsed: TokenUsage;
   latencyMs: number;
   sovereigntyVerified: boolean;
+  governance?: {
+    verdict: string;
+    policyVersion: string;
+    humanCoSignRequired: boolean;
+    gatesEvaluated: number;
+    blockingGates: string[];
+  };
+  auditRecordId?: string;
+  auditSeq?: number;
+  auditChainHash?: string;
+  auditError?: string;
   createdAt: Date;
 }
 

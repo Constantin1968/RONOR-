@@ -5,6 +5,9 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from './utils/logger';
+import * as mi9 from './governance/mi9-gate';
+import * as auditChain from './audit/hash-chain';
+import type { DecisionContext } from './governance/mi9-gate';
 import type {
   RONORRequest,
   RONORResponse,
@@ -99,6 +102,75 @@ export class RONOROrchestrator {
         sovereigntyVerified: assuranceResult.sovereigntyVerified,
         createdAt: new Date(),
       };
+      // Poarta MI9 pe traseu, apoi depunerea actului in lantul de audit
+      try {
+        const evidenceCount = Array.isArray(assuranceResult.evidenceChain)
+          ? assuranceResult.evidenceChain.length
+          : 0;
+        const costUsd = economicsResult.tokensUsed?.estimatedCostUsd ?? 0;
+        const ctx: DecisionContext = {
+          decisionId: request.id,
+          domain:
+            typeof request.metadata?.domain === 'string'
+              ? (request.metadata.domain as string)
+              : 'general',
+          action: 'inference.respond',
+          proposedBy: economicsResult.modelUsed,
+          confidence:
+            typeof assuranceResult.qualityScore === 'number' ? assuranceResult.qualityScore : 0,
+          reversible: true,
+          impactMagnitude: { unit: 'EUR', value: costUsd },
+          sovereignty: { dataResidency: 'eu', subjectJurisdiction: 'RO' },
+          evidence: {
+            sourceCount: evidenceCount,
+            lastRefreshMs: 0,
+            consensusReached: Boolean(assuranceResult.sovereigntyVerified),
+          },
+          operator: { userId: request.sessionId, role: 'operator' },
+          metadata: { surface: 'api.v1.inference', latencyMs: totalLatency },
+        };
+        const mi9Result = mi9.evaluate(ctx);
+        const outcomeAction =
+          mi9Result.verdict === 'allow'
+            ? 'executed'
+            : mi9Result.verdict === 'allow-with-cosign'
+              ? 'held-for-cosign'
+              : mi9Result.verdict === 'escalate'
+                ? 'escalated'
+                : 'blocked';
+        const rec = auditChain.append({
+          decisionId: request.id,
+          decisionType: 'planes.inference',
+          timestamp: new Date().toISOString(),
+          context: ctx,
+          mi9Result,
+          aiProposal: {
+            model: economicsResult.modelUsed,
+            rationale: 'raspuns generat prin coloana de planuri',
+            tokensUsed: economicsResult.tokensUsed?.totalTokens ?? 0,
+            latencyMs: totalLatency,
+          },
+          outcome: { action: outcomeAction },
+        });
+        response.governance = {
+          verdict: mi9Result.verdict,
+          policyVersion: mi9Result.policyVersion,
+          humanCoSignRequired: mi9Result.humanCoSignRequired,
+          gatesEvaluated: mi9Result.findings.length,
+          blockingGates: mi9Result.findings
+            .filter((f) => f.verdict !== 'allow')
+            .map((f) => `${f.gateNumber}:${f.gateName}:${f.verdict}`),
+        };
+        response.auditRecordId = rec.recordId;
+        response.auditSeq = Number(rec.seq);
+        response.auditChainHash = rec.chainHash;
+      } catch (e) {
+        this.logger.error(
+          `Poarta MI9 sau depunerea in lantul de audit a esuat: ${(e as Error).message}`,
+        );
+        response.auditError = (e as Error).message;
+      }
+
 
       this.logger.info(
         `Request ${request.id} completed in ${totalLatency}ms | EMS: ${response.ems.total.toFixed(3)}`

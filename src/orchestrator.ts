@@ -161,6 +161,13 @@ export class RONOROrchestrator {
             .filter((f) => f.verdict !== 'allow')
             .map((f) => `${f.gateNumber}:${f.gateName}:${f.verdict}`),
         };
+        // convergenta-verdict: suveranitatea se ia din poarta 1, nu se declara
+        const gate1 = mi9Result.findings.find((f) => f.gateNumber === 1);
+        response.governance.sovereigntyGate = gate1
+          ? { verdict: gate1.verdict, reason: gate1.reason }
+          : { verdict: 'necunoscut', reason: 'poarta 1 nu a raportat' };
+        response.governance.assuranceClaimed = assuranceResult.sovereigntyVerified;
+        response.sovereigntyVerified = gate1?.verdict === 'allow';
         response.auditRecordId = rec.recordId;
         response.auditSeq = Number(rec.seq);
         response.auditChainHash = rec.chainHash;

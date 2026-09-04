@@ -93,6 +93,8 @@ export interface RONORResponse {
     humanCoSignRequired: boolean;
     gatesEvaluated: number;
     blockingGates: string[];
+    sovereigntyGate?: { verdict: string; reason: string };
+    assuranceClaimed?: boolean;
   };
   auditRecordId?: string;
   auditSeq?: number;

@@ -19,6 +19,10 @@ import sys
 OUT = pathlib.Path("evidence/knowledge")
 BASELINE = "d058544d1c579611cce99cdf2b87a78d7534e75b"
 APPROVED_SPINE_HASHES = {
+    # Approved gateway/MI9 convergence: the MI9 gate is evaluated on every
+    # inference request and the resulting act is deposited in the audit chain,
+    # so reported sovereignty is derived from gate 1 instead of asserted.
+    "src/orchestrator.ts": "2630262353157928b165facbfdf63c44fb7a9c00",
     # Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
     "src/governance/mi9-gate.ts": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
     # Approved audit-mirror hook: a single fire-and-forget call inside append(),

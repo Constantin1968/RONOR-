@@ -150,13 +150,26 @@ export interface ModelFabricResult extends RONORRequest {
 
 export class RModelFabricPlane {
   private readonly openai: OpenAI;
+  private readonly gatewayModel: string;
+
+  private static parseGatewayHeaders(): Record<string, string> {
+    try {
+      return JSON.parse(process.env.RONOR_GATEWAY_HEADERS || '{}') as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
   private requestsTotal = 0;
   private errorsTotal = 0;
 
   constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
+      baseURL:
+        process.env.RONOR_GATEWAY_BASE_URL || process.env.OPENAI_API_BASE || undefined,
+      defaultHeaders: RModelFabricPlane.parseGatewayHeaders(),
     });
+    this.gatewayModel = process.env.RONOR_FABRIC_MODEL || 'qwen-max';
   }
 
   async init(): Promise<void> {
@@ -200,7 +213,7 @@ export class RModelFabricPlane {
 
     try {
       const completion = await this.openai.chat.completions.create({
-        model: selectedModel.id,
+        model: this.gatewayModel,
         messages,
         temperature: 0.7,
         max_tokens: 4096,
@@ -215,7 +228,7 @@ export class RModelFabricPlane {
       if (selectedModel.id !== 'gpt-4o-mini') {
         logger.warn(`Primary model ${selectedModel.id} failed, falling back to gpt-4o-mini`);
         const fallback = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: this.gatewayModel,
           messages,
           temperature: 0.7,
           max_tokens: 4096,
@@ -252,7 +265,7 @@ export class RModelFabricPlane {
 
     return {
       ...request,
-      selectedModel,
+      selectedModel: { ...selectedModel, id: this.gatewayModel },
       inferenceResult,
       tokensUsed,
       modelEms,

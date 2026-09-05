@@ -5,6 +5,10 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from './utils/logger';
+import * as mi9 from './governance/mi9-gate';
+import * as auditChain from './audit/hash-chain';
+import * as cosign from './governance/cosign-store';
+import type { DecisionContext } from './governance/mi9-gate';
 import type {
   RONORRequest,
   RONORResponse,
@@ -99,6 +103,146 @@ export class RONOROrchestrator {
         sovereigntyVerified: assuranceResult.sovereigntyVerified,
         createdAt: new Date(),
       };
+      // Poarta MI9 pe traseu, apoi depunerea actului in lantul de audit
+      try {
+        const evidenceCount = Array.isArray(assuranceResult.evidenceChain)
+          ? assuranceResult.evidenceChain.length
+          : 0;
+
+        // Sursa independenta = ceva din afara acestui raspuns: un document
+        // regasit, un apel de unealta, o verificare umana. Un element e
+        // independent doar daca nu e marcat explicit ca neindependent.
+        const independentEvidence = (
+          Array.isArray(assuranceResult.evidenceChain) ? assuranceResult.evidenceChain : []
+        ).filter(
+          (e) =>
+            (e.metadata as { independent?: boolean } | undefined)?.independent !== false &&
+            e.type !== 'model-output' &&
+            e.type !== 'computation',
+        );
+
+        // Cand nu exista nicio sursa independenta, vechimea nu e zero: e
+        // necunoscuta. O raportam ca depasind orice prag de prospetime.
+        const evidenceAgeMs =
+          independentEvidence.length === 0
+            ? Number.MAX_SAFE_INTEGER
+            : Math.max(
+                0,
+                Date.now() -
+                  Math.max(
+                    ...independentEvidence.map((e) => new Date(e.timestamp).getTime()),
+                  ),
+              );
+        const costUsd = economicsResult.tokensUsed?.estimatedCostUsd ?? 0;
+        const ctx: DecisionContext = {
+          decisionId: request.id,
+          domain:
+            typeof request.metadata?.domain === 'string'
+              ? (request.metadata.domain as string)
+              : 'general',
+          action: 'inference.respond',
+          proposedBy: economicsResult.modelUsed,
+          confidence:
+            typeof assuranceResult.qualityScore === 'number' ? assuranceResult.qualityScore : 0,
+          reversible: true,
+          impactMagnitude: { unit: 'EUR', value: costUsd },
+          sovereignty: { dataResidency: 'eu', subjectJurisdiction: 'RO' },
+          evidence: {
+            // evidenta-onesta: numaram doar sursele independente. Iesirea
+            // modelului si calculul propriu nu sunt surse — altfel runtime-ul
+            // s-ar cita pe sine si poarta 6 ar trece pe o dovada inexistenta.
+            sourceCount: independentEvidence.length,
+            // Vechimea reala a celei mai proaspete surse independente. Zero ar
+            // fi o afirmatie de prospetime perfecta pe care nu o putem sustine.
+            lastRefreshMs: evidenceAgeMs,
+            consensusReached: independentEvidence.length >= 2,
+          },
+          operator: { userId: request.sessionId, role: 'operator' },
+          metadata: { surface: 'api.v1.inference', latencyMs: totalLatency },
+        };
+        response.independentEvidenceCount = independentEvidence.length;
+        const mi9Result = mi9.evaluate(ctx);
+        const outcomeAction =
+          mi9Result.verdict === 'allow'
+            ? 'executed'
+            : mi9Result.verdict === 'allow-with-cosign'
+              ? 'held-for-cosign'
+              : mi9Result.verdict === 'escalate'
+                ? 'escalated'
+                : 'blocked';
+        const rec = auditChain.append({
+          decisionId: request.id,
+          decisionType: 'planes.inference',
+          timestamp: new Date().toISOString(),
+          context: ctx,
+          mi9Result,
+          aiProposal: {
+            model: economicsResult.modelUsed,
+            rationale: 'raspuns generat prin coloana de planuri',
+            tokensUsed: economicsResult.tokensUsed?.totalTokens ?? 0,
+            latencyMs: totalLatency,
+          },
+          outcome: { action: outcomeAction },
+        });
+        response.governance = {
+          verdict: mi9Result.verdict,
+          policyVersion: mi9Result.policyVersion,
+          humanCoSignRequired: mi9Result.humanCoSignRequired,
+          gatesEvaluated: mi9Result.findings.length,
+          blockingGates: mi9Result.findings
+            .filter((f) => f.verdict !== 'allow')
+            .map((f) => `${f.gateNumber}:${f.gateName}:${f.verdict}`),
+        };
+        // convergenta-verdict: suveranitatea se ia din poarta 1, nu se declara
+        const gate1 = mi9Result.findings.find((f) => f.gateNumber === 1);
+        response.governance.sovereigntyGate = gate1
+          ? { verdict: gate1.verdict, reason: gate1.reason }
+          : { verdict: 'necunoscut', reason: 'poarta 1 nu a raportat' };
+        response.governance.assuranceClaimed = assuranceResult.sovereigntyVerified;
+        response.sovereigntyVerified = gate1?.verdict === 'allow';
+        response.auditRecordId = rec.recordId;
+        response.auditSeq = Number(rec.seq);
+        response.auditChainHash = rec.chainHash;
+
+        // impunere-verdict: block refuza, escalate si cosemnarea retin raspunsul
+        if (process.env.MI9_ENFORCE === 'off') {
+          response.governance.enforcement = 'recorded-only';
+        } else if (mi9Result.verdict === 'block') {
+          response.governance.enforcement = 'blocked';
+          response.content =
+            'Refuzat de poarta constitutionala MI9. Motiv: ' +
+            (mi9Result.blockReason || 'politica nu permite acest act') + '.';
+        } else if (
+          mi9Result.verdict === 'escalate' ||
+          mi9Result.verdict === 'allow-with-cosign'
+        ) {
+          cosign.hold({
+            recordId: rec.recordId,
+            requestId: request.id,
+            sessionId: request.sessionId,
+            verdict: mi9Result.verdict,
+            content: response.content,
+            modelUsed: economicsResult.modelUsed,
+            contextJson: JSON.stringify(ctx),
+            mi9Json: JSON.stringify(mi9Result),
+          });
+          response.governance.enforcement = 'held-for-cosign';
+          response.governance.cosign = {
+            recordId: rec.recordId,
+            releaseWith: 'POST /api/v1/cosign',
+            escalationTarget: mi9Result.escalationTarget,
+          };
+          response.content = '';
+        } else {
+          response.governance.enforcement = 'allowed';
+        }
+      } catch (e) {
+        this.logger.error(
+          `Poarta MI9 sau depunerea in lantul de audit a esuat: ${(e as Error).message}`,
+        );
+        response.auditError = (e as Error).message;
+      }
+
 
       this.logger.info(
         `Request ${request.id} completed in ${totalLatency}ms | EMS: ${response.ems.total.toFixed(3)}`

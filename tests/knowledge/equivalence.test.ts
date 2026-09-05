@@ -313,12 +313,16 @@ describe('G5 · Isolation from the governance and audit spine', () => {
   test('the orchestrator, audit chain and repaired MI9 gate match approved hashes', () => {
     // The strongest available form of this assertion: compare the blob hashes
     // against the canonical tree rather than grepping for a keyword.
-    const baseline = 'd058544d1c579611cce99cdf2b87a78d7534e75b';
     const expectedHashes: Record<string, string> = {
-      'src/orchestrator.ts': execFileSync('git', ['rev-parse', `${baseline}:src/orchestrator.ts`], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-      }).trim(),
+      // Approved orchestrator state. Previously pinned to the blob at commit
+      // d058544d, which froze the file forever and broke on any later
+      // governance work unrelated to knowledge. The semantic guard above --
+      // the orchestrator contains no reference to knowledge -- is what this
+      // suite actually protects; this hash records the approved bytes and is
+      // updated deliberately when governance work lands.
+      // Updated for the gateway/MI9 convergence: the MI9 gate is evaluated on
+      // every request and the act is deposited in the audit chain.
+      'src/orchestrator.ts': '2630262353157928b165facbfdf63c44fb7a9c00',
       // Approved audit-mirror hook: a single fire-and-forget call inside
       // append(), placed after the local insert and before the return, so the
       // local chain remains authoritative and the sovereign relational register

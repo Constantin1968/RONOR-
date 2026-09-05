@@ -577,15 +577,16 @@ describe('Stage F · knowledge grounding integration', () => {
     expect(source).not.toMatch(/knowledge/i);
 
     const { execSync } = require('child_process') as typeof import('child_process');
-    const baselineHash = execSync(
-      'git rev-parse d058544d1c579611cce99cdf2b87a78d7534e75b:src/orchestrator.ts',
-      { cwd: join(__dirname, '..', '..'), encoding: 'utf8' }
-    ).trim();
+    // Approved orchestrator bytes. The keyword assertion above is the real
+    // guard -- Stage F reaches the pipeline through R-Context, never through a
+    // ninth orchestrator step. This hash was previously pinned to the blob at
+    // commit d058544d, which froze the file against all later governance work.
+    // It now records the approved state and is updated deliberately.
+    const baselineHash = '2630262353157928b165facbfdf63c44fb7a9c00';
     const currentHash = execSync('git hash-object src/orchestrator.ts', {
       cwd: join(__dirname, '..', '..'),
       encoding: 'utf8',
     }).trim();
-    // Byte-identical to the baseline: Stage F touched the orchestrator not at all.
     expect(currentHash).toBe(baselineHash);
   });
 

@@ -14,7 +14,7 @@ _A governed runtime that turns frontier reasoning into auditable industrial work
 RONOR is a Node.js/TypeScript runtime that wires four things together into a single governed pipeline:
 
 1. **A model exchange** — a registry of five engines behind a deterministic policy filter and a six-dimension router.
-2. **A governance spine** — an MI9 Gate with six pre-execution checks and an R-Assurance layer with five post-execution checks.
+2. **A governance spine** — an MI9 Gate with nine pre-execution checks and an R-Assurance layer with five post-execution checks.
 3. **A hash-chained audit log** — SHA-256, SQLite-persisted, verifiable end-to-end from a CLI.
 4. **A work + cost ledger** — every governed decision writes tokens, USD cost, latency, and verified confidence to a persistent store.
 
@@ -32,7 +32,7 @@ Canonical anchor: Strategic Brief Layer 0–7. See [`docs/ronor-architecture-rec
 | L1 Model Exchange | Registry · Policy P1–P8 · 6D Router · Engines · Work Ledger · Orchestrator | `src/model-exchange/*.ts` | shipped |
 | L2 Data & Evidence | Audit chain (SHA-256), Work Ledger | `src/audit/hash-chain.ts`, `src/model-exchange/work-ledger.ts` | shipped |
 | L3 Interface | Vanilla-JS operator console (three tabs, live audit-chain badge) | `web/` | shipped (demo tier) |
-| L4 Governance (MI9) | Policy loader, 6-gate evaluator, YAML policy config | `src/governance/mi9-gate.ts`, `src/governance/policies.yaml` | shipped |
+| L4 Governance (MI9) | Policy loader, 9-gate evaluator, YAML policy config | `src/governance/mi9-gate.ts`, `src/governance/policies.yaml` | shipped |
 | L5 Applications | BESS 20 MWh Romania scenario | `src/decision-loop/*.ts` | shipped (single app) |
 | L6 Observability | In-app timeline, `verify-chain` CLI, benchmark script | `web/`, `scripts/verify-chain.ts`, `scripts/benchmark.ts` | partial |
 | L7 OSaaS | Cost of Intelligence Ledger primitive | `src/model-exchange/work-ledger.ts` | partial (Work Ledger only) |
@@ -69,16 +69,19 @@ Policy filter runs before the router. Policy rules P1–P8 (`src/model-exchange/
 
 ## The MI9 Gate
 
-Six checks (`src/governance/mi9-gate.ts`). Verdicts: **allow · escalate · block**.
+Nine checks (`src/governance/mi9-gate.ts`), evaluated in this order. Verdicts: **allow · allow-with-cosign · escalate · block** — the strictest finding wins.
 
-| Gate | Domain |
-| ---- | ------ |
-| 1 | Sovereignty (residency, jurisdiction) |
-| 2 | Safety |
-| 3 | Evidence quality |
-| 4 | Exposure (blast radius) |
-| 5 | Output quality |
-| 6 | Jurisdiction (final pin) |
+| Gate | `gateName` | Domain |
+| ---- | ---------- | ------ |
+| 1 | `sovereignty` | Data residency against the allowed-residency list |
+| 2 | `risk-tier` | Domain risk tier and the autonomy it permits |
+| 3 | `reversibility` | Whether the action can be undone |
+| 4 | `impact-magnitude` | Blast radius: monetary, physical and reputational |
+| 5 | `confidence` | Confidence against the co-sign and autonomy floors |
+| 6 | `evidence` | Source count, data age, consensus where required |
+| 7 | `policy-compliance` | Explicit policy prohibitions |
+| 8 | `rate-limits` | Action-rate windows, idempotent under a valid approval |
+| 9 | `fallback` | Behaviour when a dependency is unavailable |
 
 ## R-Assurance
 

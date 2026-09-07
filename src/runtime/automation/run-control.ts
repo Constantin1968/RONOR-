@@ -15,3 +15,9 @@ export function cancelAutomationRun(runId: string, missionId: string): 'cancelle
   run.controller.abort();
   return 'cancelled';
 }
+
+/** Process shutdown interrupts work but does not falsely record user cancellation. */
+export function interruptActiveAutomationRuns(): number {
+  for (const run of active.values()) run.controller.abort();
+  return active.size;
+}

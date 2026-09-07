@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import { lstatSync, realpathSync } from 'fs';
 import path from 'path';
+import { branchMatchesPolicy } from './policy';
 
 export interface WorkspaceSnapshot {
   canonical_path: string;
@@ -25,7 +26,7 @@ export interface WorkspacePolicy {
 export interface WorkspaceVerdict { valid: boolean; reason: string | null; snapshot?: WorkspaceSnapshot; }
 
 function git(cwd: string, args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  return execFileSync('git', ['--no-optional-locks', '-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
 function inside(candidate: string, root: string): boolean {
@@ -57,7 +58,7 @@ export function validateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, policy: W
   if (snapshot.is_link) return { valid: false, reason: 'workspace_link_refused' };
   if (!snapshot.is_git_worktree || snapshot.git_toplevel !== snapshot.canonical_path) return { valid: false, reason: 'workspace_not_dedicated_git_root' };
   if (snapshot.branch === 'main' || snapshot.branch === 'master') return { valid: false, reason: 'protected_branch_refused' };
-  if (!policy.branch_prefix.endsWith('/') || !snapshot.branch.startsWith(policy.branch_prefix)) return { valid: false, reason: 'branch_outside_policy' };
+  if (!branchMatchesPolicy(snapshot.branch, policy.branch_prefix)) return { valid: false, reason: 'branch_outside_policy' };
   if (policy.expected_origin && snapshot.origin !== policy.expected_origin) return { valid: false, reason: 'repository_identity_mismatch' };
   if (policy.expected_head && snapshot.head !== policy.expected_head) return { valid: false, reason: 'base_commit_mismatch' };
   if (policy.require_clean && !snapshot.clean) return { valid: false, reason: 'workspace_not_clean' };

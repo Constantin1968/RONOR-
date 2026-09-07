@@ -11,6 +11,17 @@ source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 [[ ! -e "$root/verification-fix.env" ]] || { echo 'Existing fix manifest requires review' >&2; exit 2; }
 phase=preflight
 trap 'echo "verification_fix_failed_phase=$phase" >&2' ERR
+assert_clean_worktree() {
+  local state
+  if ! state="$(docker exec ronor-development-openhands-agent-1 git --no-optional-locks -C /workspace/project status --porcelain)"; then
+    echo 'workspace_status_unreadable' >&2
+    return 1
+  fi
+  if [[ -n "$state" ]]; then
+    echo 'workspace_not_clean' >&2
+    return 1
+  fi
+}
 docker exec ronor-development-controller node -e '
   const DB=require("better-sqlite3");
   const db=new DB(process.env.AUDIT_DB_PATH,{readonly:true,fileMustExist:true});
@@ -20,7 +31,7 @@ docker exec ronor-development-controller node -e '
   }
   db.close();
 '
-[[ -z "$(docker exec ronor-development-openhands-agent-1 git -C /workspace/project status --porcelain)" ]]
+assert_clean_worktree
 base=(docker compose --project-name ronor-development --env-file "$root/environment" -f "$root/tooling/docker-compose.development-isolated.yml")
 before="$(docker ps --filter label=com.docker.compose.project=ronor-development --format '{{.Names}} {{.ID}}' | sort)"
 [[ "$(printf '%s\n' "$before" | wc -l)" == 8 ]]
@@ -39,7 +50,7 @@ after="$(docker ps --filter label=com.docker.compose.project=ronor-development -
 unchanged_before="$(printf '%s\n' "$before" | sed '/ronor-development-codex-verifier-1 /d; /ronor-development-automation-evidence-runner-1 /d')"
 unchanged_after="$(printf '%s\n' "$after" | sed '/ronor-development-codex-verifier-1 /d; /ronor-development-automation-evidence-runner-1 /d')"
 [[ "$unchanged_before" == "$unchanged_after" ]]
-[[ -z "$(docker exec ronor-development-openhands-agent-1 git -C /workspace/project status --porcelain)" ]]
+assert_clean_worktree
 phase=record
 umask 077
 printf 'RONOR_VERIFICATION_FIX_SOURCE=%s\nRONOR_VERIFICATION_FIX_TAG=%s\n' "$source_dir" "$revision" > "$root/verification-fix.env"

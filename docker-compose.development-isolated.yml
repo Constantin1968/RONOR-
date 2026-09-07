@@ -1,0 +1,89 @@
+# Run this file alone. Every service belongs to a NEW Compose project.
+name: ronor-development
+
+services:
+  langgraph:
+    extends: {file: docker-compose.automation.yml, service: langgraph}
+  model-egress-proxy:
+    extends: {file: docker-compose.automation.yml, service: model-egress-proxy}
+  openhands-agent:
+    extends: {file: docker-compose.automation.yml, service: openhands-agent}
+    build:
+      context: .
+      dockerfile: Dockerfile.development-tools
+      target: author
+    volumes:
+      - type: bind
+        source: ${RONOR_DEVELOPMENT_DEPENDENCIES:?prebuilt Node 20 dependencies}
+        target: /workspace/project/node_modules
+        read_only: true
+  openhands-bridge:
+    extends: {file: docker-compose.automation.yml, service: openhands-bridge}
+  codex-verifier:
+    extends: {file: docker-compose.automation.yml, service: codex-verifier}
+  victoria-assurance:
+    extends: {file: docker-compose.automation.yml, service: victoria-assurance}
+  automation-evidence-runner:
+    extends: {file: docker-compose.automation.yml, service: automation-evidence-runner}
+    build:
+      context: .
+      dockerfile: Dockerfile.development-tools
+      target: evidence
+    volumes:
+      - type: bind
+        source: ${RONOR_DEVELOPMENT_DEPENDENCIES:?prebuilt Node 20 dependencies}
+        target: /workspace/project/node_modules
+        read_only: true
+  controller:
+    extends: {file: docker-compose.development-controller.yml, service: controller}
+    depends_on:
+      langgraph: {condition: service_healthy}
+      openhands-bridge: {condition: service_healthy}
+      codex-verifier: {condition: service_healthy}
+      victoria-assurance: {condition: service_healthy}
+      automation-evidence-runner: {condition: service_healthy}
+
+networks:
+  automation-control:
+    name: ronor-development-control
+    internal: true
+  model-egress:
+    name: ronor-development-model-egress
+    internal: true
+  # Only the narrow proxy joins the EXISTING externally routed gateway network.
+  # No firewall changes and no direct worker Internet access.
+  model-uplink:
+    name: ronor-model-uplink
+    external: true
+
+secrets:
+  development_architect_key:
+    file: ${RONOR_DEVELOPMENT_SECRET_DIR}/development_architect_key
+  development_mandate_key:
+    file: ${RONOR_DEVELOPMENT_SECRET_DIR}/development_mandate_key
+  langgraph_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/langgraph_token
+  openhands_session_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/openhands_session_key
+  openhands_llm_api_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/openhands_llm_api_key
+  openhands_secret_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/openhands_secret_key
+  openhands_bridge_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/openhands_bridge_token
+  automation_capability_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/automation_capability_key
+  codex_verifier_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/codex_verifier_token
+  codex_api_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/codex_api_key
+  assurance_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/assurance_token
+  codex_receipt_private_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/codex_receipt_private_key
+  assurance_receipt_public_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/assurance_receipt_public_key
+  evidence_runner_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/evidence_runner_token
+  model_gateway_upstream_token:
+    file: /srv/ronor/automation/secrets/model_gateway_upstream_token

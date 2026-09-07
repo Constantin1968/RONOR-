@@ -102,6 +102,24 @@ describe('opt-in deployment contract', () => {
     expect(service.secrets).not.toContain('codex_api_key');
     expect(service.secrets).not.toContain('openhands_llm_api_key');
   });
+  it('isolates the new stack and makes shared dependencies read-only to both workers', () => {
+    const root = path.resolve(__dirname, '../..');
+    const compose = yaml.load(fs.readFileSync(path.join(root, 'docker-compose.development-isolated.yml'), 'utf8')) as any;
+    expect(compose.name).toBe('ronor-development');
+    expect(Object.keys(compose.services)).toHaveLength(8);
+    expect(compose.networks['automation-control']).toEqual({ name: 'ronor-development-control', internal: true });
+    expect(compose.networks['model-egress']).toEqual({ name: 'ronor-development-model-egress', internal: true });
+    expect(compose.networks['model-uplink']).toEqual({ name: 'ronor-model-uplink', external: true });
+    for (const name of ['openhands-agent', 'automation-evidence-runner']) {
+      const mount = compose.services[name].volumes.find((v: any) => v.target === '/workspace/project/node_modules');
+      expect(mount.read_only).toBe(true);
+      expect(mount.source).toContain('RONOR_DEVELOPMENT_DEPENDENCIES');
+    }
+    const tools = fs.readFileSync(path.join(root, 'Dockerfile.development-tools'), 'utf8');
+    expect(tools).toContain('npm ci --no-audit --no-fund');
+    expect(tools).toContain('COPY --from=node-runtime /usr/local/bin/node /opt/ronor-node/bin/node');
+    expect(tools).toContain('FROM node-runtime AS evidence');
+  });
 });
 
 describe('persistent intent integrity', () => {

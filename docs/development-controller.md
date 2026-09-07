@@ -52,3 +52,13 @@ node --test tests/cli/ronor-develop.test.mjs
 ```
 
 Activarea în infrastructură este o operațiune separată și necesită acord explicit.
+
+## Varianta izolată pentru worktree-ul existent necurat
+
+`docker-compose.development-isolated.yml` pornește, separat, cele șapte servicii de execuție/verificare și controlerul. Nu modifică ori repornește containerele existente. Creează două rețele interne distincte și reutilizează numai rețeaua de ieșire restricționată a proxy-ului de modele.
+
+Autorul și verificatorul folosesc aceeași versiune majoră Node 20 și aceleași dependențe construite din `package-lock.json` cu `npm ci`. Dependențele sunt montate separat, numai pentru citire, în ambele containere; autorul nu poate falsifica biblioteca de testare.
+
+Directorul nou este `/srv/ronor/development-automation`. Codul de instalare, worktree-ul, dependențele, dovezile, nonces, baza de date și acreditările de serviciu au subdirectoare distincte. Acreditarea existentă a gateway-ului este reutilizată printr-o montare numai pentru citire, fără copiere sau afișare. Celelalte identități sunt nou generate numai după aprobarea instalării.
+
+Variabilele porturilor host trebuie stabilite înainte de `config` și `up`, astfel încât porturile implicite ale instalației vechi să nu fie reutilizate: LangGraph 3324, bridge 3301, verificator 3302, Victoria 3303, controler 3010, exclusiv loopback. Evidence runner rămâne doar în rețeaua internă.

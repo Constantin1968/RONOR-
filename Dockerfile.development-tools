@@ -1,0 +1,38 @@
+# Build-time dependencies are never installed by an autonomous worker.
+ARG RONOR_OPENHANDS_AGENT_IMAGE=ghcr.io/openhands/agent-server:1.42.1-python
+FROM node:20-bookworm-slim AS node-runtime
+
+FROM node-runtime AS dependencies
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3 git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY tsconfig.json ./
+COPY src ./src
+COPY web ./web
+COPY scripts ./scripts
+RUN npm run build
+
+FROM ${RONOR_OPENHANDS_AGENT_IMAGE} AS author
+USER root
+# Pin the author's Node ABI to the verifier and its prebuilt SQLite dependency.
+COPY --from=node-runtime /usr/local/bin/node /opt/ronor-node/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules/npm /opt/ronor-node/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /opt/ronor-node/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /opt/ronor-node/bin/npx
+ENV PATH="/opt/ronor-node/bin:${PATH}"
+COPY --chmod=0555 scripts/openhands-secret-entrypoint.sh /usr/local/bin/ronor-openhands-entrypoint
+ENTRYPOINT ["/usr/local/bin/ronor-openhands-entrypoint"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]
+
+FROM node-runtime AS evidence
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/dist ./dist
+ENV NODE_ENV=production
+USER 10001:10001
+CMD ["node", "dist/runtime/automation/services/evidence-runner-server.js"]

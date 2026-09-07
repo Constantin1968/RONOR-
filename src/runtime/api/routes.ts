@@ -179,7 +179,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
           authorityKey: env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY!,
           adapters,
           signal,
-          artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT),
+          artifactCollector: createWorkspaceArtifactCollector(env.RONOR_AUTOMATION_ARTIFACT_ROOT, { baseCommit: env.RONOR_AUTOMATION_EXPECTED_HEAD }),
           postExecutionVerifier: createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN }),
         });
         return run.status;
@@ -797,7 +797,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         lease: claim.lease,
         control,
         execute: async () => {
-          const artifactCollector = createWorkspaceArtifactCollector(artifactRoot);
+          const artifactCollector = createWorkspaceArtifactCollector(artifactRoot, { baseCommit: env.RONOR_AUTOMATION_EXPECTED_HEAD });
           return runExecutiveMission({ objective: mission.objective, workspaceRoot, branch, mandate, authorityKey: mandateSigningKey, adapters, signal: control.signal, artifactCollector, postExecutionVerifier });
         },
         onUnhandledFailure: () => {

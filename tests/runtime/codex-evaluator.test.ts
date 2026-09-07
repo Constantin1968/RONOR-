@@ -16,8 +16,37 @@ describe('OpenAI Responses Codex evaluator', () => {
     const body = JSON.parse(String(init.body));
     expect(url.href).toBe('https://api.openai.com/v1/responses'); expect(init.redirect).toBe('error');
     expect(body).toMatchObject({ model: 'configured-codex-model', store: false, tools: [], text: { format: { type: 'json_schema', strict: true } } });
+    expect(body.instructions).toContain('Return ONLY one valid JSON object');
+    expect(body.instructions).toContain('Never return a bare PASS or FAIL');
+    expect(body.instructions).toContain('If required evidence is missing, return "fail" in the same JSON format');
     expect(JSON.stringify(body)).not.toContain('not-a-real-key');
   });
+
+  it.each([
+    'FAIL: no independent evidence was supplied.',
+    '```json\n{"verdict":"pass","summary":"ok","evidence":[]}\n```',
+    '{"verdict":"pass","summary":"ok","evidence":[]} trailing prose',
+  ])('refuses unstructured output without leaking it in the error: %s', async text => {
+    const evaluator = createOpenAIResponsesCodexEvaluator({
+      apiKey: 'fixture-key', model: 'qwen3.8-max',
+      inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1,
+      fetcher: jest.fn(() => response(text)),
+    });
+    await expect(evaluator.evaluate({ missionId: 'synthetic', claims: [], materials: [] }))
+      .rejects.toThrow('codex_api_output_not_json');
+  });
+
+  it.each(['null', '[]', '{"verdict":["pass"],"summary":"ok","evidence":[]}', '{"verdict":"pass","summary":"ok","evidence":[],"extra":"forbidden"}'])(
+    'refuses JSON that does not match the exact object contract: %s', async text => {
+      const evaluator = createOpenAIResponsesCodexEvaluator({
+        apiKey: 'fixture-key', model: 'qwen3.8-max',
+        inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1,
+        fetcher: jest.fn(() => response(text)),
+      });
+      await expect(evaluator.evaluate({ missionId: 'synthetic', claims: [], materials: [] }))
+        .rejects.toThrow('codex_api_output_invalid');
+    },
+  );
 
   it('fails closed when usage or structured output is missing', async () => {
     const missingUsage = createOpenAIResponsesCodexEvaluator({ apiKey: 'key', model: 'model', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1, fetcher: jest.fn(() => response(JSON.stringify({ verdict: 'pass', summary: 'x', evidence: [] }), {})) });

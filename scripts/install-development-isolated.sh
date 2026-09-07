@@ -26,6 +26,8 @@ tar --extract --gzip --file "$archive" --directory "$root/tooling" --no-same-own
 [[ "$(git -C "$root/tooling" remote get-url origin)" == https://github.com/Constantin1968/RONOR-.git ]]
 cp -a "$root/tooling" "$root/worktree"
 git -C "$root/worktree" switch -c automation/development-001
+git -C "$root/worktree" config --local user.name 'RONOR Development Worker'
+git -C "$root/worktree" config --local user.email 'ronor-development@localhost'
 mkdir -m 0700 "$root/secrets" "$root/artifacts" "$root/nonces" "$root/data" "$root/dependencies"
 mkdir -p "$root/worktree/node_modules"
 chown -hR 10001:10001 "$root/worktree" "$root/secrets" "$root/artifacts" "$root/nonces" "$root/data" "$root/dependencies"

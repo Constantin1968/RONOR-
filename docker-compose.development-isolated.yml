@@ -35,6 +35,8 @@ services:
     build: *runtime-build
   automation-evidence-runner:
     extends: {file: docker-compose.automation.yml, service: automation-evidence-runner}
+    environment:
+      RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_AUTOMATION_EXPECTED_HEAD:?exact approved base commit}
     build:
       context: .
       dockerfile: Dockerfile.development-tools

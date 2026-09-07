@@ -1,11 +1,18 @@
 # Run this file alone. Every service belongs to a NEW Compose project.
 name: ronor-development
 
+x-runtime-build: &runtime-build
+  context: .
+  dockerfile: Dockerfile.development-tools
+  target: runtime
+
 services:
   langgraph:
     extends: {file: docker-compose.automation.yml, service: langgraph}
+    build: *runtime-build
   model-egress-proxy:
     extends: {file: docker-compose.automation.yml, service: model-egress-proxy}
+    build: *runtime-build
   openhands-agent:
     extends: {file: docker-compose.automation.yml, service: openhands-agent}
     build:
@@ -19,10 +26,13 @@ services:
         read_only: true
   openhands-bridge:
     extends: {file: docker-compose.automation.yml, service: openhands-bridge}
+    build: *runtime-build
   codex-verifier:
     extends: {file: docker-compose.automation.yml, service: codex-verifier}
+    build: *runtime-build
   victoria-assurance:
     extends: {file: docker-compose.automation.yml, service: victoria-assurance}
+    build: *runtime-build
   automation-evidence-runner:
     extends: {file: docker-compose.automation.yml, service: automation-evidence-runner}
     build:
@@ -36,6 +46,10 @@ services:
         read_only: true
   controller:
     extends: {file: docker-compose.development-controller.yml, service: controller}
+    build:
+      context: .
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
     depends_on:
       langgraph: {condition: service_healthy}
       openhands-bridge: {condition: service_healthy}

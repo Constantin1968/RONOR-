@@ -107,6 +107,13 @@ describe('opt-in deployment contract', () => {
     const compose = yaml.load(fs.readFileSync(path.join(root, 'docker-compose.development-isolated.yml'), 'utf8')) as any;
     expect(compose.name).toBe('ronor-development');
     expect(Object.keys(compose.services)).toHaveLength(8);
+    for (const [name, service] of Object.entries(compose.services) as [string, any][]) {
+      expect(service.extends.file).toMatch(/^docker-compose\.(automation|development-controller)\.yml$/);
+      expect(service.build.dockerfile).toBe('Dockerfile.development-tools');
+      expect(service.build.target).toBe(name === 'controller' ? 'development-controller'
+        : name === 'openhands-agent' ? 'author'
+        : name === 'automation-evidence-runner' ? 'evidence' : 'runtime');
+    }
     expect(compose.networks['automation-control']).toEqual({ name: 'ronor-development-control', internal: true });
     expect(compose.networks['model-egress']).toEqual({ name: 'ronor-development-model-egress', internal: true });
     expect(compose.networks['model-uplink']).toEqual({ name: 'ronor-model-uplink', external: true });
@@ -119,6 +126,8 @@ describe('opt-in deployment contract', () => {
     expect(tools).toContain('npm ci --no-audit --no-fund');
     expect(tools).toContain('COPY --from=node-runtime /usr/local/bin/node /opt/ronor-node/bin/node');
     expect(tools).toContain('FROM node-runtime AS evidence');
+    expect(tools).toContain('COPY --from=dependencies /app/package.json /app/package-lock.json ./');
+    expect(tools).not.toContain('npm install');
   });
 });
 

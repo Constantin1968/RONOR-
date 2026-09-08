@@ -14,7 +14,9 @@ assert.equal(rows.length, 1);
 assert.equal(rows[0].run_id, run);
 assert.equal(rows[0].mission_id, mission);
 assert.equal(rows[0].status, 'failed');
-assert.equal(rows[0].attempt_count, 1);
+// Attempt 2 is the authorized 2026-09-08 probe that failed on the wire-shape
+// refusal. Both recorded attempts ended without a completed model run.
+assert.equal(rows[0].attempt_count, 2);
 const mandate = JSON.parse(rows[0].mandate_json);
 assert.equal(mandate.max_cost_usd, 1);
 assert.equal(mandate.max_runtime_minutes, 15);

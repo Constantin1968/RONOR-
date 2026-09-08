@@ -17,6 +17,12 @@ function authorised(req: Request, tokens: readonly string[]): boolean {
   });
 }
 
+/** Structured, secret-free record of every settlement that is not an ordinary
+ * accounted completion. Carries no bodies, no credentials and no objectives. */
+function reportSettlement(entry: { path: string; status: number | null; resolution: string; reserved_micro_usd: number }): void {
+  try { console.warn(JSON.stringify({ event: 'model_egress_settlement', at: new Date().toISOString(), ...entry })); } catch { /* logging must never affect accounting */ }
+}
+
 function isTailscaleIpv4(host: string): boolean {
   const parts = host.split('.').map(Number);
   return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) && parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127;
@@ -90,9 +96,20 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
       if (body.byteLength > 2 * 1024 * 1024) throw new Error('upstream_response_too_large');
       if (reservation && config.budget) {
         const cost = modelResponseCharge(Buffer.from(body));
+        // A provider refusal is a *resolved* outcome, not an unknown one: no
+        // completion was produced, so the dispatch is settled at its own
+        // worst-case reservation rather than freezing the budget. The ceiling
+        // stays inviolable because that amount was already held against it.
+        if (!response.ok) {
+          config.budget.ledger.settle(reservation, reservedAmount);
+          reservation = undefined;
+          reportSettlement({ path, status: response.status, resolution: 'charged_worst_case', reserved_micro_usd: reservedAmount });
+          res.status(response.status).type('application/json').send(Buffer.from(body)); return;
+        }
         config.budget.ledger.settle(reservation, cost);
         reservation = undefined;
         if (cost === null || cost > reservedAmount) {
+          reportSettlement({ path, status: response.status, resolution: cost === null ? 'frozen_usage_unknown' : 'frozen_provider_overrun', reserved_micro_usd: reservedAmount });
           res.status(502).json({ok:false,error:cost === null ? 'budget_usage_unknown' : 'budget_provider_overrun'}); return;
         }
         res.setHeader('x-ronor-accounted-micro-usd', String(cost));
@@ -101,7 +118,11 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
       res.status(response.status).type('application/json').send(Buffer.from(body));
     } catch {
       if (reservation && config.budget) {
-        try { config.budget.ledger.settle(reservation, null); } catch { /* pending liability remains durable */ }
+        // Transport failure or client disconnect: charge the worst case that was
+        // already held against the ceiling instead of freezing the budget, so a
+        // single unfavourable hop cannot end an authorised run irrecoverably.
+        try { config.budget.ledger.settle(reservation, reservedAmount); } catch { /* pending liability remains durable */ }
+        reportSettlement({ path, status: null, resolution: 'charged_worst_case', reserved_micro_usd: reservedAmount });
       }
       res.status(502).json({ ok: false, error: 'model_gateway_unavailable' });
     }

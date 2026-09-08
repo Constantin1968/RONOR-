@@ -84,12 +84,46 @@ describe('production model budget enforcement', () => {
     expect(JSON.stringify(fetcher.mock.calls)).not.toContain('x-ronor-budget');
     ledger.close();
   });
-  it('freezes unknown usage and does not send another request after a transport failure', async () => {
+  it('charges the reserved worst case after a transport failure and lets the authorised run continue', async () => {
     const ledger = new ModelBudgetLedger(':memory:');
     const fetcher = jest.fn(async()=>{throw new Error('private detail');});
     const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
     const call = ()=>request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
-    expect((await call()).status).toBe(502); expect((await call()).status).toBe(409);
+    const first = await call();
+    expect(first.status).toBe(502); expect(JSON.stringify(first.body)).not.toContain('private detail');
+    const after = ledger.snapshot('r-proxy')!;
+    expect(after).toMatchObject({frozen:0,pending:0,outstanding:0});
+    expect(after.spent).toBeGreaterThan(0);
+    expect((await call()).status).toBe(502);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(ledger.snapshot('r-proxy')).toMatchObject({frozen:0,pending:0});
+    ledger.close();
+  });
+
+  it('treats a provider refusal as resolved, charging the worst case without freezing the budget', async () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const fetcher = jest.fn(async()=>new Response(JSON.stringify({error:{code:'Throttling'}}),{status:429}));
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    const refused = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
+    expect(refused.status).toBe(429);
+    expect(refused.headers['x-ronor-accounted-micro-usd']).toBeUndefined();
+    const afterRefusal = ledger.snapshot('r-proxy')!;
+    expect(afterRefusal).toMatchObject({frozen:0,pending:0,outstanding:0});
+    expect(afterRefusal.spent).toBeGreaterThan(0);
+    fetcher.mockImplementation(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
+    const recovered = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
+    expect(recovered.status).toBe(200);
+    expect(recovered.headers['x-ronor-accounted-micro-usd']).toBe('260');
+    ledger.close();
+  });
+
+  it('still freezes when a successful completion cannot be accounted for', async () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const fetcher = jest.fn(async()=>new Response(JSON.stringify({id:'no-usage-block'}),{status:200}));
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    const call = ()=>request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
+    expect((await call()).status).toBe(502);
+    expect((await call()).status).toBe(409);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(ledger.snapshot('r-proxy')).toMatchObject({frozen:1,pending:1});
     ledger.close();

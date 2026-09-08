@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { request } from 'undici';
 import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationReceipt, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
@@ -28,7 +29,42 @@ function cleanStrings(value: unknown, maximum = 50): string[] {
   return value.filter((item): item is string => typeof item === 'string').slice(0, maximum).map((item) => item.slice(0, 2000));
 }
 
-async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher: Fetcher; timeoutMs: number; signal?: AbortSignal; plaintextServiceHosts?: readonly string[] }): Promise<Record<string, unknown>> {
+// OpenHands /execute returns its headers only when the assignment finishes.
+// Node fetch's implicit headers timeout must not pre-empt the signed deadline.
+// Use request-scoped, finite limits, never a global dispatcher or unlimited wait.
+async function deadlinePost(url: URL, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const result = await request(url, {
+    method: 'POST', headers: init.headers as Record<string, string>,
+    body: init.body as string, signal: init.signal,
+    headersTimeout: Math.ceil(timeoutMs), bodyTimeout: Math.ceil(timeoutMs),
+    maxRedirections: 0,
+  });
+  try {
+    if (result.statusCode >= 300 && result.statusCode < 400) throw new AutomationAdapterError('adapter_redirect_refused');
+    if (Number(result.headers['content-length'] ?? 0) > DEFAULT_MAX_RESPONSE_BYTES) {
+      throw new AutomationAdapterError('adapter_response_too_large');
+    }
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    for await (const chunk of result.body) {
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += data.length;
+      if (bytes > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
+      chunks.push(data);
+    }
+    return new Response(Buffer.concat(chunks).toString('utf8'), { status: result.statusCode });
+  } finally {
+    // Also release oversized, redirected and interrupted response streams.
+    if (!result.body.destroyed) {
+      // A refused response may not have an iterator/error listener yet.
+      // Consume only the cleanup error; the original refusal is still thrown.
+      result.body.on('error', () => {});
+      result.body.destroy();
+    }
+  }
+}
+
+async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher?: Fetcher; timeoutMs: number; signal?: AbortSignal; plaintextServiceHosts?: readonly string[] }): Promise<Record<string, unknown>> {
   const base = safeBaseUrl(params.baseUrl, params.plaintextServiceHosts);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   if (!loopback && !params.token) throw new AutomationAdapterError('adapter_auth_required');
@@ -40,11 +76,15 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   if (params.signal?.aborted) cancel();
   try {
     const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
-    const response = await params.fetcher(new URL(`${prefix}${params.path}`, base.origin), {
+    const init: RequestInit = {
       method: 'POST', signal: controller.signal, redirect: 'error',
       headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}), ...(params.capability ? { 'x-ronor-capability': params.capability } : {}) },
       body: JSON.stringify(params.body),
-    });
+    };
+    const url = new URL(`${prefix}${params.path}`, base.origin);
+    const response = params.fetcher
+      ? await params.fetcher(url, init)
+      : await deadlinePost(url, init, params.timeoutMs);
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
     const raw = await response.text();
@@ -64,8 +104,10 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
     return value as Record<string, unknown>;
   } catch (error) {
     if (error instanceof AutomationAdapterError) throw error;
-    const aborted = Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
-    throw new AutomationAdapterError(aborted ? (timedOut ? 'adapter_timeout' : 'adapter_cancelled') : 'adapter_unreachable');
+    const aborted = controller.signal.aborted || Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
+    const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+    const transportTimeout = code === 'UND_ERR_HEADERS_TIMEOUT' || code === 'UND_ERR_BODY_TIMEOUT';
+    throw new AutomationAdapterError(transportTimeout || timedOut ? 'adapter_timeout' : aborted ? 'adapter_cancelled' : 'adapter_unreachable');
   } finally { clearTimeout(timer); params.signal?.removeEventListener('abort', cancel); }
 }
 
@@ -110,7 +152,7 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
       // Transport grace only: the native client must stop work at the signed deadline.
       const remainingMs = Date.parse(envelope.deadline) - Date.now();
       if (!Number.isFinite(remainingMs) || remainingMs <= 0) throw new AutomationAdapterError('openhands_deadline_expired', 0);
-      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: Math.min(config.timeoutMs ?? Infinity, remainingMs + 10_000), signal, plaintextServiceHosts: config.plaintextServiceHosts });
+      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher, timeoutMs: Math.min(config.timeoutMs ?? Infinity, remainingMs + 10_000), signal, plaintextServiceHosts: config.plaintextServiceHosts });
       return parseAdapterResult(body);
     } catch (error) {
       if (error instanceof AutomationAdapterError && ['adapter_cancelled', 'adapter_timeout', 'adapter_unreachable'].includes(error.message)) {

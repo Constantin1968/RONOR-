@@ -31,7 +31,10 @@ trap 'echo "budget_concurrency_install_failed_phase=$phase; stopped_without_retr
 umask 077
 containers() { docker ps -a --filter label=com.docker.compose.project=ronor-development --format '{{.Names}} {{.ID}}' | sort; }
 untouched() { sed -E '/^ronor-development-(controller |openhands-bridge-1 |model-egress-proxy-1 )/d'; }
-snapshot() { docker exec -e GIT_OPTIONAL_LOCKS=0 -i ronor-development-controller node - < "$source_dir/scripts/check-development-accounting-update.cjs"; }
+# The historical preflight pins the 8 September run id and attempt count, so it
+# cannot be reused once a further authorized run exists. This capture asserts the
+# install-time invariants instead and digests the whole surface for comparison.
+snapshot() { docker exec -e GIT_OPTIONAL_LOCKS=0 -i ronor-development-controller node - < "$source_dir/scripts/capture-development-state.cjs"; }
 ledger() { sha256sum "$root/model-budget/ledger.db" | cut -d' ' -f1; }
 before="$(containers)"
 [[ "$(printf '%s\n' "$before" | wc -l)" == 8 ]]

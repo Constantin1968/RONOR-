@@ -36,6 +36,7 @@ export interface OpenHandsExecutionEnvelope {
   allowed_actions: AutomationAction[];
   objective_hash: string;
   deadline: string;
+  budget_token?: string;
 }
 export interface EvidenceArtifact {
   kind: 'git_diff' | 'git_status' | 'test_report' | 'event_log';
@@ -59,8 +60,8 @@ export interface VerificationEvidence { claims: string[]; artifacts: EvidenceArt
 
 export interface AutomationAdapters {
   langgraph: { plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> };
-  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> };
-  codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
+  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal, budget?: import('./model-budget').ModelBudgetContext): Promise<AdapterResult> };
+  codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal, authorization?: {mandate: ExecutionMandate; budget: import('./model-budget').ModelBudgetContext}): Promise<VerificationVerdict> };
   assurance: { accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
 }
 

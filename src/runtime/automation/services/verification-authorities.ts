@@ -10,7 +10,7 @@ const KINDS = new Set(['git_diff', 'git_status', 'test_report', 'event_log']);
 
 export interface VerifiedMaterial { artifact: EvidenceArtifact; content: string; }
 export interface CodexEvaluationPort {
-  evaluate(input: { missionId: string; claims: string[]; materials: VerifiedMaterial[] }): Promise<{ verdict: 'pass' | 'fail'; summary: string; evidence: string[]; cost_usd: number }>;
+  evaluate(input: { missionId: string; claims: string[]; materials: VerifiedMaterial[]; budgetToken?: string }): Promise<{ verdict: 'pass' | 'fail'; summary: string; evidence: string[]; cost_usd: number }>;
 }
 
 function authorised(header: string | undefined, token: string): boolean { return header === `Bearer ${token}`; }
@@ -76,7 +76,8 @@ export function createCodexVerifierApp(config: { serviceToken: string; receiptPr
         return;
       }
       cost = null;
-      const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials });
+      const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials,
+        ...(typeof req.body?.budget_token === 'string' ? {budgetToken:req.body.budget_token} : {}) });
       if (verdict && Number.isFinite(verdict.cost_usd) && verdict.cost_usd >= 0) cost = verdict.cost_usd;
       if (!verdict || !['pass', 'fail'].includes(verdict.verdict) || typeof verdict.summary !== 'string' || verdict.summary.length > 4000 || !Array.isArray(verdict.evidence) || verdict.evidence.length > 50 || !verdict.evidence.every((item) => typeof item === 'string' && item.length <= 2000) || !Number.isFinite(verdict.cost_usd) || verdict.cost_usd < 0) throw new Error('invalid_evaluator_result');
       const receipt = signVerificationReceipt({ privateKeyPem: config.receiptPrivateKey, missionId, verdict: verdict.verdict, evidence, now: config.now?.() });

@@ -1,4 +1,19 @@
-import { createNativeOpenHandsClient, nativeOpenHandsCost } from '../../src/runtime/automation/adapters/openhands-native';
+import { createNativeOpenHandsClient, nativeOpenHandsCost, nativeOpenHandsCatalogCost } from '../../src/runtime/automation/adapters/openhands-native';
+
+describe('native catalog accounting', () => {
+  it('computes the conservative catalog subtotal from measured tokens without double-counting cache hits', () => {
+    expect(nativeOpenHandsCatalogCost({stats:{usage_to_metrics:{agent:{
+      model_name:'openai/qwen3.8-max',accumulated_cost:0,costs:[],
+      accumulated_token_usage:{prompt_tokens:306258,completion_tokens:4135,cache_read_tokens:270336},
+    }}}})).toBe(0.637326);
+  });
+  it('refuses missing usage or a different model even if it advertises a zero cost', () => {
+    expect(nativeOpenHandsCatalogCost({})).toBeNull();
+    expect(nativeOpenHandsCatalogCost({stats:{usage_to_metrics:{agent:{
+      model_name:'different',accumulated_token_usage:{prompt_tokens:1,completion_tokens:1},
+    }}}})).toBeNull();
+  });
+});
 import type { OpenHandsExecutionEnvelope } from '../../src/runtime/automation/contracts';
 
 const conversationId = '11111111-1111-4111-8111-111111111111';

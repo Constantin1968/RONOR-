@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { AdapterResult, OpenHandsExecutionEnvelope } from '../contracts';
 import type { NativeOpenHandsPort } from '../services/openhands-bridge';
 import { evaluateOpenHandsEffects } from '../effect-policy';
+import { MODEL_RATE_CARD } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
@@ -49,6 +50,22 @@ export function nativeOpenHandsCost(state: Record<string, unknown>): number | nu
   return number(state.cost_usd) ? state.cost_usd : null;
 }
 
+export function nativeOpenHandsCatalogCost(state: Record<string, unknown>): number | null {
+  const stats = state.stats as {usage_to_metrics?: Record<string,{
+    model_name?: string; accumulated_token_usage?: {prompt_tokens?: unknown;completion_tokens?: unknown};
+  }>} | undefined;
+  if (!stats?.usage_to_metrics || !Object.keys(stats.usage_to_metrics).length) return null;
+  let microUsd = 0;
+  for (const metric of Object.values(stats.usage_to_metrics)) {
+    const input = metric.accumulated_token_usage?.prompt_tokens;
+    const output = metric.accumulated_token_usage?.completion_tokens;
+    if (metric.model_name !== `openai/${MODEL_RATE_CARD.model}` || typeof input !== 'number' ||
+        typeof output !== 'number' || !Number.isSafeInteger(input) || input < 0 || !Number.isSafeInteger(output) || output < 0) return null;
+    microUsd += input * MODEL_RATE_CARD.inputMicroUsd + output * MODEL_RATE_CARD.outputMicroUsd;
+  }
+  return Number.isSafeInteger(microUsd) ? microUsd / 1e6 : null;
+}
+
 export function createNativeOpenHandsClient(config: {
   baseUrl: string;
   sessionApiKey: string;
@@ -58,12 +75,15 @@ export function createNativeOpenHandsClient(config: {
   sleep?: (ms: number) => Promise<void>;
   plaintextServiceHosts?: readonly string[];
   now?: () => number;
-  llm?: { model: string; apiKey: string; baseUrl: string; apiMode?: 'chat' | 'responses' | 'auto' };
+  llm?: { model: string; apiKey: string; baseUrl: string; apiMode?: 'chat' | 'responses' | 'auto';
+    inputCostPerToken?: number; outputCostPerToken?: number };
+  catalogAccounting?: boolean;
 }): NativeOpenHandsPort & { health(): Promise<boolean> } {
   if (!config.sessionApiKey) throw new NativeOpenHandsError('openhands_session_key_required');
   const base = baseUrl(config.baseUrl, config.plaintextServiceHosts ?? []);
   const fetcher = config.fetcher ?? fetch;
   const sleep = config.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const readCost = config.catalogAccounting ? nativeOpenHandsCatalogCost : nativeOpenHandsCost;
 
   const call = async (path: string, method: 'GET' | 'POST', body?: unknown, signal?: AbortSignal): Promise<Record<string, unknown>> => {
     let response: Response;
@@ -106,7 +126,7 @@ export function createNativeOpenHandsClient(config: {
         try {
           await call(`/api/conversations/${conversationId}/pause`, 'POST', {}, AbortSignal.timeout(4_000));
           const final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
-          cost = nativeOpenHandsCost(final);
+          cost = readCost(final);
           return ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'].includes(String(final.execution_status).toLowerCase());
         } catch { cost = null; return false; }
       };
@@ -128,7 +148,10 @@ export function createNativeOpenHandsClient(config: {
           confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
           ...(config.llm ? { agent_settings: {
             agent_kind: 'openhands',
-            llm: { model: config.llm.model, api_key: config.llm.apiKey, base_url: config.llm.baseUrl, api_mode: config.llm.apiMode ?? 'chat' },
+            llm: { model: config.llm.model, api_key: config.llm.apiKey, base_url: config.llm.baseUrl, api_mode: config.llm.apiMode ?? 'chat',
+              ...(envelope.budget_token ? {extra_headers:{'x-ronor-budget':envelope.budget_token},max_output_tokens:4096} : {}),
+              ...(config.llm.inputCostPerToken !== undefined ? {input_cost_per_token:config.llm.inputCostPerToken,
+                output_cost_per_token:config.llm.outputCostPerToken} : {}) },
           } } : {}),
         }, executionSignal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
@@ -140,7 +163,7 @@ export function createNativeOpenHandsClient(config: {
         for (let poll = 0; poll < maxPolls; poll += 1) {
           if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
           const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
-          cost = nativeOpenHandsCost(state);
+          cost = readCost(state);
         const status = String(state.execution_status ?? '').toLowerCase();
         if (cost === null && !['finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) {
           const paused = await pauseAndAccount();

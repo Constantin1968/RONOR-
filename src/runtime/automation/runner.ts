@@ -178,7 +178,7 @@ export async function runExecutiveMission(params: {
     // The in-memory subtotal remains available to add a validated response.
     emitStatus({ ...run, cost_usd: null }, 'openhands', 'openhands');
     let result;
-    try { result = await params.adapters.openhands.execute(assignment, params.mandate, executionSignal); }
+    try { result = await params.adapters.openhands.execute(assignment, params.mandate, executionSignal, {run_id:runId,accounted_cost_usd:run.cost_usd}); }
     catch (error) {
       run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);
       const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded'
@@ -235,7 +235,8 @@ export async function runExecutiveMission(params: {
   catch { append('failure.recorded', { id: `${runId}-artifact-integrity-failed`, run_id: runId, reason: 'artifact_integrity_failed' }, 'codex'); return terminal(run, 'failed', 'artifact_integrity_failed', 'codex', 'codex'); }
   const verificationEvidence = { claims: workerClaims, artifacts: verifiedArtifacts };
   emitStatus({ ...run, cost_usd: null }, 'codex', 'codex');
-  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal); }
+  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal,
+    {mandate:params.mandate,budget:{run_id:runId,accounted_cost_usd:run.cost_usd}}); }
   catch (error) { run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null); const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'codex_adapter_failed'; append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason }, 'codex'); return terminal(run, 'failed', reason, 'codex', 'codex'); }
   run.cost_usd = addCost(run.cost_usd, codex.cost_usd);
   if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'codex');

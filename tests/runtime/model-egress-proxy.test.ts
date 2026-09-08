@@ -1,5 +1,7 @@
 import request from 'supertest';
 import { createModelEgressProxy, modelGatewayBaseUrl } from '../../src/runtime/automation/services/model-egress-proxy';
+import { ModelBudgetLedger, signModelBudget } from '../../src/runtime/automation/model-budget';
+import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const token = 'gateway-token-for-tests-0123456789';
 const codexToken = 'codex-client-token-tests-0123456789';
@@ -54,5 +56,42 @@ describe('automation model egress proxy', () => {
     const app = createModelEgressProxy({ ...config, gatewayBaseUrl: 'https://models.example/v1', fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
     const result = await request(app).post('/v1/chat/completions').set('Authorization', `Bearer ${token}`).send({});
     expect(result.status).toBe(502); expect(JSON.stringify(result.body)).not.toContain('secret upstream detail');
+  });
+});
+
+describe('production model budget enforcement', () => {
+  const key = 'budget-key-for-proxy-tests-32-bytes';
+  const mandate = {mission_id:'m-proxy',max_cost_usd:1,expires_at:new Date(Date.now()+600000).toISOString()} as ExecutionMandate;
+  const payload = {model:'qwen3.8-max',messages:[{role:'user',content:'test'}]};
+  const signed = (spent = 0, role: 'author'|'verifier' = 'author') => signModelBudget(mandate,{run_id:'r-proxy',accounted_cost_usd:spent},role,key);
+  it('refuses missing, mismatched-role and exhausted budget authorizations before upstream access', async () => {
+    const ledger = new ModelBudgetLedger(':memory:'); const fetcher = jest.fn();
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).send(payload)).status).toBe(403);
+    expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed()).send(payload)).status).toBe(403);
+    expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed(0.999)).send(payload)).status).toBe(409);
+    expect(fetcher).not.toHaveBeenCalled(); ledger.close();
+  });
+  it('shares cumulative accounting between author and verifier and strips the signed authorization upstream', async () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const fetcher = jest.fn(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    const r = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed(0.2)).send(payload);
+    expect(r.status).toBe(200); expect(r.headers['x-ronor-accounted-micro-usd']).toBe('260');
+    const second = await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed(0,'verifier')).send({model:'qwen3.8-max',input:'verify'});
+    expect(second.status).toBe(200);
+    expect(ledger.snapshot('r-proxy')?.spent).toBe(200520);
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain('x-ronor-budget');
+    ledger.close();
+  });
+  it('freezes unknown usage and does not send another request after a transport failure', async () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const fetcher = jest.fn(async()=>{throw new Error('private detail');});
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    const call = ()=>request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
+    expect((await call()).status).toBe(502); expect((await call()).status).toBe(409);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(ledger.snapshot('r-proxy')).toMatchObject({frozen:1,pending:1});
+    ledger.close();
   });
 });

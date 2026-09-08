@@ -6,6 +6,7 @@ import path from 'path';
 import { isAutomationAction, type AdapterResult, type OpenHandsExecutionEnvelope } from '../contracts';
 import { verifyExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
+import { verifyModelBudget } from '../model-budget';
 
 export interface NativeOpenHandsPort {
   execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult>;
@@ -99,6 +100,7 @@ export function createOpenHandsBridgeApp(config: {
   client: NativeOpenHandsPort;
   nonces?: CapabilityNonceStore;
   now?: () => Date;
+  requireBudget?: boolean;
 }) {
   const app = express();
   app.use(createServiceRateLimit());
@@ -137,6 +139,12 @@ export function createOpenHandsBridgeApp(config: {
     if (claims.assignment_id !== envelope.assignment_id || claims.objective_hash !== envelope.objective_hash ||
         claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0')) {
       res.status(403).json({ ok: false, error: 'capability_mismatch' }); return;
+    }
+    if (config.requireBudget || envelope.budget_token !== undefined) {
+      const budget = typeof envelope.budget_token === 'string' ? verifyModelBudget(envelope.budget_token, config.capabilityKey, now().getTime()) : null;
+      if (!budget || budget.role !== 'author' || budget.mission_id !== claims.mission_id || budget.expires_at !== claims.expires_at) {
+        res.status(403).json({ok:false,error:'budget_capability_mismatch'}); return;
+      }
     }
     let consumed = false;
     try { consumed = nonces.consume(claims.nonce, claims.expires_at); }

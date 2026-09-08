@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationReceipt, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
+import { signModelBudget, type ModelBudgetContext } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
@@ -87,7 +88,7 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
 }
 
 export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
-  return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> {
+  return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal, budget?: ModelBudgetContext): Promise<AdapterResult> {
     if (!config.capabilityKey) throw new AutomationAdapterError('capability_key_required');
     const capability = signExecutionCapability({
       audience: 'openhands-bridge', mandate_id: mandate.mandate_id, mission_id: mandate.mission_id,
@@ -97,6 +98,7 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
     const envelope: OpenHandsExecutionEnvelope = {
       assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
+      ...(budget ? {budget_token: signModelBudget(mandate, budget, 'author', config.capabilityKey)} : {}),
     };
     try {
       // Transport grace only: the native client must stop work at the signed deadline.
@@ -118,13 +120,15 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
   }};
 }
 
-export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
-  return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
+export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
+  return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal, authorization?: {mandate: ExecutionMandate; budget: ModelBudgetContext}): Promise<VerificationVerdict> {
+    if (authorization && (!config.capabilityKey || authorization.mandate.mission_id !== missionId)) throw new AutomationAdapterError('budget_authority_required', 0);
+    const budget_token = authorization ? signModelBudget(authorization.mandate, authorization.budget, 'verifier', config.capabilityKey!) : undefined;
+    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence, budget_token }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
     const result = parseAdapterResult(body);
-    if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');
+    if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid', result.cost_usd);
     const receipt = parseVerificationReceipt(body.receipt);
-    if (!receipt) throw new AutomationAdapterError('codex_receipt_invalid');
+    if (!receipt) throw new AutomationAdapterError('codex_receipt_invalid', result.cost_usd);
     return { ...result, verdict: body.verdict, receipt };
   }};
 }

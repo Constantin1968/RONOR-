@@ -4,7 +4,8 @@ import { bootstrapApiKeys } from '../../src/runtime/api/auth';
 import { createDevelopmentController } from '../../src/runtime/automation/development-controller';
 import { prepareDevelopmentJob } from '../../src/runtime/automation/development-jobs';
 import { controllerEnvironment, CONTROLLER_SECRETS } from '../../src/runtime/automation/services/development-controller-server';
-import { getDb } from '../../src/audit/hash-chain';
+import { closeDb, getDb } from '../../src/audit/hash-chain';
+import { resetSchemaGuard } from '../../src/runtime/ledgers/schema';
 import { registerAutomationRun } from '../../src/runtime/automation/run-control';
 import fs from 'fs';
 import path from 'path';
@@ -13,9 +14,23 @@ import yaml from 'js-yaml';
 const architect = crypto.randomBytes(32).toString('hex');
 const admin = crypto.randomBytes(32).toString('hex');
 const env = { RONOR_ARCHITECT_API_KEY: architect, RONOR_ADMIN_API_KEY: admin, RONOR_AUTOMATION_ENABLED: 'false' };
+const previousAuditDbPath = process.env.AUDIT_DB_PATH;
 let controller: ReturnType<typeof createDevelopmentController>;
-beforeAll(() => { bootstrapApiKeys(env); controller = createDevelopmentController(env); });
-afterAll(() => controller.stop());
+beforeAll(() => {
+  // Do not reuse or mutate the caller's persistent audit database.
+  closeDb();
+  resetSchemaGuard();
+  process.env.AUDIT_DB_PATH = ':memory:';
+  bootstrapApiKeys(env);
+  controller = createDevelopmentController(env);
+});
+afterAll(() => {
+  controller?.stop();
+  closeDb();
+  resetSchemaGuard();
+  if (previousAuditDbPath === undefined) delete process.env.AUDIT_DB_PATH;
+  else process.env.AUDIT_DB_PATH = previousAuditDbPath;
+});
 
 describe('standalone development surface', () => {
   it('reports liveness without claiming readiness', async () => {

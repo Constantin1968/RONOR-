@@ -60,6 +60,15 @@ describe('standalone development surface', () => {
     expect((await request(controller.app).post('/api/development/jobs')
       .set('Authorization', `Bearer ${architect}`).send({ objective: 'A' })).status).toBe(400);
   });
+  it('rejects an objective that is empty or only whitespace', async () => {
+    for (const objective of ['', ' \t\n ']) {
+      const r = await request(controller.app).post('/api/development/jobs')
+        .set('Authorization', `Bearer ${architect}`).set('Idempotency-Key', crypto.randomUUID())
+        .send({ objective });
+      expect(r.status).toBe(400);
+      expect(r.body).toEqual({ ok: false, error: 'invalid_development_job' });
+    }
+  });
   it('refuses execution without approval and never claims disabled adapters are ready', async () => {
     const r = await request(controller.app).get('/api/runtime/control/automation/readiness')
       .set('Authorization', `Bearer ${architect}`);

@@ -3,6 +3,7 @@ import { createRuntimeRouter } from '../api/routes';
 import { ingressRateLimit, rateLimit, requireArchitect } from '../api/middleware';
 import { prepareDevelopmentJob } from './development-jobs';
 import { interruptActiveAutomationRuns } from './run-control';
+import { reconcileLegacyAuthorFailure } from './legacy-reconciliation';
 
 // Expose the existing control plane, not query/ingest/provider/key-admin routes.
 const ROUTES: Array<[string, RegExp]> = [
@@ -29,6 +30,20 @@ export function createDevelopmentController(env: NodeJS.ProcessEnv) {
   });
   app.use(ingressRateLimit);
   app.use(express.json({ limit: '32kb', strict: true }));
+  app.post('/api/development/reconcile-author-failure',requireArchitect,rateLimit,(req,res)=>{
+    const body=req.body as Record<string,unknown>;
+    if(!body||Object.keys(body).some(k=>!['approved','run_id','proof','expected_patch_digest'].includes(k))) {
+      res.status(400).json({ok:false,error:'invalid_reconciliation_request'});return;
+    }
+    try {
+      const result=reconcileLegacyAuthorFailure({approved:body.approved===true,runId:String(body.run_id??''),
+        architectKeyId:req.apiKey!.key_id,authorityKey:env.RONOR_AUTOMATION_MANDATE_SIGNING_KEY??'',
+        proof:body.proof as Parameters<typeof reconcileLegacyAuthorFailure>[0]['proof'],
+        expectedPatchDigest:String(body.expected_patch_digest??''),approvedRoot:env.RONOR_AUTOMATION_WORKSPACE_ROOT??'',
+        expectedOrigin:env.RONOR_AUTOMATION_EXPECTED_ORIGIN,expectedHead:env.RONOR_AUTOMATION_EXPECTED_HEAD});
+      res.json({ok:true,...result});
+    } catch {res.status(422).json({ok:false,error:'legacy_reconciliation_refused'});}
+  });
   app.post('/api/development/jobs', requireArchitect, rateLimit, (req, res) => {
     const body = req.body as Record<string, unknown> | undefined;
     if (!body || Object.keys(body).some(key => key !== 'objective') ||

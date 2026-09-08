@@ -90,15 +90,21 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
 export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
   return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal, budget?: ModelBudgetContext): Promise<AdapterResult> {
     if (!config.capabilityKey) throw new AutomationAdapterError('capability_key_required');
+    const resume=mandate.recovery?.openhands_assignment_id===assignment.id ? {
+      conversation_id:mandate.recovery.openhands_conversation_id,
+      accounted_cost_usd:mandate.recovery.accounted_cost_usd,
+    } : undefined;
     const capability = signExecutionCapability({
       audience: 'openhands-bridge', mandate_id: mandate.mandate_id, mission_id: mandate.mission_id,
       assignment_id: assignment.id, objective_hash: mandate.objective_hash,
       allowed_actions: assignment.actions, expires_at: mandate.expires_at, nonce: crypto.randomUUID(),
+      ...(resume?{resume}:{}),
     }, config.capabilityKey);
     const envelope: OpenHandsExecutionEnvelope = {
       assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
       ...(budget ? {budget_token: signModelBudget(mandate, budget, 'author', config.capabilityKey)} : {}),
+      ...(resume?{resume}:{}),
     };
     try {
       // Transport grace only: the native client must stop work at the signed deadline.

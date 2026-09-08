@@ -1,0 +1,14 @@
+# Apply last. Keep the installed budget proxy, verifier and all other services.
+services:
+  controller:
+    build:
+      context: ${RONOR_RECOVERY_FIX_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_RECOVERY_FIX_TAG:?reviewed revision}
+  openhands-bridge:
+    build:
+      context: ${RONOR_RECOVERY_FIX_SOURCE}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-recovery-runtime:${RONOR_RECOVERY_FIX_TAG}

@@ -137,7 +137,8 @@ export function createOpenHandsBridgeApp(config: {
     const envelope = parseEnvelope((req.body as Record<string, unknown> | undefined)?.envelope);
     if (!claims || !envelope) { res.status(403).json({ ok: false, error: 'invalid_capability' }); return; }
     if (claims.assignment_id !== envelope.assignment_id || claims.objective_hash !== envelope.objective_hash ||
-        claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0')) {
+        claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0') ||
+        JSON.stringify(claims.resume)!==JSON.stringify(envelope.resume)) {
       res.status(403).json({ ok: false, error: 'capability_mismatch' }); return;
     }
     if (config.requireBudget || envelope.budget_token !== undefined) {

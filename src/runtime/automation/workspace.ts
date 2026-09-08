@@ -2,6 +2,7 @@ import { execFileSync } from 'child_process';
 import { lstatSync, realpathSync } from 'fs';
 import path from 'path';
 import { branchMatchesPolicy } from './policy';
+import crypto from 'node:crypto';
 
 export interface WorkspaceSnapshot {
   canonical_path: string;
@@ -68,4 +69,16 @@ export function validateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, policy: W
 export function inspectAndValidateWorkspace(workspaceRoot: string, policy: WorkspacePolicy): WorkspaceVerdict {
   try { return validateWorkspaceSnapshot(inspectAutomationWorkspace(workspaceRoot, policy.approved_root), policy); }
   catch { return { valid: false, reason: 'workspace_inspection_failed' }; }
+}
+
+/** A narrowly scoped legacy recovery: tracked, unstaged changes only. */
+export function recoveryWorkspaceDigests(workspaceRoot: string): {workspace: string; patch: string} {
+  if (git(workspaceRoot,['ls-files','--others','--exclude-standard']) ||
+      git(workspaceRoot,['diff','--cached','--name-only'])) throw new Error('recovery_workspace_not_admitted');
+  const patch = git(workspaceRoot,['diff','--binary','--no-ext-diff','--no-textconv']);
+  const hash = (s:string) => crypto.createHash('sha256').update(s).digest('hex');
+  return {patch:hash(patch),workspace:hash(JSON.stringify({
+    head:git(workspaceRoot,['rev-parse','HEAD']),branch:git(workspaceRoot,['branch','--show-current']),
+    status:git(workspaceRoot,['status','--porcelain=v1','--untracked-files=all']),patch,
+  }))};
 }

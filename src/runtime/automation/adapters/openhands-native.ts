@@ -117,6 +117,18 @@ export function createNativeOpenHandsClient(config: {
       const executionSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
       let conversationId: string | null = null;
       let cost: number | null = 0;
+      const baseline=envelope.resume?.accounted_cost_usd??0;
+      const executionCost=(state:Record<string,unknown>):number|null=>{
+        const total=readCost(state);
+        return total!==null&&Number.isFinite(baseline)&&baseline>=0&&total>=baseline
+          ?Number((total-baseline).toFixed(9)):null;
+      };
+      const llm=config.llm ? {
+        model:config.llm.model,api_key:config.llm.apiKey,base_url:config.llm.baseUrl,api_mode:config.llm.apiMode??'chat',
+        ...(envelope.budget_token?{extra_headers:{'x-ronor-budget':envelope.budget_token},max_output_tokens:4096}:{}),
+        ...(config.llm.inputCostPerToken!==undefined?{input_cost_per_token:config.llm.inputCostPerToken,
+          output_cost_per_token:config.llm.outputCostPerToken}:{}),
+      }:undefined;
       const finish = (ok: boolean, summary: string): AdapterResult => ({
         ok: ok && cost !== null, summary: cost === null && ok ? 'openhands_cost_unknown' : summary,
         evidence: conversationId ? [`conversation:${conversationId}`] : [], cost_usd: cost,
@@ -126,7 +138,7 @@ export function createNativeOpenHandsClient(config: {
         try {
           await call(`/api/conversations/${conversationId}/pause`, 'POST', {}, AbortSignal.timeout(4_000));
           const final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
-          cost = readCost(final);
+          cost = executionCost(final);
           return ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'].includes(String(final.execution_status).toLowerCase());
         } catch { cost = null; return false; }
       };
@@ -143,15 +155,34 @@ export function createNativeOpenHandsClient(config: {
         if (executionSignal.aborted) return finish(false, 'openhands_cancelled');
         // A failed create response may still have created a billable conversation.
         cost = null;
+        if(envelope.resume) {
+          if(!llm || !config.catalogAccounting || !envelope.budget_token ||
+              !/^[a-f0-9-]{36}$/.test(envelope.resume.conversation_id) || !Number.isFinite(baseline)||baseline<=0)
+            return finish(false,'openhands_resume_authority_invalid');
+          conversationId=envelope.resume.conversation_id;
+          const before=await call(`/api/conversations/${conversationId}`,'GET',undefined,executionSignal);
+          const identity=(state:Record<string,unknown>)=>{
+            const agent=state.agent as {llm?:{model?:string;extra_headers?:Record<string,string>}};
+            return state.execution_status==='paused' && agent?.llm?.model===llm.model &&
+              (state.confirmation_policy as {kind?:string})?.kind==='AlwaysConfirm' &&
+              (state.workspace as {working_dir?:string})?.working_dir===CONTAINER_WORKSPACE;
+          };
+          cost=executionCost(before);
+          if(!identity(before)||cost!==0) return finish(false,'openhands_resume_state_mismatch');
+          await call(`/api/conversations/${conversationId}/switch_llm`,'POST',{llm},executionSignal);
+          const configured=await call(`/api/conversations/${conversationId}`,'GET',undefined,executionSignal);
+          cost=executionCost(configured);
+          if(!identity(configured)||cost!==0||
+              (configured.agent as {llm?:{extra_headers?:Record<string,string>}})?.llm?.extra_headers?.['x-ronor-budget']!==envelope.budget_token)
+            return finish(false,'openhands_resume_configuration_unverified');
+          await call(`/api/conversations/${conversationId}/run`,'POST',{},executionSignal);
+        } else {
         const created = await call('/api/conversations', 'POST', {
           workspace: { kind: 'LocalWorkspace', working_dir: CONTAINER_WORKSPACE },
           confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
-          ...(config.llm ? { agent_settings: {
+          ...(llm ? { agent_settings: {
             agent_kind: 'openhands',
-            llm: { model: config.llm.model, api_key: config.llm.apiKey, base_url: config.llm.baseUrl, api_mode: config.llm.apiMode ?? 'chat',
-              ...(envelope.budget_token ? {extra_headers:{'x-ronor-budget':envelope.budget_token},max_output_tokens:4096} : {}),
-              ...(config.llm.inputCostPerToken !== undefined ? {input_cost_per_token:config.llm.inputCostPerToken,
-                output_cost_per_token:config.llm.outputCostPerToken} : {}) },
+            llm,
           } } : {}),
         }, executionSignal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
@@ -159,11 +190,12 @@ export function createNativeOpenHandsClient(config: {
         await call(`/api/conversations/${conversationId}/events`, 'POST', {
           role: 'user', content: [{ type: 'text', text: envelope.instruction }], run: true,
         }, executionSignal);
+        }
         const maxPolls = config.maxPolls ?? Infinity;
         for (let poll = 0; poll < maxPolls; poll += 1) {
           if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
           const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
-          cost = readCost(state);
+          cost = executionCost(state);
         const status = String(state.execution_status ?? '').toLowerCase();
         if (cost === null && !['finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) {
           const paused = await pauseAndAccount();

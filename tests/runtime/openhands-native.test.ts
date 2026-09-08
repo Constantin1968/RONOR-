@@ -23,6 +23,40 @@ const envelope: OpenHandsExecutionEnvelope = {
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status }));
 
 describe('native OpenHands Agent Server client', () => {
+  it('resumes the same paused conversation with verified budget headers and reports only incremental usage',async()=>{
+    const state=(tokens:number,configured=false)=>({execution_status:'paused',
+      agent:{llm:{model:'openai/qwen3.8-max',...(configured?{extra_headers:{'x-ronor-budget':'test-budget'}}:{})}},
+      workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
+      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
+    const fetcher=jest.fn()
+      .mockImplementationOnce(()=>json(state(100000)))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state(100000,true)))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json({...state(110000,true),execution_status:'finished'}))
+      .mockImplementationOnce(()=>json({items:[]}));
+    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+      catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
+      .toMatchObject({ok:true,cost_usd:0.02,evidence:[`conversation:${conversationId}`]});
+    expect(fetcher.mock.calls.map(c=>new URL(c[0]).pathname)).toEqual([
+      `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/switch_llm`,
+      `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/run`,
+      `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/events/search`,
+    ]);
+  });
+  it('does not start a preserved conversation when the budget header cannot be verified',async()=>{
+    const state={execution_status:'paused',agent:{llm:{model:'openai/qwen3.8-max'}},
+      workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
+      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
+    const fetcher=jest.fn().mockImplementationOnce(()=>json(state)).mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state));
+    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+      catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
+      .toMatchObject({ok:false,cost_usd:0,summary:'openhands_resume_configuration_unverified'});
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
   it('uses the official authenticated conversation lifecycle and emits hashed event evidence', async () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))

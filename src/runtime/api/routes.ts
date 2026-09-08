@@ -84,7 +84,8 @@ import { createWorkspaceArtifactCollector } from '../automation/artifacts';
 import { modelCabinet } from '../router/model-cabinet';
 import { attestAutomationAdapters } from '../automation/attestation';
 import { issueArchitectMandate, verifyMandateAuthority } from '../automation/mandate-issuer';
-import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation } from '../automation/run-lease';
+import { claimAutomationRun, getAutomationRunRecord, requestAutomationRunCancellation, getEffectiveAutomationMandate } from '../automation/run-lease';
+import { recoveryWorkspaceDigests } from '../automation/workspace';
 import { launchAutomationRun } from '../automation/background-run';
 import type { AutomationRun, ExecutionMandate } from '../automation/contracts';
 import { createHttpPostExecutionVerifier } from '../automation/post-execution-verifier';
@@ -734,12 +735,23 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         postExecutionVerifier = createHttpPostExecutionVerifier({ baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN });
         await postExecutionVerifier.attest();
       } catch { res.status(503).json({ ok: false, error: 'isolated_evidence_runner_attestation_failed' }); return; }
+      const runId = executionRunId(mandate.mandate_id);
+      let recoveryMandate: ExecutionMandate | null;
+      try {recoveryMandate=getEffectiveAutomationMandate(runId,mandateSigningKey);}
+      catch {res.status(422).json({ok:false,error:'reauthorization_integrity_failed'});return;}
+      if(recoveryMandate?.recovery) {
+        try {
+          if(recoveryMandate.workspace_root!==workspaceRoot ||
+              recoveryWorkspaceDigests(workspaceRoot).workspace!==recoveryMandate.recovery.workspace_digest)
+            throw new Error('mismatch');
+        } catch {res.status(422).json({ok:false,error:'recovery_workspace_changed'});return;}
+      }
       const workspace = inspectAndValidateWorkspace(workspaceRoot, {
         approved_root: env.RONOR_AUTOMATION_WORKSPACE_ROOT,
         branch_prefix: mandate.branch_prefix,
         expected_origin: env.RONOR_AUTOMATION_EXPECTED_ORIGIN,
         expected_head: env.RONOR_AUTOMATION_EXPECTED_HEAD,
-        require_clean: true,
+        require_clean: !recoveryMandate?.recovery,
       });
       if (!workspace.valid || workspace.snapshot?.branch !== branch) {
         res.status(422).json({ ok: false, error: 'workspace_policy_refused', reason: workspace.valid ? 'branch_request_mismatch' : workspace.reason });
@@ -749,7 +761,6 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       catch { res.status(503).json({ ok: false, error: 'automation_attestation_failed' }); return; }
       const adapters = configuredAutomationAdapters(env);
       if (!adapters) { res.status(503).json({ ok: false, error: 'automation_attestation_expired' }); return; }
-      const runId = executionRunId(mandate.mandate_id);
       if (!verifyMandateAuthority(mandate, mandateSigningKey)) {
         res.status(422).json({ ok: false, error: 'mandate_authority_invalid' });
         return;

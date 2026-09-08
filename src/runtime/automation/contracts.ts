@@ -27,6 +27,12 @@ export interface ExecutionMandate {
   max_fix_cycles: number;
   issued_at: string;
   expires_at: string;
+  recovery?: {
+    authorization_id: string; original_fingerprint: string; evidence_sha256: string;
+    workspace_digest: string; accounted_cost_usd: number;
+    openhands_conversation_id: string; openhands_assignment_id: string;
+    accounting_basis: 'catalog-no-cache-discount-not-invoice';
+  };
 }
 
 export interface PlannedAssignment { id: string; instruction: string; actions: AutomationAction[]; }
@@ -37,6 +43,7 @@ export interface OpenHandsExecutionEnvelope {
   objective_hash: string;
   deadline: string;
   budget_token?: string;
+  resume?: {conversation_id:string;accounted_cost_usd:number};
 }
 export interface EvidenceArtifact {
   kind: 'git_diff' | 'git_status' | 'test_report' | 'event_log';

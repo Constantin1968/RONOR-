@@ -104,6 +104,37 @@ export class ModelBudgetLedger {
   close(): void { this.db.close(); }
 }
 
+/** Prompt-cache marker emitted by the OpenHands SDK (1.42.1) both inside a text
+ * block and, for tool results, at message level. It carries no content and no
+ * capability; admitting it does not widen what may be sent to the provider. */
+function ephemeralCacheControl(value: unknown): boolean {
+  return !!value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).length === 1 && (value as Record<string, unknown>).type === 'ephemeral';
+}
+/** Anthropic extended-thinking blocks the SDK replays on assistant turns.
+ * Text and signature only: no images, no tool payloads, no remote references. */
+function thinkingBlocksOnly(value: unknown): boolean {
+  if (!Array.isArray(value) || !value.length) return false;
+  return value.every((block) => {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) return false;
+    const b = block as Record<string, unknown>;
+    if (b.type === 'thinking')
+      return typeof b.thinking === 'string' &&
+        (b.signature === undefined || b.signature === null || typeof b.signature === 'string') &&
+        Object.keys(b).every(k => ['type', 'thinking', 'signature'].includes(k));
+    if (b.type === 'redacted_thinking')
+      return typeof b.data === 'string' && Object.keys(b).every(k => ['type', 'data'].includes(k));
+    return false;
+  });
+}
+function textContentBlock(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const c = value as Record<string, unknown>;
+  if (c.type !== 'text' || typeof c.text !== 'string') return false;
+  if (!Object.keys(c).every(k => ['type', 'text', 'cache_control'].includes(k))) return false;
+  return !('cache_control' in c) || ephemeralCacheControl(c.cache_control);
+}
+
 export interface ReservedModelRequest { payload: Record<string, unknown>; inputBound: number; outputBound: number; reserveMicroUsd: number; }
 /** Text-only conservative reservation, not a claim of exact tokenization.
  * JSON bytes plus a deliberately generous template allowance bound admitted
@@ -130,12 +161,22 @@ export function reserveModelRequest(path: string, body: Buffer): ReservedModelRe
     messages = payload.messages.length;
     for (const m of payload.messages) {
       if (!m || typeof m !== 'object') throw new ModelBudgetError('budget_payload_invalid');
-      if (Object.keys(m).some(k=>!['role','content','tool_calls','tool_call_id','name','reasoning_content','function_call'].includes(k)))
+      const message = m as Record<string, unknown>;
+      if (Object.keys(message).some(k=>!['role','content','tool_calls','tool_call_id','name','reasoning_content','function_call','cache_control','thinking_blocks'].includes(k)))
         throw new ModelBudgetError('budget_message_unsupported');
-      const content = (m as Record<string,unknown>).content;
-      if (!(content === null || typeof content === 'string' || Array.isArray(content) && content.every(c =>
-        c && typeof c === 'object' && c.type === 'text' && typeof c.text === 'string' &&
-        Object.keys(c).every(k=>['type','text'].includes(k))))) throw new ModelBudgetError('budget_nontext_refused');
+      if ('cache_control' in message && !ephemeralCacheControl(message.cache_control))
+        throw new ModelBudgetError('budget_message_unsupported');
+      if ('thinking_blocks' in message && !thinkingBlocksOnly(message.thinking_blocks))
+        throw new ModelBudgetError('budget_message_unsupported');
+      const content = message.content;
+      // An assistant tool-call turn legitimately omits content (SDK drops empty text).
+      if (content === undefined) {
+        if (!Array.isArray(message.tool_calls) || !message.tool_calls.length)
+          throw new ModelBudgetError('budget_nontext_refused');
+        continue;
+      }
+      if (!(content === null || typeof content === 'string' ||
+        Array.isArray(content) && content.every(textContentBlock))) throw new ModelBudgetError('budget_nontext_refused');
     }
   } else if (typeof payload.input !== 'string') throw new ModelBudgetError('budget_nontext_refused');
   const outputField = path === '/v1/chat/completions' ? 'max_tokens' : 'max_output_tokens';

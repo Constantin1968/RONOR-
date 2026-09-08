@@ -1,0 +1,23 @@
+# Apply last, after the installed recovery overlay. Replaces exactly three
+# services: the controller, the OpenHands bridge and the budget egress proxy.
+# The proxy is included because the admitted-wire-shape validator it enforces
+# lives in the same image; every other service keeps its installed image.
+services:
+  controller:
+    build:
+      context: ${RONOR_WIREFIX_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_WIREFIX_TAG:?reviewed revision}
+  openhands-bridge:
+    build:
+      context: ${RONOR_WIREFIX_SOURCE}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-wirefix-runtime:${RONOR_WIREFIX_TAG}
+  model-egress-proxy:
+    build:
+      context: ${RONOR_WIREFIX_SOURCE}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-wirefix-runtime:${RONOR_WIREFIX_TAG}

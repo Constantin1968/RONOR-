@@ -45,6 +45,46 @@ describe('native OpenHands Agent Server client', () => {
       `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/events/search`,
     ]);
   });
+  it('tolerates the asynchronous start of a resumed conversation instead of reading it as termination',async()=>{
+    const state=(status:string,tokens:number)=>({execution_status:status,
+      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
+      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
+    const fetcher=jest.fn()
+      .mockImplementationOnce(()=>json(state('paused',100000)))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state('paused',100000)))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state('paused',100000)))
+      .mockImplementationOnce(()=>json(state('running',100000)))
+      .mockImplementationOnce(()=>json({...state('finished',110000)}))
+      .mockImplementationOnce(()=>json({items:[]}));
+    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+      pollIntervalMs:0,sleep:async()=>undefined,catalogAccounting:true,
+      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
+      .toMatchObject({ok:true,cost_usd:0.02});
+  });
+  it('reports the refusal code from the conversation error events when a run really stops',async()=>{
+    const state=(status:string)=>({execution_status:status,
+      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
+      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
+    const fetcher=jest.fn()
+      .mockImplementationOnce(()=>json(state('paused')))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state('paused')))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementation((input:URL)=>json(new URL(input).pathname.endsWith('/events/search')
+        ? {items:[{kind:'ConversationErrorEvent',error:'litellm.BadRequestError: budget_nontext_refused'}]}
+        : state('paused')));
+    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+      pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
+      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe('openhands_terminated_paused_budget_nontext_refused');
+  });
   it('does not start a preserved conversation when the budget header cannot be verified',async()=>{
     const state={execution_status:'paused',agent:{llm:{model:'openai/qwen3.8-max'}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},

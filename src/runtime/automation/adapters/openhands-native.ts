@@ -72,6 +72,7 @@ export function createNativeOpenHandsClient(config: {
   fetcher?: Fetcher;
   pollIntervalMs?: number;
   maxPolls?: number;
+  startupPolls?: number;
   sleep?: (ms: number) => Promise<void>;
   plaintextServiceHosts?: readonly string[];
   now?: () => number;
@@ -84,6 +85,19 @@ export function createNativeOpenHandsClient(config: {
   const fetcher = config.fetcher ?? fetch;
   const sleep = config.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const readCost = config.catalogAccounting ? nativeOpenHandsCatalogCost : nativeOpenHandsCost;
+
+  /** Report WHY a run stopped without ever echoing provider or event prose:
+   * only a recognised, bounded failure code is lifted out of the error events. */
+  const terminationDetail = async (conversationId: string | null, signal: AbortSignal): Promise<string | null> => {
+    if (!conversationId) return null;
+    try {
+      const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, signal);
+      const text = JSON.stringify(events);
+      if (!/error/i.test(text)) return null;
+      const match = text.match(/\b(budget_[a-z0-9_]{3,40}|openhands_[a-z0-9_]{3,40}|[a-z0-9]{3,20}_(?:refused|denied|exceeded|unsupported|invalid))\b/);
+      return match ? match[1].slice(0, 60) : 'unclassified_error_event';
+    } catch { return null; }
+  };
 
   const call = async (path: string, method: 'GET' | 'POST', body?: unknown, signal?: AbortSignal): Promise<Record<string, unknown>> => {
     let response: Response;
@@ -192,6 +206,10 @@ export function createNativeOpenHandsClient(config: {
         }, executionSignal);
         }
         const maxPolls = config.maxPolls ?? Infinity;
+        // /run and events?run=true are asynchronous: the server still reports the
+        // pre-run status for a short window. Treating that as termination hides the
+        // real failure, which only arrives later as a conversation error event.
+        let startupWindow = Math.max(0, config.startupPolls ?? 10);
         for (let poll = 0; poll < maxPolls; poll += 1) {
           if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
           const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
@@ -213,7 +231,12 @@ export function createNativeOpenHandsClient(config: {
           }
           continue;
         }
-        if (['error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) return finish(false, `openhands_terminated_${status}`);
+        if (status === 'paused' && startupWindow > 0) { startupWindow -= 1; await waitForNextPoll(); continue; }
+        startupWindow = 0;
+        if (['error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) {
+          const detail = await terminationDetail(conversationId, executionSignal);
+          return finish(false, detail ? `openhands_terminated_${status}_${detail}` : `openhands_terminated_${status}`);
+        }
         if (['finished', 'complete', 'completed'].includes(status)) {
           const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, executionSignal);
           const serialized = JSON.stringify(events);

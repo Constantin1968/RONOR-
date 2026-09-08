@@ -60,11 +60,30 @@ describe('text-only request reservations', () => {
   });
   it.each([{stream:true},{model:'unpriced'},{previous_response_id:'stored-context'},
     {tools:[{type:'web_search'}]}, {extra_body:{hidden:true}},
-    {messages:[{role:'user',content:'test',cache_control:{type:'ephemeral'}}]},
+    {messages:[{role:'user',content:'test',cache_control:{type:'persistent'}}]},
+    {messages:[{role:'user',content:'test',cache_control:{type:'ephemeral',ttl:'1h'}}]},
+    {messages:[{role:'user',content:[{type:'text',text:'t',cache_control:{type:'persistent'}}]}]},
+    {messages:[{role:'assistant',content:[{type:'text',text:'t'}],thinking_blocks:[{type:'thinking',thinking:'t',tool_use:{}}]}]},
+    {messages:[{role:'assistant',content:[{type:'text',text:'t'}],thinking_blocks:[{type:'image',image_urls:['https://example.test']}]}]},
+    {messages:[{role:'assistant',tool_calls:[]}]},
+    {messages:[{role:'assistant'}]},
     {messages:[{role:'user',content:[{type:'image_url',image_url:{url:'https://example.test'}}]}]}])(
     'refuses non-admitted costs %j', extra => {
       expect(()=>reserveModelRequest('/v1/chat/completions',body(extra))).toThrow();
     });
+  // Wire shapes produced by OpenHands SDK 1.42.1 Message.to_chat_dict / _list_serializer.
+  it('admits the SDK prompt-cache markers, replayed thinking blocks and content-free tool-call turns', () => {
+    const messages = [
+      {role:'system',content:[{type:'text',text:'You are RONOR.',cache_control:{type:'ephemeral'}}]},
+      {role:'user',content:[{type:'text',text:'Run tests.'}]},
+      {role:'assistant',thinking_blocks:[{type:'thinking',thinking:'plan',signature:'sig'},{type:'redacted_thinking',data:'xx'}],
+        tool_calls:[{id:'call_1',type:'function',function:{name:'bash',arguments:'{}'}}]},
+      {role:'tool',tool_call_id:'call_1',name:'bash',content:[{type:'text',text:'ok'}],cache_control:{type:'ephemeral'}},
+    ];
+    const r = reserveModelRequest('/v1/chat/completions',body({messages}));
+    expect(r.payload.max_tokens).toBe(4096);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*2+4096*6);
+  });
   it('charges measured input and all output at the catalog ceiling, without claiming invoice equality', () => {
     expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'))).toBe(260);
     expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'))).toBe(0);

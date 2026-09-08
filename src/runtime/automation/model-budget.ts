@@ -49,8 +49,19 @@ export function verifyModelBudget(token: string, key: string, now = Date.now()):
   } catch { return null; }
 }
 
+/** Upper bound on dispatches that may be in flight against one budget at the same
+ * time. Concurrency is admitted, unbounded concurrency is not: every outstanding
+ * dispatch holds its worst-case amount against the ceiling until it settles. */
+export const MAX_CONCURRENT_DISPATCH = 16;
+
 /** Durable integer accounting. An unresolved dispatch is never released by restart,
- * timeout, retry or by replaying a signed token carrying an older subtotal. */
+ * timeout, retry or by replaying a signed token carrying an older subtotal.
+ *
+ * An *unresolved* dispatch is one whose outcome is unknown (`settle(_, null)`),
+ * which freezes the budget permanently. That is not the same as an *outstanding*
+ * dispatch, which is simply in flight: its worst-case amount is held against the
+ * ceiling from the moment it is reserved, so several may be outstanding at once
+ * without any possibility of exceeding the ceiling. */
 export class ModelBudgetLedger {
   private readonly db: Database.Database;
   constructor(filename: string) {
@@ -71,9 +82,12 @@ export class ModelBudgetLedger {
         .run(claims.budget_id, claims.mission_id, claims.ceiling_micro_usd, claims.prior_micro_usd);
       const row = this.snapshot(claims.budget_id)!;
       if (row.mission !== claims.mission_id || row.ceiling !== claims.ceiling_micro_usd) throw new ModelBudgetError('budget_identity_mismatch');
-      if (row.frozen || row.pending) throw new ModelBudgetError('budget_unresolved_dispatch');
+      if (row.frozen) throw new ModelBudgetError('budget_unresolved_dispatch');
+      if (row.pending >= MAX_CONCURRENT_DISPATCH) throw new ModelBudgetError('budget_dispatch_concurrency_exceeded');
       const spent = Math.max(row.spent, claims.prior_micro_usd);
-      if (spent + amount > row.ceiling) throw new ModelBudgetError('budget_insufficient_before_dispatch');
+      // Outstanding worst cases are held against the ceiling, so concurrent
+      // dispatches can never collectively overspend it.
+      if (spent + row.outstanding + amount > row.ceiling) throw new ModelBudgetError('budget_insufficient_before_dispatch');
       this.db.prepare('UPDATE model_budgets SET spent=? WHERE id=?').run(spent, claims.budget_id);
       const id = crypto.randomUUID();
       this.db.prepare("INSERT INTO model_reservations(id,budget,amount,state) VALUES(?,?,?,'pending')").run(id, claims.budget_id, amount);
@@ -96,9 +110,10 @@ export class ModelBudgetLedger {
         .run(actual, actual > row.amount ? 1 : 0, row.budget);
     }).immediate();
   }
-  snapshot(id: string): { mission: string; ceiling: number; spent: number; frozen: number; pending: number } | null {
+  snapshot(id: string): { mission: string; ceiling: number; spent: number; frozen: number; pending: number; outstanding: number } | null {
     return this.db.prepare(`SELECT mission,ceiling,spent,frozen,
-      (SELECT COUNT(*) FROM model_reservations r WHERE r.budget=b.id AND r.state='pending') AS pending
+      (SELECT COUNT(*) FROM model_reservations r WHERE r.budget=b.id AND r.state='pending') AS pending,
+      (SELECT COALESCE(SUM(amount),0) FROM model_reservations r WHERE r.budget=b.id AND r.state='pending') AS outstanding
       FROM model_budgets b WHERE id=?`).get(id) as ReturnType<ModelBudgetLedger['snapshot']> ?? null;
   }
   close(): void { this.db.close(); }

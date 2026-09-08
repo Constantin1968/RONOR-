@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ModelBudgetLedger, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge } from '../../src/runtime/automation/model-budget';
+import { ModelBudgetLedger, MAX_CONCURRENT_DISPATCH, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge } from '../../src/runtime/automation/model-budget';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const key = 'budget-authority-test-key-32-bytes-long';
@@ -31,17 +31,44 @@ describe('signed persistent model budget', () => {
     expect(()=>ledger.reserve({...claims(),ceiling_micro_usd:2e6},1000)).toThrow('budget_identity_mismatch');
     ledger.close();
   });
-  it('keeps an unresolved reservation across restart and refuses concurrent or replayed dispatch', () => {
+  it('freezes permanently on an unresolved outcome, across restart and replay', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(),'ronor-budget-'));
     const filename = path.join(dir,'ledger.db');
     let ledger = new ModelBudgetLedger(filename);
     const id = ledger.reserve(claims(),200000);
+    ledger.settle(id,null);
+    expect(ledger.snapshot('r-budget')).toMatchObject({frozen:1,pending:1,outstanding:200000});
     expect(()=>ledger.reserve(claims(),1000)).toThrow('budget_unresolved_dispatch');
     ledger.close(); ledger = new ModelBudgetLedger(filename);
     expect(()=>ledger.reserve(claims(),1000)).toThrow('budget_unresolved_dispatch');
-    ledger.settle(id,null);
     expect(ledger.snapshot('r-budget')).toMatchObject({frozen:1,pending:1});
     ledger.close(); fs.rmSync(dir,{recursive:true});
+  });
+  it('admits concurrent dispatches and holds each worst case against the ceiling', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(),'ronor-budget-'));
+    const filename = path.join(dir,'ledger.db');
+    let ledger = new ModelBudgetLedger(filename);
+    const first = ledger.reserve(claims(),200000);
+    const second = ledger.reserve(claims(),300000);
+    expect(ledger.snapshot('r-budget')).toMatchObject({pending:2,outstanding:500000,spent:0,frozen:0});
+    // Outstanding worst cases are held, so the ceiling cannot be exceeded in flight.
+    expect(()=>ledger.reserve(claims(),600000)).toThrow('budget_insufficient_before_dispatch');
+    // An outstanding reservation survives restart and still holds its amount.
+    ledger.close(); ledger = new ModelBudgetLedger(filename);
+    expect(ledger.snapshot('r-budget')).toMatchObject({pending:2,outstanding:500000});
+    expect(()=>ledger.reserve(claims(),600000)).toThrow('budget_insufficient_before_dispatch');
+    ledger.settle(first,10000); ledger.settle(second,20000);
+    expect(ledger.snapshot('r-budget')).toMatchObject({pending:0,outstanding:0,spent:30000,frozen:0});
+    ledger.close(); fs.rmSync(dir,{recursive:true});
+  });
+  it('refuses dispatch beyond the concurrency bound without freezing the budget', () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const ids = Array.from({length:MAX_CONCURRENT_DISPATCH},()=>ledger.reserve(claims(),1000));
+    expect(ledger.snapshot('r-budget')).toMatchObject({pending:MAX_CONCURRENT_DISPATCH,frozen:0});
+    expect(()=>ledger.reserve(claims(),1000)).toThrow('budget_dispatch_concurrency_exceeded');
+    ledger.settle(ids[0]!,500);
+    expect(typeof ledger.reserve(claims(),1000)).toBe('string');
+    ledger.close();
   });
   it('records a provider overrun instead of clamping it to the reservation', () => {
     const ledger = new ModelBudgetLedger(':memory:');

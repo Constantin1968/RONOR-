@@ -2,6 +2,10 @@ import type { CodexEvaluationPort } from './verification-authorities';
 
 type Fetcher = typeof fetch;
 
+export class AccountedEvaluationError extends Error {
+  constructor(message: string, readonly cost_usd: number | null) { super(message); }
+}
+
 function responsesEndpoint(baseUrl?: string): URL {
   const url = new URL(baseUrl || 'https://api.openai.com/v1');
   const internalProxy = url.protocol === 'http:' && url.hostname.toLowerCase() === 'model-egress-proxy';
@@ -22,6 +26,7 @@ export function createOpenAIResponsesCodexEvaluator(config: {
     const payload = JSON.stringify({ mission_id: input.missionId, claims: input.claims, artifacts: input.materials });
     if (new TextEncoder().encode(payload).byteLength > 400_000) throw new Error('codex_evidence_context_too_large');
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), config.timeoutMs ?? 120_000);
+    let cost: number | null = null;
     try {
       const response = await (config.fetcher ?? fetch)(endpoint, {
         method: 'POST', redirect: 'error', signal: controller.signal,
@@ -48,6 +53,13 @@ export function createOpenAIResponsesCodexEvaluator(config: {
       const declared = Number(response.headers.get('content-length') ?? 0); if (declared > 128 * 1024) throw new Error('codex_api_response_too_large');
       const raw = await response.text(); if (new TextEncoder().encode(raw).byteLength > 128 * 1024) throw new Error('codex_api_response_too_large');
       const envelope = JSON.parse(raw) as Record<string, unknown>;
+      // Parse usage BEFORE interpreting the model's answer: invalid prose is billable.
+      const usage = envelope.usage && typeof envelope.usage === 'object' ? envelope.usage as Record<string, unknown> : {};
+      const inputTokens = typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens) ? usage.input_tokens : NaN;
+      const outputTokens = typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens) ? usage.output_tokens : NaN;
+      if (!Number.isFinite(inputTokens) || inputTokens < 0 || !Number.isFinite(outputTokens) || outputTokens < 0) throw new Error('codex_api_usage_missing');
+      cost = (inputTokens * config.inputUsdPerMillionTokens + outputTokens * config.outputUsdPerMillionTokens) / 1_000_000;
+      if (!Number.isFinite(cost)) { cost = null; throw new Error('codex_api_usage_invalid'); }
       const output = Array.isArray(envelope.output) ? envelope.output : [];
       const texts = output.flatMap((item) => item && typeof item === 'object' && Array.isArray((item as Record<string, unknown>).content) ? (item as Record<string, unknown>).content as unknown[] : [])
         .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'output_text'));
@@ -58,11 +70,11 @@ export function createOpenAIResponsesCodexEvaluator(config: {
       const verdict = parsed as Record<string, unknown>;
       if (Object.keys(verdict).length !== 3 || !Object.keys(verdict).every(key => ['verdict', 'summary', 'evidence'].includes(key)) ||
           typeof verdict.verdict !== 'string' || !['pass', 'fail'].includes(verdict.verdict) || typeof verdict.summary !== 'string' || verdict.summary.length > 4000 || !Array.isArray(verdict.evidence) || verdict.evidence.length > 50 || !verdict.evidence.every((item) => typeof item === 'string' && item.length <= 2000)) throw new Error('codex_api_output_invalid');
-      const usage = envelope.usage && typeof envelope.usage === 'object' ? envelope.usage as Record<string, unknown> : {};
-      const inputTokens = typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens) ? usage.input_tokens : NaN;
-      const outputTokens = typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens) ? usage.output_tokens : NaN;
-      if (!Number.isFinite(inputTokens) || inputTokens < 0 || !Number.isFinite(outputTokens) || outputTokens < 0) throw new Error('codex_api_usage_missing');
-      return { verdict: verdict.verdict as 'pass' | 'fail', summary: verdict.summary, evidence: verdict.evidence as string[], cost_usd: (inputTokens * config.inputUsdPerMillionTokens + outputTokens * config.outputUsdPerMillionTokens) / 1_000_000 };
+      return { verdict: verdict.verdict as 'pass' | 'fail', summary: verdict.summary, evidence: verdict.evidence as string[], cost_usd: cost };
+    } catch (error) {
+      const code = error instanceof Error && /^codex_api_[a-z0-9_]{1,80}$/.test(error.message)
+        ? error.message : controller.signal.aborted ? 'codex_api_timeout' : 'codex_api_unavailable';
+      throw new AccountedEvaluationError(code, cost);
     } finally { clearTimeout(timer); }
   } };
 }

@@ -142,7 +142,7 @@ describe('persistent intent integrity', () => {
     const input = { architectKeyId: 'integrity-check', idempotencyKey: crypto.randomUUID(), objective: 'Test integrity' };
     const result = prepareDevelopmentJob(input);
     getDb().prepare('UPDATE runtime_development_jobs SET mission_id = ? WHERE job_id = ?')
-      .run('missing-mission', result.job.job_id);
+      .run(`missing-mission-${crypto.randomUUID()}`, result.job.job_id);
     expect(() => prepareDevelopmentJob(input)).toThrow('development_job_integrity_failed');
   });
 });

@@ -3,6 +3,7 @@ import { createServiceRateLimit } from './rate-limit';
 import type { EvidenceArtifact, VerificationEvidence, VerificationVerdict } from '../contracts';
 import type { WorkspaceArtifactCollector } from '../artifacts';
 import { signVerificationReceipt, verifyVerificationReceipt } from '../verification-receipt';
+import { AccountedEvaluationError } from './codex-evaluator';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const KINDS = new Set(['git_diff', 'git_status', 'test_report', 'event_log']);
@@ -67,17 +68,23 @@ export function createCodexVerifierApp(config: { serviceToken: string; receiptPr
     const missionId = req.body?.mission_id; const evidence = parseEvidence(req.body?.evidence);
     if (typeof missionId !== 'string' || !SAFE_ID.test(missionId) || !evidence) { res.status(400).json({ ok: false, error: 'invalid_verification_request' }); return; }
     if (!hasRequiredEvidence(evidence)) { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Required independent evidence is incomplete.', evidence: ['required-evidence:missing'], cost_usd: 0 }); return; }
+    let cost: number | null = 0;
     try {
       const materials = config.artifacts.read(evidence.artifacts);
       if (!testMaterialsProvePass(evidence, materials)) {
         res.status(422).json({ ok: false, verdict: 'fail', summary: 'Test evidence does not deterministically prove a passing run.', evidence: ['test-evidence:invalid'], cost_usd: 0 });
         return;
       }
+      cost = null;
       const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials });
+      if (verdict && Number.isFinite(verdict.cost_usd) && verdict.cost_usd >= 0) cost = verdict.cost_usd;
       if (!verdict || !['pass', 'fail'].includes(verdict.verdict) || typeof verdict.summary !== 'string' || verdict.summary.length > 4000 || !Array.isArray(verdict.evidence) || verdict.evidence.length > 50 || !verdict.evidence.every((item) => typeof item === 'string' && item.length <= 2000) || !Number.isFinite(verdict.cost_usd) || verdict.cost_usd < 0) throw new Error('invalid_evaluator_result');
       const receipt = signVerificationReceipt({ privateKeyPem: config.receiptPrivateKey, missionId, verdict: verdict.verdict, evidence, now: config.now?.() });
       res.status(verdict.verdict === 'pass' ? 200 : 422).json({ ok: verdict.verdict === 'pass', ...verdict, receipt });
-    } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Independent verification failed closed.', evidence: ['verification:failed-closed'], cost_usd: 0 }); }
+    } catch (error) {
+      res.status(422).json({ ok: false, verdict: 'fail', summary: 'Independent verification failed closed.',
+        evidence: ['verification:failed-closed'], cost_usd: error instanceof AccountedEvaluationError ? error.cost_usd : cost });
+    }
   });
   return app;
 }

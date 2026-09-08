@@ -157,8 +157,8 @@ export function createOpenHandsBridgeApp(config: {
       const result = await config.client.execute(envelope, controller.signal);
       assertAutomationOutputSafe(result);
       if (!res.destroyed) {
-        if (controller.signal.aborted) res.status(409).json({ ok: false, error: 'openhands_execution_cancelled' });
-        else res.status(result.ok ? 200 : 422).json(result);
+        // Execution failure is a valid result, including its accounting and safe reason.
+        res.status(200).json(controller.signal.aborted ? { ...result, ok: false } : result);
       }
     } catch {
       if (!res.destroyed) res.status(controller.signal.aborted ? 409 : 502).json({

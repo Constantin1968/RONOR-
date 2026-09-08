@@ -780,7 +780,10 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
       }
       claim.lease.startHeartbeat(() => control.abort());
       const queued: AutomationRun = {
-        run_id: runId, mission_id: mandate.mission_id, status: 'queued', cost_usd: 0,
+        run_id: runId, mission_id: mandate.mission_id, status: 'queued',
+        cost_usd: getMissionFabric(mandate.mission_id)!.runs[runId]?.cost_usd === null ? null
+          : typeof getMissionFabric(mandate.mission_id)!.runs[runId]?.cost_usd === 'number'
+            ? Number(getMissionFabric(mandate.mission_id)!.runs[runId].cost_usd) : 0,
         completed_assignments: 0, total_assignments: 0, reason: null,
       };
       const fabric = getMissionFabric(mandate.mission_id)!;
@@ -789,7 +792,7 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
         actor: { kind: 'langgraph', id: 'langgraph' },
         payload: {
           id: runId, run_id: runId, mission_id: mandate.mission_id, stage: 'queue', status: 'queued',
-          completed_assignments: 0, total_assignments: 0, cost_usd: 0, reason_code: null,
+          completed_assignments: 0, total_assignments: 0, cost_usd: queued.cost_usd, reason_code: null,
           updated_at: new Date().toISOString(),
         },
       });

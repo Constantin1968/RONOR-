@@ -1,9 +1,9 @@
-import { createNativeOpenHandsClient } from '../../src/runtime/automation/adapters/openhands-native';
+import { createNativeOpenHandsClient, nativeOpenHandsCost } from '../../src/runtime/automation/adapters/openhands-native';
 import type { OpenHandsExecutionEnvelope } from '../../src/runtime/automation/contracts';
 
 const conversationId = '11111111-1111-4111-8111-111111111111';
 const envelope: OpenHandsExecutionEnvelope = {
-  assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'], objective_hash: 'a'.repeat(64), deadline: '2026-08-21T00:00:00Z',
+  assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'], objective_hash: 'a'.repeat(64), deadline: new Date(Date.now() + 120_000).toISOString(),
 };
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status }));
 
@@ -12,7 +12,7 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'running' }))
+      .mockImplementationOnce(() => json({ execution_status: 'running', cost_usd: 0 }))
       .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.02 }))
       .mockImplementationOnce(() => json({ items: [{ kind: 'MessageEvent', content: 'done' }] }));
     const client = createNativeOpenHandsClient({
@@ -41,10 +41,10 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation' }))
+      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ items: [{ kind: 'ActionEvent', action: { command: 'git status --short' } }] }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'finished' }))
+      .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ items: [] }));
     const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: true });
@@ -55,10 +55,11 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation' }))
+      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ items: [{ kind: 'ActionEvent', action: { command: 'git push origin HEAD' } }] }))
       .mockImplementationOnce(() => json({ accepted: false }))
-      .mockImplementationOnce(() => json({ paused: true }));
+      .mockImplementationOnce(() => json({ paused: true }))
+      .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
     const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, summary: expect.stringContaining('git_push_forbidden') });
     expect(JSON.parse(String((fetcher.mock.calls[4][1] as RequestInit).body))).toMatchObject({ accept: false });
@@ -69,8 +70,9 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'running' }))
-      .mockImplementationOnce(() => json({ paused: true }));
+      .mockImplementationOnce(() => json({ execution_status: 'running', cost_usd: 0.01 }))
+      .mockImplementationOnce(() => json({ paused: true }))
+      .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
     const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, maxPolls: 1, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, summary: expect.stringContaining('paused') });
     const urls = fetcher.mock.calls.map((call) => String(call[0]));
@@ -89,14 +91,15 @@ describe('native OpenHands Agent Server client', () => {
         pollingStarted();
         init.signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true });
       }))
-      .mockImplementationOnce(() => json({ paused: true }));
+      .mockImplementationOnce(() => json({ paused: true }))
+      .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
     const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0 });
     const execution = client.execute(envelope, controller.signal);
     await polling;
     controller.abort();
-    await expect(execution).rejects.toThrow('openhands_cancelled');
+    await expect(execution).resolves.toMatchObject({ ok: false, summary: 'openhands_cancelled', cost_usd: 0.015 });
     expect(String(fetcher.mock.calls[3][0])).toBe(`https://hands.invalid/api/conversations/${conversationId}/pause`);
-    expect((fetcher.mock.calls[2][1] as RequestInit).signal).toBe(controller.signal);
+    expect((fetcher.mock.calls[2][1] as RequestInit).signal?.aborted).toBe(true);
   });
 
   it('uses the authenticated official health endpoint', async () => {
@@ -106,6 +109,49 @@ describe('native OpenHands Agent Server client', () => {
     const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toBe('http://127.0.0.1:8000/health');
     expect(init.headers).toHaveProperty('X-Session-API-Key', 'session-key');
+  });
+
+  it('recognises non-empty unpriced native usage as unknown, not free', () => {
+    expect(nativeOpenHandsCost({ stats: { usage_to_metrics: { default: {
+      accumulated_cost: 0, costs: [], accumulated_token_usage: { prompt_tokens: 306258, completion_tokens: 4135 },
+    } } } })).toBeNull();
+    expect(nativeOpenHandsCost({})).toBeNull();
+  });
+
+  it('sums native usage groups without adding cache tokens again', () => {
+    expect(nativeOpenHandsCost({ stats: { usage_to_metrics: {
+      default: { accumulated_cost: 0.2, costs: [{}], accumulated_token_usage: { prompt_tokens: 1000, completion_tokens: 20, cache_read_tokens: 900 } },
+      condenser: { accumulated_cost: 0.03, costs: [{}], accumulated_token_usage: { prompt_tokens: 100, completion_tokens: 20 } },
+    } } })).toBeCloseTo(0.23);
+  });
+
+  it('does not start a conversation under an expired mandate', async () => {
+    const fetcher = jest.fn();
+    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    await expect(client.execute({ ...envelope, deadline: '2020-01-01T00:00:00Z' })).resolves.toMatchObject({ ok: false, cost_usd: 0, summary: 'openhands_deadline_expired' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('stops at the signed deadline, confirms pause and collects final usage', async () => {
+    const fetcher = jest.fn()
+      .mockImplementationOnce(() => json({ conversation_id: conversationId }))
+      .mockImplementationOnce(() => json({ accepted: true }))
+      .mockImplementationOnce((_url: URL, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      }))
+      .mockImplementationOnce(() => json({ paused: true }))
+      .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.07 }));
+    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    await expect(client.execute({ ...envelope, deadline: new Date(Date.now() + 100).toISOString() }))
+      .resolves.toMatchObject({ ok: false, cost_usd: 0.07, summary: 'openhands_deadline_expired' });
+  });
+
+  it('does not falsely confirm pause or report zero if Agent Server is unreachable', async () => {
+    const fetcher = jest.fn()
+      .mockImplementationOnce(() => json({ conversation_id: conversationId }))
+      .mockRejectedValue(new Error('connection lost'));
+    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, cost_usd: null, summary: 'openhands_pause_unconfirmed' });
   });
 
   it('fails closed on missing session key and plaintext remote endpoints', () => {

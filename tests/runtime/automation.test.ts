@@ -8,6 +8,7 @@ import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
 import { runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
 import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
+import { AutomationAdapterError } from '../../src/runtime/automation/adapters/http';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
@@ -190,15 +191,55 @@ describe('Executive Mission Runner · governed execution', () => {
     let calls = 0;
     first.openhands.execute = async () => {
       calls += 1;
-      if (calls === 2) throw new Error('transient');
+      if (calls === 2) throw new AutomationAdapterError('adapter_http_503', 0);
       return { ok: true, summary: 'done', evidence: ['first:done'], cost_usd: 0 };
     };
-    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first, testExecutor })).reason).toBe('openhands_failed');
+    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first, testExecutor })).reason).toBe('adapter_http_503');
     const resumed = adapters([{ id: 'different-plan', instruction: 'must not be used', actions: ['read_repo'] }]);
     const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed, testExecutor });
     expect(result.status).toBe('complete');
     expect(result.completed_assignments).toBe(2);
     expect(resumed.executeCount()).toBe(1);
+  });
+
+  it('blocks retries after unaccounted author failure without spending again', async () => {
+    const mission = createMission({ title: 'Unknown accounting', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const first = adapters([{ id: 'unknown-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => { throw new Error('transport lost'); };
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed).toMatchObject({ status: 'failed', cost_usd: null, reason: 'openhands_failed' });
+    const resumed = adapters([{ id: 'must-not-run', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    expect(await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed }))
+      .toMatchObject({ status: 'blocked', cost_usd: null, reason: 'cost_accounting_unknown' });
+    expect(resumed.executeCount()).toBe(0);
+  });
+
+  it('persists in-flight accounting as unknown before a worker can consume tokens', async () => {
+    const mission = createMission({ title: 'Crash-safe accounting', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const a = adapters([{ id: 'pending-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    a.openhands.execute = async () => {
+      const runs = Object.values(getMissionFabric(mission.mission_id)!.runs);
+      expect(runs).toHaveLength(1);
+      expect(runs[0].cost_usd).toBeNull();
+      return { ok: true, cost_usd: 0.2, summary: 'done', evidence: [] };
+    };
+    expect(await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: a }))
+      .toMatchObject({ status: 'complete', cost_usd: 0.30000000000000004 });
+  });
+
+  it('carries billable failed-attempt cost into a later successful attempt', async () => {
+    const mission = createMission({ title: 'Accounted retry', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const first = adapters([{ id: 'billable-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => { throw new AutomationAdapterError('adapter_http_422', 0.11); };
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed.cost_usd).toBe(0.11);
+    const resumed = adapters([{ id: 'unused', instruction: 'Ignored stored plan', actions: ['edit_worktree'] }]);
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    expect(result.status).toBe('complete');
+    expect(result.cost_usd).toBeCloseTo(0.41);
   });
 
   it('stops when Codex fails and never asks Victoria to approve', async () => {

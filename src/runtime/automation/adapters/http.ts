@@ -7,7 +7,9 @@ type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_ASSIGNMENTS = 25;
 
-export class AutomationAdapterError extends Error {}
+export class AutomationAdapterError extends Error {
+  constructor(message: string, readonly cost_usd: number | null = null) { super(message); }
+}
 
 function safeBaseUrl(value: string, plaintextServiceHosts: readonly string[] = []): URL {
   const url = new URL(value);
@@ -34,6 +36,7 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, params.timeoutMs);
   const cancel = () => controller.abort();
   params.signal?.addEventListener('abort', cancel, { once: true });
+  if (params.signal?.aborted) cancel();
   try {
     const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
     const response = await params.fetcher(new URL(`${prefix}${params.path}`, base.origin), {
@@ -41,7 +44,6 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
       headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}), ...(params.capability ? { 'x-ronor-capability': params.capability } : {}) },
       body: JSON.stringify(params.body),
     });
-    if (!response.ok) throw new AutomationAdapterError(`adapter_http_${response.status}`);
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
     const raw = await response.text();
@@ -49,6 +51,15 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
     let value: unknown;
     try { value = JSON.parse(raw); } catch { throw new AutomationAdapterError('adapter_invalid_json'); }
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AutomationAdapterError('adapter_invalid_json');
+    if (!response.ok) {
+      // A bounded, validated failure response still carries billable usage.
+      const body = value as Record<string, unknown>;
+      let cost: number | null = null;
+      try { cost = parseAdapterResult(body).cost_usd; } catch { /* unknown, not zero */ }
+      const safeCode = typeof body.error === 'string' && /^(?:openhands|adapter|capability|nonce)_[a-z0-9_]{1,80}$/.test(body.error)
+        ? body.error : `adapter_http_${response.status}`;
+      throw new AutomationAdapterError(safeCode, cost);
+    }
     return value as Record<string, unknown>;
   } catch (error) {
     if (error instanceof AutomationAdapterError) throw error;
@@ -88,10 +99,13 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
     };
     try {
-      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
+      // Transport grace only: the native client must stop work at the signed deadline.
+      const remainingMs = Date.parse(envelope.deadline) - Date.now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) throw new AutomationAdapterError('openhands_deadline_expired', 0);
+      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: Math.min(config.timeoutMs ?? Infinity, remainingMs + 10_000), signal, plaintextServiceHosts: config.plaintextServiceHosts });
       return parseAdapterResult(body);
     } catch (error) {
-      if (error instanceof AutomationAdapterError && error.message === 'adapter_cancelled') {
+      if (error instanceof AutomationAdapterError && ['adapter_cancelled', 'adapter_timeout', 'adapter_unreachable'].includes(error.message)) {
         try {
           await postJson({
             baseUrl: config.baseUrl, path: '/v1/cancel', token: config.token, capability,
@@ -143,7 +157,8 @@ function parseVerificationReceipt(value: unknown): VerificationReceipt | null {
 function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
   try { assertAutomationOutputSafe(body); }
   catch { throw new AutomationAdapterError('adapter_sensitive_output_refused'); }
-  if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' || typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0) {
+  if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' ||
+      (body.cost_usd !== null && (typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0))) {
     throw new AutomationAdapterError('adapter_result_invalid');
   }
   const artifacts: EvidenceArtifact[] = [];

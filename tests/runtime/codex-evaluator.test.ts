@@ -55,6 +55,13 @@ describe('OpenAI Responses Codex evaluator', () => {
     await expect(invalid.evaluate({ missionId: 'm1', claims: [], materials: [material] })).rejects.toThrow('codex_api_output_invalid');
   });
 
+  it('retains the measured charge even when the paid answer violates the JSON contract', async () => {
+    const evaluator = createOpenAIResponsesCodexEvaluator({ apiKey: 'key', model: 'model',
+      inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 8, fetcher: jest.fn(() => response('PASS')) });
+    await expect(evaluator.evaluate({ missionId: 'm1', claims: [], materials: [] }))
+      .rejects.toMatchObject({ message: 'codex_api_output_not_json', cost_usd: 0.0028 });
+  });
+
   it('supports an explicitly configured HTTPS Responses-compatible gateway', async () => {
     const fetcher = jest.fn(() => response(JSON.stringify({ verdict: 'pass', summary: 'verified', evidence: ['gateway:pass'] })));
     const evaluator = createOpenAIResponsesCodexEvaluator({ apiKey: 'gateway-key', model: 'gateway-model', baseUrl: 'https://models.ma11ai.example/api/v1/', inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 1, fetcher });

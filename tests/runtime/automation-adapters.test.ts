@@ -4,7 +4,8 @@ import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 import { attestAutomationAdapters, clearAutomationAttestations } from '../../src/runtime/automation/attestation';
 
 const response = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
-const mandate = { mandate_id: 'm1', mission_id: 'mission1' } as ExecutionMandate;
+const mandate = { mandate_id: 'm1', mission_id: 'mission1', objective_hash: 'a'.repeat(64),
+  expires_at: new Date(Date.now() + 120_000).toISOString() } as ExecutionMandate;
 
 describe('live automation adapter boundary', () => {
   beforeEach(() => clearAutomationAttestations());
@@ -156,6 +157,20 @@ describe('live automation adapter boundary', () => {
   it('rejects malformed results without leaking response bodies', async () => {
     const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'session-token', capabilityKey: 'k'.repeat(32), fetcher: jest.fn(() => response({ token: 'secret' })) });
     await expect(adapter.execute({ id: 'a', instruction: 'x', actions: [] }, mandate)).rejects.toBeInstanceOf(AutomationAdapterError);
+  });
+
+  it('preserves unknown accounting as null rather than coercing it to zero', async () => {
+    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'token', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: false, summary: 'openhands_cost_unknown', evidence: [], cost_usd: null })) });
+    await expect(adapter.execute({ id: 'a', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .resolves.toMatchObject({ ok: false, cost_usd: null });
+  });
+
+  it('retains validated costs and safe reason codes from non-success HTTP responses', async () => {
+    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'token', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: false, summary: 'failed', error: 'openhands_poll_limit_paused', evidence: [], cost_usd: 0.08 }, 422)) });
+    await expect(adapter.execute({ id: 'a', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .rejects.toMatchObject({ message: 'openhands_poll_limit_paused', cost_usd: 0.08 });
   });
 
   it('refuses secret-like adapter output before it reaches Mission Fabric', async () => {

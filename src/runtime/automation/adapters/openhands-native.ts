@@ -23,6 +23,32 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Agent Server reports costs under usage_to_metrics, not state.cost_usd.
+ * Unpriced non-empty token usage is UNKNOWN, not a zero-dollar execution.
+ */
+export function nativeOpenHandsCost(state: Record<string, unknown>): number | null {
+  const number = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const stats = state.stats as { usage_to_metrics?: Record<string, {
+    accumulated_cost?: unknown; costs?: unknown[];
+    accumulated_token_usage?: { prompt_tokens?: unknown; completion_tokens?: unknown };
+  }> } | undefined;
+  const metrics = stats?.usage_to_metrics;
+  if (metrics && typeof metrics === 'object' && Object.keys(metrics).length) {
+    let total = 0;
+    for (const metric of Object.values(metrics)) {
+      if (!metric || !number(metric.accumulated_cost)) return null;
+      const usage = metric.accumulated_token_usage;
+      if (!usage || !number(usage.prompt_tokens) || !number(usage.completion_tokens)) return null;
+      if (usage.prompt_tokens + usage.completion_tokens > 0 &&
+          (metric.accumulated_cost === 0 || !Array.isArray(metric.costs) || metric.costs.length === 0)) return null;
+      total += metric.accumulated_cost;
+    }
+    return Number.isFinite(total) ? total : null;
+  }
+  // Compatibility with older explicit-cost servers; no missing-field fallback.
+  return number(state.cost_usd) ? state.cost_usd : null;
+}
+
 export function createNativeOpenHandsClient(config: {
   baseUrl: string;
   sessionApiKey: string;
@@ -31,6 +57,7 @@ export function createNativeOpenHandsClient(config: {
   maxPolls?: number;
   sleep?: (ms: number) => Promise<void>;
   plaintextServiceHosts?: readonly string[];
+  now?: () => number;
   llm?: { model: string; apiKey: string; baseUrl: string; apiMode?: 'chat' | 'responses' | 'auto' };
 }): NativeOpenHandsPort & { health(): Promise<boolean> } {
   if (!config.sessionApiKey) throw new NativeOpenHandsError('openhands_session_key_required');
@@ -61,23 +88,41 @@ export function createNativeOpenHandsClient(config: {
       catch { return false; }
     },
     async execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult> {
+      const now = config.now ?? Date.now;
+      const remainingMs = Date.parse(envelope.deadline) - now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+        return { ok: false, summary: 'openhands_deadline_expired', evidence: [], cost_usd: 0 };
+      }
+      const deadlineSignal = AbortSignal.timeout(Math.min(remainingMs, 2_147_483_647));
+      const executionSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
       let conversationId: string | null = null;
-      const pause = async () => {
-        if (!conversationId) return;
-        try { await call(`/api/conversations/${conversationId}/pause`, 'POST', {}); } catch { /* cancellation remains fail-closed */ }
+      let cost: number | null = 0;
+      const finish = (ok: boolean, summary: string): AdapterResult => ({
+        ok: ok && cost !== null, summary: cost === null && ok ? 'openhands_cost_unknown' : summary,
+        evidence: conversationId ? [`conversation:${conversationId}`] : [], cost_usd: cost,
+      });
+      const pauseAndAccount = async (): Promise<boolean> => {
+        if (!conversationId) return false;
+        try {
+          await call(`/api/conversations/${conversationId}/pause`, 'POST', {}, AbortSignal.timeout(4_000));
+          const final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
+          cost = nativeOpenHandsCost(final);
+          return ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'].includes(String(final.execution_status).toLowerCase());
+        } catch { cost = null; return false; }
       };
       const waitForNextPoll = async () => {
-        if (!signal) { await sleep(config.pollIntervalMs ?? 1000); return; }
-        if (signal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
+        if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
         await new Promise<void>((resolve, reject) => {
           const cancelled = () => { cleanup(); reject(new NativeOpenHandsError('openhands_cancelled')); };
-          const cleanup = () => signal.removeEventListener('abort', cancelled);
-          signal.addEventListener('abort', cancelled, { once: true });
+          const cleanup = () => executionSignal.removeEventListener('abort', cancelled);
+          executionSignal.addEventListener('abort', cancelled, { once: true });
           sleep(config.pollIntervalMs ?? 1000).then(() => { cleanup(); resolve(); }, (error) => { cleanup(); reject(error); });
         });
       };
       try {
-        if (signal?.aborted) throw new NativeOpenHandsError('openhands_cancelled');
+        if (executionSignal.aborted) return finish(false, 'openhands_cancelled');
+        // A failed create response may still have created a billable conversation.
+        cost = null;
         const created = await call('/api/conversations', 'POST', {
           workspace: { kind: 'LocalWorkspace', working_dir: CONTAINER_WORKSPACE },
           confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
@@ -85,47 +130,53 @@ export function createNativeOpenHandsClient(config: {
             agent_kind: 'openhands',
             llm: { model: config.llm.model, api_key: config.llm.apiKey, base_url: config.llm.baseUrl, api_mode: config.llm.apiMode ?? 'chat' },
           } } : {}),
-        }, signal);
+        }, executionSignal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
         if (!conversationId || !/^[A-Za-z0-9-]{1,120}$/.test(conversationId)) throw new NativeOpenHandsError('openhands_conversation_id_invalid');
         await call(`/api/conversations/${conversationId}/events`, 'POST', {
           role: 'user', content: [{ type: 'text', text: envelope.instruction }], run: true,
-        }, signal);
-        const maxPolls = config.maxPolls ?? 120;
+        }, executionSignal);
+        const maxPolls = config.maxPolls ?? Infinity;
         for (let poll = 0; poll < maxPolls; poll += 1) {
-          if (signal?.aborted) throw new NativeOpenHandsError('openhands_cancelled');
-          const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, signal);
+          if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
+          const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
+          cost = nativeOpenHandsCost(state);
         const status = String(state.execution_status ?? '').toLowerCase();
+        if (cost === null && !['finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) {
+          const paused = await pauseAndAccount();
+          return finish(false, paused ? 'openhands_cost_unknown' : 'openhands_pause_unconfirmed');
+        }
         if (status === 'waiting_for_confirmation') {
-          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, signal);
+          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, executionSignal);
           const decision = evaluateOpenHandsEffects(events, envelope.allowed_actions);
           await call(`/api/conversations/${conversationId}/events/respond_to_confirmation`, 'POST', {
             accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
-          }, signal);
+          }, executionSignal);
           if (!decision.allowed) {
-            await pause();
-            return { ok: false, summary: `OpenHands action refused: ${decision.reason}.`, evidence: [`conversation:${conversationId}`], cost_usd: 0 };
+            const paused = await pauseAndAccount();
+            return finish(false, paused ? `openhands_action_refused_${decision.reason}` : 'openhands_pause_unconfirmed');
           }
           continue;
         }
-        if (['error', 'failed', 'stopped', 'stuck'].includes(status)) return { ok: false, summary: `OpenHands terminated: ${status}.`, evidence: [`conversation:${conversationId}`], cost_usd: 0 };
+        if (['error', 'failed', 'stopped', 'stuck', 'paused'].includes(status)) return finish(false, `openhands_terminated_${status}`);
         if (['finished', 'complete', 'completed'].includes(status)) {
-          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, signal);
+          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, executionSignal);
           const serialized = JSON.stringify(events);
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
-          const cost = typeof state.cost_usd === 'number' && Number.isFinite(state.cost_usd) && state.cost_usd >= 0 ? state.cost_usd : 0;
           return {
-            ok: true, summary: 'OpenHands conversation completed.', evidence: [`conversation:${conversationId}`], cost_usd: cost,
+            ...finish(true, 'openhands_completed'),
             artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}/events/search`, bytes: Buffer.byteLength(serialized) }],
           };
         }
           await waitForNextPoll();
         }
-        await pause();
-        return { ok: false, summary: 'OpenHands execution timed out and was paused.', evidence: [`conversation:${conversationId}`], cost_usd: 0 };
+        const paused = await pauseAndAccount();
+        return finish(false, paused ? 'openhands_poll_limit_paused' : 'openhands_pause_unconfirmed');
       } catch (error) {
-        if (signal?.aborted || (error instanceof NativeOpenHandsError && error.message === 'openhands_cancelled')) await pause();
-        throw error;
+        const paused = await pauseAndAccount();
+        const reason = deadlineSignal.aborted ? 'openhands_deadline_expired' : signal?.aborted ? 'openhands_cancelled'
+          : error instanceof NativeOpenHandsError && /^openhands_[a-z0-9_]{1,80}$/.test(error.message) ? error.message : 'openhands_failed';
+        return finish(false, conversationId && !paused ? 'openhands_pause_unconfirmed' : reason);
       }
     },
     async cancel(assignmentId: string) {

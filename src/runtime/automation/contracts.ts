@@ -43,7 +43,8 @@ export interface EvidenceArtifact {
   reference: string;
   bytes: number;
 }
-export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
+// null means accounting is unavailable. It must never be coerced to free execution.
+export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number | null; }
 export interface VerificationReceipt {
   version: 'ronor-codex-receipt/v1';
   issuer: 'codex-verifier';
@@ -70,7 +71,7 @@ export interface AutomationRun {
   run_id: string;
   mission_id: string;
   status: AutomationRunStatus;
-  cost_usd: number;
+  cost_usd: number | null;
   completed_assignments: number;
   total_assignments: number;
   reason: string | null;

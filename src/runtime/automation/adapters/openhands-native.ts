@@ -87,15 +87,38 @@ export function createNativeOpenHandsClient(config: {
   const readCost = config.catalogAccounting ? nativeOpenHandsCatalogCost : nativeOpenHandsCost;
 
   /** Report WHY a run stopped without ever echoing provider or event prose:
-   * only a recognised, bounded failure code is lifted out of the error events. */
+   * only a recognised, bounded failure code is lifted out of the error events.
+   *
+   * Read the code out of the LAST event that is itself an error, never out of
+   * the whole serialized transcript. Scanning the transcript matched the first
+   * occurrence anywhere in it, so an ordinary configuration name mentioned in a
+   * healthy earlier event was reported as the cause of a much later failure.
+   * A confidently wrong reason code is worse than none. */
+  const errorCode = (event: unknown): string | null => {
+    if (typeof event !== 'object' || event === null) return null;
+    const record = event as Record<string, unknown>;
+    const kind = typeof record.kind === 'string' ? record.kind : '';
+    const code = typeof record.code === 'string' ? record.code : '';
+    // An error EVENT, not merely an event whose prose mentions an error.
+    if (!/error/i.test(kind) && !/error/i.test(code) && record.error === undefined) return null;
+    const detail = [record.detail, record.error, record.message, record.reason]
+      .filter((value): value is string => typeof value === 'string').join(' ');
+    const match = detail.match(/\b(budget_[a-z0-9_]{3,40}|openhands_[a-z0-9_]{3,40}|[a-z0-9]{3,20}_(?:refused|denied|exceeded|unsupported|invalid))\b/);
+    return match ? match[1].slice(0, 60) : 'unclassified_error_event';
+  };
+
   const terminationDetail = async (conversationId: string | null, signal: AbortSignal): Promise<string | null> => {
     if (!conversationId) return null;
     try {
       const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, signal);
-      const text = JSON.stringify(events);
-      if (!/error/i.test(text)) return null;
-      const match = text.match(/\b(budget_[a-z0-9_]{3,40}|openhands_[a-z0-9_]{3,40}|[a-z0-9]{3,20}_(?:refused|denied|exceeded|unsupported|invalid))\b/);
-      return match ? match[1].slice(0, 60) : 'unclassified_error_event';
+      const list = Array.isArray(events) ? events
+        : (Array.isArray(events.items) ? events.items : (Array.isArray(events.results) ? events.results : []));
+      // Latest first: the failure that stopped the run, not an earlier recovered one.
+      for (let index = list.length - 1; index >= 0; index -= 1) {
+        const code = errorCode(list[index]);
+        if (code) return code;
+      }
+      return null;
     } catch { return null; }
   };
 

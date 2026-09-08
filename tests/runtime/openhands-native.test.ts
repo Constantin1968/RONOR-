@@ -85,6 +85,31 @@ describe('native OpenHands Agent Server client', () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toBe('openhands_terminated_paused_budget_nontext_refused');
   });
+  it('reports the failure that stopped the run, not a configuration name mentioned earlier',async()=>{
+    const state=(execution_status:string)=>({execution_status,
+      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
+      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
+    // A healthy earlier event names a secret; the LAST event carries the real cause.
+    const events={items:[
+      {kind:'ActionEvent',source:'agent',thought:'reading openhands_llm_api_key from the environment'},
+      {kind:'ObservationEvent',source:'environment',observation:{content:'no error here'}},
+      {kind:'ConversationErrorEvent',code:'APIError',
+        detail:"litellm.APIError: OpenAIException - Error code: 409 - {'ok': False, 'error': 'budget_insufficient_before_dispatch'}"},
+    ]};
+    const fetcher=jest.fn()
+      .mockImplementationOnce(()=>json(state('paused')))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementationOnce(()=>json(state('paused')))
+      .mockImplementationOnce(()=>json({success:true}))
+      .mockImplementation((input:URL)=>json(new URL(input).pathname.endsWith('/events/search')?events:state('error')));
+    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+      pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
+      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe('openhands_terminated_error_budget_insufficient_before_dispatch');
+  });
   it('does not start a preserved conversation when the budget header cannot be verified',async()=>{
     const state={execution_status:'paused',agent:{llm:{model:'openai/qwen3.8-max'}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},

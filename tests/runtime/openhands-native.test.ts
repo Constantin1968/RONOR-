@@ -21,11 +21,16 @@ const envelope: OpenHandsExecutionEnvelope = {
   assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'], objective_hash: 'a'.repeat(64), deadline: new Date(Date.now() + 120_000).toISOString(),
 };
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status }));
+const boundedLlm = {model:'openai/qwen3.8-max',base_url:'http://model-egress-proxy:3004/v1',
+  max_input_tokens:20000,max_message_chars:6000,max_output_tokens:4096,num_retries:0,
+  extra_headers:{'x-ronor-budget':'test-budget'}};
+const boundedAgent = {llm:boundedLlm,condenser:{kind:'LLMSummarizingCondenser',max_size:24,max_tokens:16000,keep_first:2,
+  llm:{...boundedLlm,usage_id:'condenser'}}};
 
 describe('native OpenHands Agent Server client', () => {
   it('resumes the same paused conversation with verified budget headers and reports only incremental usage',async()=>{
     const state=(tokens:number,configured=false)=>({execution_status:'paused',
-      agent:{llm:{model:'openai/qwen3.8-max',...(configured?{extra_headers:{'x-ronor-budget':'test-budget'}}:{})}},
+      agent:configured?boundedAgent:{llm:{model:'openai/qwen3.8-max'}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
     const fetcher=jest.fn()
@@ -47,7 +52,7 @@ describe('native OpenHands Agent Server client', () => {
   });
   it('tolerates the asynchronous start of a resumed conversation instead of reading it as termination',async()=>{
     const state=(status:string,tokens:number)=>({execution_status:status,
-      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
     const fetcher=jest.fn()
@@ -67,7 +72,7 @@ describe('native OpenHands Agent Server client', () => {
   });
   it('reports the refusal code from the conversation error events when a run really stops',async()=>{
     const state=(status:string)=>({execution_status:status,
-      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
     const fetcher=jest.fn()
@@ -87,7 +92,7 @@ describe('native OpenHands Agent Server client', () => {
   });
   it('reports the failure that stopped the run, not a configuration name mentioned earlier',async()=>{
     const state=(execution_status:string)=>({execution_status,
-      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}}},
+      agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
     // A healthy earlier event names a secret; the LAST event carries the real cause.
@@ -134,17 +139,21 @@ describe('native OpenHands Agent Server client', () => {
       llm: { model: 'openai/qwen3-coder:30b', apiKey: 'model-client-key', baseUrl: 'http://model-egress-proxy:3004/v1', apiMode: 'chat' },
     });
     const result = await client.execute(envelope);
-    expect(result).toMatchObject({ ok: true, cost_usd: 0.02, artifacts: [{ kind: 'event_log', reference: `api/conversations/${conversationId}/events/search` }] });
+    expect(result).toMatchObject({ ok: true, cost_usd: 0.02, artifacts: [{ kind: 'event_log', reference: `api/conversations/${conversationId}/events/search?limit=100&sort_order=TIMESTAMP_DESC` }] });
     expect(fetcher).toHaveBeenCalledTimes(5);
     for (const call of fetcher.mock.calls) expect((call[1] as RequestInit).headers).toHaveProperty('X-Session-API-Key', 'session-key');
     expect(String(fetcher.mock.calls[0][0])).toBe('http://127.0.0.1:8000/api/conversations');
-    expect(JSON.parse(String((fetcher.mock.calls[0][1] as RequestInit).body))).toEqual({
+    const createdBody = JSON.parse(String((fetcher.mock.calls[0][1] as RequestInit).body));
+    expect(createdBody).toMatchObject({
       workspace: { kind: 'LocalWorkspace', working_dir: '/workspace/project' },
-      confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
-      agent_settings: { agent_kind: 'openhands', llm: {
+      confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100, autotitle:false,
+      agent: { kind: 'Agent', llm: {
         model: 'openai/qwen3-coder:30b', api_key: 'model-client-key', base_url: 'http://model-egress-proxy:3004/v1', api_mode: 'chat',
-      } },
+        max_message_chars:6000, max_input_tokens:20000,num_retries:0,
+      }, condenser:{kind:'LLMSummarizingCondenser',max_size:24,max_tokens:16000,keep_first:2},
+      tools:[{name:'terminal'},{name:'file_editor'},{name:'task_tracker'}], tool_concurrency_limit:1 },
     });
+    expect(createdBody.agent.condenser.llm).toEqual({...createdBody.agent.llm,usage_id:'condenser'});
     expect(JSON.parse(String((fetcher.mock.calls[1][1] as RequestInit).body))).toEqual({
       role: 'user', content: [{ type: 'text', text: 'Run tests.' }], run: true,
     });
@@ -155,22 +164,23 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation', cost_usd: 0.01 }))
-      .mockImplementationOnce(() => json({ items: [{ kind: 'ActionEvent', action: { command: 'git status --short' } }] }))
+      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation',leaf_event_id:'pending-1', cost_usd: 0.01 }))
+      .mockImplementationOnce(() => json({ items: [{ id:'pending-1',kind: 'ActionEvent', action: { command: 'git status --short' } }] }))
+      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation',leaf_event_id:'pending-1', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ accepted: true }))
       .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ items: [] }));
     const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: true });
-    expect(JSON.parse(String((fetcher.mock.calls[4][1] as RequestInit).body))).toMatchObject({ accept: true });
+    expect(JSON.parse(String((fetcher.mock.calls[5][1] as RequestInit).body))).toMatchObject({ accept: true });
   });
 
   it('rejects and pauses a forbidden pending action before execution', async () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockImplementationOnce(() => json({ accepted: true }))
-      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation', cost_usd: 0.01 }))
-      .mockImplementationOnce(() => json({ items: [{ kind: 'ActionEvent', action: { command: 'git push origin HEAD' } }] }))
+      .mockImplementationOnce(() => json({ execution_status: 'waiting_for_confirmation',leaf_event_id:'pending-1', cost_usd: 0.01 }))
+      .mockImplementationOnce(() => json({ items: [{ id:'pending-1',kind: 'ActionEvent', action: { command: 'git push origin HEAD' } }] }))
       .mockImplementationOnce(() => json({ accepted: false }))
       .mockImplementationOnce(() => json({ paused: true }))
       .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));

@@ -1,12 +1,13 @@
 import crypto from 'crypto';
 import type { AdapterResult, OpenHandsExecutionEnvelope } from '../contracts';
 import type { NativeOpenHandsPort } from '../services/openhands-bridge';
-import { evaluateOpenHandsEffects } from '../effect-policy';
+import { evaluatePendingOpenHandsActions } from '../pending-openhands-actions';
 import { MODEL_RATE_CARD } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
+const LATEST_EVENTS = '/events/search?limit=100&sort_order=TIMESTAMP_DESC';
 
 export class NativeOpenHandsError extends Error {}
 
@@ -79,6 +80,7 @@ export function createNativeOpenHandsClient(config: {
   llm?: { model: string; apiKey: string; baseUrl: string; apiMode?: 'chat' | 'responses' | 'auto';
     inputCostPerToken?: number; outputCostPerToken?: number };
   catalogAccounting?: boolean;
+  onConversationCreated?: (conversationId: string, envelope: OpenHandsExecutionEnvelope) => Promise<void>;
 }): NativeOpenHandsPort & { health(): Promise<boolean> } {
   if (!config.sessionApiKey) throw new NativeOpenHandsError('openhands_session_key_required');
   const base = baseUrl(config.baseUrl, config.plaintextServiceHosts ?? []);
@@ -110,11 +112,11 @@ export function createNativeOpenHandsClient(config: {
   const terminationDetail = async (conversationId: string | null, signal: AbortSignal): Promise<string | null> => {
     if (!conversationId) return null;
     try {
-      const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, signal);
+      const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, signal);
       const list = Array.isArray(events) ? events
         : (Array.isArray(events.items) ? events.items : (Array.isArray(events.results) ? events.results : []));
       // Latest first: the failure that stopped the run, not an earlier recovered one.
-      for (let index = list.length - 1; index >= 0; index -= 1) {
+      for (let index = 0; index < list.length; index += 1) {
         const code = errorCode(list[index]);
         if (code) return code;
       }
@@ -162,6 +164,9 @@ export function createNativeOpenHandsClient(config: {
       };
       const llm=config.llm ? {
         model:config.llm.model,api_key:config.llm.apiKey,base_url:config.llm.baseUrl,api_mode:config.llm.apiMode??'chat',
+        // Condense before the application byte-based cap, not the provider's
+        // much larger nominal context. The egress cap remains unchanged.
+        max_message_chars:6000, max_input_tokens:20000, num_retries:0,
         ...(envelope.budget_token?{extra_headers:{'x-ronor-budget':envelope.budget_token},max_output_tokens:4096}:{}),
         ...(config.llm.inputCostPerToken!==undefined?{input_cost_per_token:config.llm.inputCostPerToken,
           output_cost_per_token:config.llm.outputCostPerToken}:{}),
@@ -206,24 +211,52 @@ export function createNativeOpenHandsClient(config: {
           };
           cost=executionCost(before);
           if(!identity(before)||cost!==0) return finish(false,'openhands_resume_state_mismatch');
+          if(config.onConversationCreated) {
+            try { await config.onConversationCreated(conversationId,envelope); }
+            catch { throw new NativeOpenHandsError('openhands_trace_persist_failed'); }
+          }
           await call(`/api/conversations/${conversationId}/switch_llm`,'POST',{llm},executionSignal);
           const configured=await call(`/api/conversations/${conversationId}`,'GET',undefined,executionSignal);
           cost=executionCost(configured);
           if(!identity(configured)||cost!==0||
               (configured.agent as {llm?:{extra_headers?:Record<string,string>}})?.llm?.extra_headers?.['x-ronor-budget']!==envelope.budget_token)
             return finish(false,'openhands_resume_configuration_unverified');
+          // switch_llm does not migrate condenser thresholds, and only rebinds
+          // a condenser whose prior LLM exactly matched the agent's. Refuse an
+          // old/unverified configuration rather than silently resuming it.
+          const resumedAgent=configured.agent as {llm?:Record<string,unknown>;condenser?:Record<string,unknown>};
+          const condenser=resumedAgent.condenser;
+          const boundedLlm=(value:unknown)=>{
+            if(!value || typeof value!=='object')return false;
+            const v=value as Record<string,unknown>;
+            return v.model===llm.model && v.base_url===llm.base_url && v.max_input_tokens===20000 &&
+              v.max_message_chars===6000 && v.max_output_tokens===4096 && v.num_retries===0 &&
+              (v.extra_headers as Record<string,unknown>|undefined)?.['x-ronor-budget']===envelope.budget_token;
+          };
+          if(condenser?.kind!=='LLMSummarizingCondenser'||condenser.max_size!==24||condenser.max_tokens!==16000||
+              condenser.keep_first!==2||!boundedLlm(resumedAgent.llm)||!boundedLlm(condenser.llm))
+            return finish(false,'openhands_resume_context_unverified');
           await call(`/api/conversations/${conversationId}/run`,'POST',{},executionSignal);
         } else {
         const created = await call('/api/conversations', 'POST', {
           workspace: { kind: 'LocalWorkspace', working_dir: CONTAINER_WORKSPACE },
-          confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100,
-          ...(llm ? { agent_settings: {
-            agent_kind: 'openhands',
+          confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100, autotitle:false,
+          ...(llm ? { agent: {
+            kind: 'Agent',
             llm,
+            tools: [{name:'terminal'},{name:'file_editor'},{name:'task_tracker'}],
+            tool_concurrency_limit:1,
+            condenser: {kind:'LLMSummarizingCondenser',llm:{...llm,usage_id:'condenser'},
+              max_size:24,max_tokens:16000,keep_first:2,hard_context_reset_max_retries:1},
           } } : {}),
         }, executionSignal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;
         if (!conversationId || !/^[A-Za-z0-9-]{1,120}$/.test(conversationId)) throw new NativeOpenHandsError('openhands_conversation_id_invalid');
+        // Receipt must be durable before the first message can trigger inference.
+        if(config.onConversationCreated) {
+          try { await config.onConversationCreated(conversationId,envelope); }
+          catch { throw new NativeOpenHandsError('openhands_trace_persist_failed'); }
+        }
         await call(`/api/conversations/${conversationId}/events`, 'POST', {
           role: 'user', content: [{ type: 'text', text: envelope.instruction }], run: true,
         }, executionSignal);
@@ -243,8 +276,32 @@ export function createNativeOpenHandsClient(config: {
           return finish(false, paused ? 'openhands_cost_unknown' : 'openhands_pause_unconfirmed');
         }
         if (status === 'waiting_for_confirmation') {
-          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, executionSignal);
-          const decision = evaluateOpenHandsEffects(events, envelope.allowed_actions);
+          // A single recent page is not a complete pending set: unmatched actions
+          // can predate observations or live on abandoned branches. Reconstruct
+          // the full active ancestry with bounded pagination before approving.
+          const items: unknown[] = [];
+          const cursors = new Set<string>();
+          let pageId: string | undefined;
+          let decision = { allowed:false, reason:'pending_branch_incomplete' };
+          for (let page = 0; page < 32; page += 1) {
+            const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, executionSignal);
+            if (!Array.isArray(events.items) || events.items.length > 100) {
+              decision = { allowed:false, reason:'pending_page_invalid' }; break;
+            }
+            items.push(...events.items);
+            decision = evaluatePendingOpenHandsActions(state, {items}, envelope.allowed_actions);
+            if (decision.reason !== 'pending_branch_incomplete') break;
+            const next = events.next_page_id;
+            if (typeof next !== 'string' || !next || next.length > 120 || cursors.has(next)) break;
+            cursors.add(next); pageId = next;
+          }
+          if (decision.allowed) {
+            const current = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
+            if (current.execution_status !== 'waiting_for_confirmation' || current.leaf_event_id !== state.leaf_event_id) {
+              const paused = await pauseAndAccount();
+              return finish(false, paused ? 'openhands_pending_state_changed' : 'openhands_pause_unconfirmed');
+            }
+          }
           await call(`/api/conversations/${conversationId}/events/respond_to_confirmation`, 'POST', {
             accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
           }, executionSignal);
@@ -261,12 +318,12 @@ export function createNativeOpenHandsClient(config: {
           return finish(false, detail ? `openhands_terminated_${status}_${detail}` : `openhands_terminated_${status}`);
         }
         if (['finished', 'complete', 'completed'].includes(status)) {
-          const events = await call(`/api/conversations/${conversationId}/events/search?limit=100`, 'GET', undefined, executionSignal);
+          const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, executionSignal);
           const serialized = JSON.stringify(events);
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
           return {
             ...finish(true, 'openhands_completed'),
-            artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}/events/search`, bytes: Buffer.byteLength(serialized) }],
+            artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}${LATEST_EVENTS}`, bytes: Buffer.byteLength(serialized) }],
           };
         }
           await waitForNextPoll();

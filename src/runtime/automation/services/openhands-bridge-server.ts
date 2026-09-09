@@ -2,15 +2,19 @@ import { createNativeOpenHandsClient } from '../adapters/openhands-native';
 import { createOpenHandsBridgeApp, FileCapabilityNonceStore } from './openhands-bridge';
 import { requiredSecret } from './secret-files';
 import { MODEL_RATE_CARD } from '../model-budget';
+import path from 'node:path';
+import { createConversationRecorder } from './openhands-conversation-receipts';
 
 export async function startOpenHandsBridge() {
   const model = requiredSecret('RONOR_OPENHANDS_LLM_MODEL');
+  const nonceDir = requiredSecret('RONOR_OPENHANDS_NONCE_DIR');
   if (process.env.RONOR_MODEL_RATE_CARD !== MODEL_RATE_CARD.id || model !== `openai/${MODEL_RATE_CARD.model}`) throw new Error('openhands_budget_rate_card_required');
   const native = createNativeOpenHandsClient({
     baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
     sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
     plaintextServiceHosts: ['openhands-agent'],
     catalogAccounting: true,
+    onConversationCreated: createConversationRecorder(path.join(nonceDir, 'conversations')),
     llm: {
       model,
       apiKey: requiredSecret('RONOR_OPENHANDS_LLM_API_KEY'),
@@ -25,7 +29,7 @@ export async function startOpenHandsBridge() {
     capabilityKey: requiredSecret('RONOR_AUTOMATION_CAPABILITY_KEY'),
     serviceToken: requiredSecret('RONOR_OPENHANDS_BRIDGE_TOKEN'),
     client: native,
-    nonces: new FileCapabilityNonceStore(requiredSecret('RONOR_OPENHANDS_NONCE_DIR')),
+    nonces: new FileCapabilityNonceStore(nonceDir),
     requireBudget: true,
   });
   const host = process.env.RONOR_OPENHANDS_BRIDGE_HOST || '127.0.0.1';

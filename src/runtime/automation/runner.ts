@@ -188,6 +188,15 @@ export async function runExecutiveMission(params: {
       return terminal(run, 'failed', reason, 'openhands', 'openhands');
     }
     run.cost_usd = addCost(run.cost_usd, result.cost_usd);
+    // Preserve only an opaque conversation identity before any failed/unknown
+    // outcome exits. A trace is not an accepted assignment or verified artifact.
+    const conversations = Array.isArray(result.evidence) ? result.evidence.filter((reference): reference is string =>
+      typeof reference === 'string' && reference.length === 49 &&
+      /^conversation:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/.test(reference)) : [];
+    for (const reference of new Set(conversations)) append('checkpoint.created', {
+      id: `${runId}-conversation-${reference.slice('conversation:'.length)}`, run_id: runId, assignment_id: assignment.id,
+      kind: 'openhands_conversation', reference,
+    }, 'openhands');
     if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'openhands');
     if (!result.ok || run.cost_usd > params.mandate.max_cost_usd) {
       append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.ok ? 'cost_limit_exceeded' : result.summary }, 'openhands');

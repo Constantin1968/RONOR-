@@ -197,4 +197,21 @@ describe('live automation adapter boundary', () => {
     });
     await expect(invalid.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_artifacts_invalid');
   });
+  it('accepts the path-only event log reference and still refuses query-bearing references', async () => {
+    const accepted = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'event_log', sha256: 'b'.repeat(64), reference: 'api/conversations/47ca6d5d-b1f5-4d31-a4e7-5edd5e0effb1/events/search', bytes: 7 },
+      ] })),
+    });
+    await expect(accepted.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .resolves.toMatchObject({ artifacts: [{ kind: 'event_log', bytes: 7 }] });
+    const queryBearing = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'event_log', sha256: 'b'.repeat(64), reference: 'api/conversations/c1/events/search?limit=100&sort_order=TIMESTAMP_DESC', bytes: 7 },
+      ] })),
+    });
+    await expect(queryBearing.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_artifacts_invalid');
+  });
 });

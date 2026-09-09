@@ -139,7 +139,12 @@ describe('native OpenHands Agent Server client', () => {
       llm: { model: 'openai/qwen3-coder:30b', apiKey: 'model-client-key', baseUrl: 'http://model-egress-proxy:3004/v1', apiMode: 'chat' },
     });
     const result = await client.execute(envelope);
-    expect(result).toMatchObject({ ok: true, cost_usd: 0.02, artifacts: [{ kind: 'event_log', reference: `api/conversations/${conversationId}/events/search?limit=100&sort_order=TIMESTAMP_DESC` }] });
+    expect(result).toMatchObject({ ok: true, cost_usd: 0.02, artifacts: [{ kind: 'event_log', reference: `api/conversations/${conversationId}/events/search` }] });
+    const reference = result.artifacts?.[0]?.reference ?? '';
+    expect(reference).toMatch(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/);
+    expect(reference.includes('..')).toBe(false);
+    expect(reference).not.toMatch(/[?&=]/);
+    expect(String(fetcher.mock.calls[4][0])).toContain('limit=100&sort_order=TIMESTAMP_DESC');
     expect(fetcher).toHaveBeenCalledTimes(5);
     for (const call of fetcher.mock.calls) expect((call[1] as RequestInit).headers).toHaveProperty('X-Session-API-Key', 'session-key');
     expect(String(fetcher.mock.calls[0][0])).toBe('http://127.0.0.1:8000/api/conversations');

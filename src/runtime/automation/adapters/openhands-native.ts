@@ -7,7 +7,8 @@ import { MODEL_RATE_CARD } from '../model-budget';
 type Fetcher = typeof fetch;
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
-const LATEST_EVENTS = '/events/search?limit=100&sort_order=TIMESTAMP_DESC';
+const EVENTS_PATH = '/events/search';
+const LATEST_EVENTS = `${EVENTS_PATH}?limit=100&sort_order=TIMESTAMP_DESC`;
 
 export class NativeOpenHandsError extends Error {}
 
@@ -323,7 +324,7 @@ export function createNativeOpenHandsClient(config: {
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
           return {
             ...finish(true, 'openhands_completed'),
-            artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}${LATEST_EVENTS}`, bytes: Buffer.byteLength(serialized) }],
+            artifacts: [{ kind: 'event_log', sha256: digest, reference: `api/conversations/${conversationId}${EVENTS_PATH}`, bytes: Buffer.byteLength(serialized) }],
           };
         }
           await waitForNextPoll();

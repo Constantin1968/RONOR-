@@ -3,6 +3,9 @@ import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../test
 import { requiredSecret } from './secret-files';
 import { createEvidenceRunnerApp } from './evidence-runner';
 
+// The only writable path in this container is the ephemeral scratch mount.
+const TEST_SCRATCH_DIR = '/tmp';
+
 const workspaceRoot = requiredSecret('RONOR_EVIDENCE_WORKSPACE');
 const artifactRoot = requiredSecret('RONOR_AUTOMATION_ARTIFACT_ROOT');
 const commands = parseAllowedTestCommands(requiredSecret('RONOR_AUTOMATION_TEST_COMMANDS_JSON'));
@@ -12,7 +15,16 @@ const tests = createAllowlistedTestExecutor({
   commands, artifacts, approvedRoot: workspaceRoot,
   // Keep the child environment allowlisted. The audit database is explicitly
   // ephemeral; no service credentials or host environment are inherited.
-  baseEnv: { PATH: process.env.PATH ?? '', AUDIT_DB_PATH: requiredSecret('AUDIT_DB_PATH') },
+  // HOME and the npm cache are pinned to the ephemeral scratch directory: the
+  // Node toolchain resolves a home directory before it reads any configuration,
+  // and the container image has no writable home for the unprivileged user.
+  baseEnv: {
+    PATH: process.env.PATH ?? '',
+    HOME: TEST_SCRATCH_DIR,
+    npm_config_cache: `${TEST_SCRATCH_DIR}/.npm`,
+    npm_config_update_notifier: 'false',
+    AUDIT_DB_PATH: requiredSecret('AUDIT_DB_PATH'),
+  },
 });
 const app = createEvidenceRunnerApp({ token: requiredSecret('RONOR_EVIDENCE_RUNNER_TOKEN'), workspaceRoot, artifacts, tests });
 const port = Number(process.env.RONOR_EVIDENCE_RUNNER_PORT ?? 3005);

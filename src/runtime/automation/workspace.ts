@@ -12,6 +12,10 @@ export interface WorkspaceSnapshot {
   head: string;
   origin: string | null;
   clean: boolean;
+  untracked_count: number;
+  staged_count: number;
+  unstaged_tracked_count: number;
+  worktree_matches_index: boolean;
 }
 
 export interface WorkspacePolicy {
@@ -33,12 +37,17 @@ function inside(candidate: string, root: string): boolean {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
+function countLines(output: string): number {
+  return output.split('\n').filter((line) => line.trim() !== '').length;
+}
+
 export function inspectAutomationWorkspace(workspaceRoot: string, approvedRoot: string): WorkspaceSnapshot {
   const canonicalPath = realpathSync.native(path.resolve(workspaceRoot));
   const canonicalApprovedRoot = realpathSync.native(path.resolve(approvedRoot));
   const top = realpathSync.native(git(canonicalPath, ['rev-parse', '--show-toplevel']));
   let origin: string | null = null;
   try { origin = git(canonicalPath, ['remote', 'get-url', 'origin']); } catch { origin = null; }
+  const unstaged = git(canonicalPath, ['diff', '--name-only']);
   return {
     canonical_path: canonicalPath,
     canonical_approved_root: canonicalApprovedRoot,
@@ -49,6 +58,10 @@ export function inspectAutomationWorkspace(workspaceRoot: string, approvedRoot: 
     head: git(canonicalPath, ['rev-parse', 'HEAD']),
     origin,
     clean: git(canonicalPath, ['status', '--porcelain']).length === 0,
+    untracked_count: countLines(git(canonicalPath, ['ls-files', '--others', '--exclude-standard'])),
+    staged_count: countLines(git(canonicalPath, ['diff', '--cached', '--name-only'])),
+    unstaged_tracked_count: countLines(unstaged),
+    worktree_matches_index: unstaged === '',
   };
 }
 

@@ -6,6 +6,7 @@ const snapshot = (overrides: Partial<WorkspaceSnapshot> = {}): WorkspaceSnapshot
   canonical_path: path.join(root, 'worktrees', 'agent-1'), canonical_approved_root: root,
   is_link: false, is_git_worktree: true, git_toplevel: path.join(root, 'worktrees', 'agent-1'),
   branch: 'agent/mission-1', head: 'a'.repeat(40), origin: 'https://github.com/Constantin1968/RONOR-.git', clean: true,
+  untracked_count: 0, staged_count: 0, unstaged_tracked_count: 0, worktree_matches_index: true,
   ...overrides,
 });
 const policy = { approved_root: root, branch_prefix: 'agent/', expected_origin: 'https://github.com/Constantin1968/RONOR-.git', require_clean: true };
@@ -13,6 +14,15 @@ const policy = { approved_root: root, branch_prefix: 'agent/', expected_origin: 
 describe('automation workspace policy', () => {
   it('accepts only the dedicated canonical worktree', () => {
     expect(validateWorkspaceSnapshot(snapshot(), policy).valid).toBe(true);
+  });
+
+  it('carries diagnostic counters without changing the clean acceptance decision', () => {
+    const clean = snapshot();
+    expect(clean.untracked_count).toBe(0);
+    expect(clean.staged_count).toBe(0);
+    expect(clean.unstaged_tracked_count).toBe(0);
+    expect(clean.worktree_matches_index).toBe(true);
+    expect(validateWorkspaceSnapshot(clean, policy).valid).toBe(true);
   });
 
   it.each([

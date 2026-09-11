@@ -32,7 +32,7 @@ before_image="$(docker inspect ronor-development-controller --format '{{.Config.
 [[ "$(sed -n 's/^RONOR_AUTOMATION_MAX_COST_USD=//p' "$root/environment")" == 100 ]]
 
 # No active run may be interrupted by the recreation.
-active="$(docker exec ronor-development-controller node -e "const db=require('/app/node_modules/better-sqlite3')('/app/data/development.db',{readonly:true});process.stdout.write(String(db.prepare(\"select count(*) c from runs where status in ('running','pending')\").get().c))")"
+active="$(docker exec ronor-development-controller node -e "const db=require('/app/node_modules/better-sqlite3')('/app/data/development.db',{readonly:true});process.stdout.write(String(db.prepare(\"select count(*) c from runtime_automation_runs where status not in ('failed','cancelled','completed','succeeded')\").get().c))")"
 [[ "$active" == 0 ]] || { echo "active_run_present=$active" >&2; exit 2; }
 
 mv "$root/runtime-window.env" "$root/runtime-window.env.withdrawn"

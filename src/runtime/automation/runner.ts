@@ -6,7 +6,7 @@ import type { WorkspaceArtifactCollector } from './artifacts';
 import type { TestExecutor } from './test-executor';
 import type { PostExecutionVerifier } from './post-execution-verifier';
 import { verifyMandateAuthority } from './mandate-issuer';
-import { AutomationAdapterError } from './adapters/http';
+import { AutomationAdapterError, describeCodexFailure } from './adapters/http';
 
 function addCost(current: number | null, additional: number | null): number | null {
   return current === null || additional === null || !Number.isFinite(additional) || additional < 0
@@ -246,7 +246,19 @@ export async function runExecutiveMission(params: {
   emitStatus({ ...run, cost_usd: null }, 'codex', 'codex');
   try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal,
     {mandate:params.mandate,budget:{run_id:runId,accounted_cost_usd:run.cost_usd}}); }
-  catch (error) { run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null); const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'codex_adapter_failed'; append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason }, 'codex'); return terminal(run, 'failed', reason, 'codex', 'codex'); }
+  catch (error) {
+    run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);
+    const diagnostic = describeCodexFailure(error);
+    const reasons = {
+      rejection: 'codex_verification_rejected', service: 'codex_service_failed',
+      http: 'codex_http_failed', transport: 'codex_transport_failed',
+      protocol: 'codex_protocol_failed', unknown: 'codex_adapter_failed',
+    };
+    const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : reasons[diagnostic.category];
+    // A refusal is diagnostic data only, never a receipt or accepted evidence.
+    append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason, diagnostic }, 'codex');
+    return terminal(run, 'failed', reason, 'codex', 'codex');
+  }
   run.cost_usd = addCost(run.cost_usd, codex.cost_usd);
   if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'codex');
   append('checkpoint.created', { id: `${runId}-codex`, run_id: runId, verdict: codex.verdict, evidence: codex.evidence }, 'codex');

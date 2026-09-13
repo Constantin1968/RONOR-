@@ -161,11 +161,10 @@ jobs:
       - name: Retrieval benchmark (release gate determines exit code)
         run: npx ts-node --transpile-only scripts/benchmark-retrieval.ts
 
+      # Do NOT set RONOR_API_KEYS / AUDIT_DB_PATH here: CONF-5 re-runs the whole
+      # suite and those vars change auth/bootstrap behaviour vs the green Jest Tests job.
       - name: Conformance verification
         id: verify
-        env:
-          AUDIT_DB_PATH: /tmp/ronor-conformance-audit.db
-          RONOR_API_KEYS: conformance:conformance-harness-key-not-for-production
         run: npx ts-node --transpile-only scripts/verify-knowledge-conformance.ts
 
       - name: Report failed conformance checks on PR

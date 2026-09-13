@@ -242,6 +242,29 @@ it('restart marks in-flight verification interrupted and never resumes it', asyn
   restarted.stop();
 });
 
+it('releases the admission barrier once the interrupted mandate deadline passes', async () => {
+  // The barrier is deliberately retained after an interruption, because a lost
+  // process may still hold an isolated test or model request. It must release
+  // itself at the old mandate deadline: otherwise a single restart would wedge
+  // the workspace permanently and no later verification could be admitted.
+  pauseEvidence = true;
+  const first = await submit();
+  const id = first.body.verification.verification_id;
+  createExistingCommitVerification(env).stop();
+  expect((await status(id)).body.verification.status).toBe('interrupted');
+  expect((await submit()).status).toBe(409);
+  // Real elapsed time, not a manipulated clock: the mandate lasts one minute,
+  // so the barrier may only clear after that minute has genuinely passed.
+  const expires = Date.parse((await status(id)).body.verification.deadline);
+  expect((await submit()).status).toBe(409);
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, expires - Date.now()) + 1_500));
+  pauseEvidence = false;
+  const next = await submit(spec(), crypto.randomUUID());
+  expect(next.status).toBeLessThan(300);
+  expect(await terminal(next.body.verification.verification_id))
+    .toMatchObject({ status: 'verified', victoria_accepted: true });
+}, 150_000);
+
 it('persisted request/state corruption is refused and cannot turn a run into success', async () => {
   pauseEvidence = true;
   const started = await submit();

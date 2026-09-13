@@ -158,7 +158,7 @@ test('MOCK controller: a policy refusal is carried through with its code, and a 
       assert.ok(error instanceof ControllerRefusal);
       assert.equal(error.code, 'verification_workspace_busy');
       assert.equal(error.httpStatus, 409);
-      assert.ok(failureLine(error).includes('ocupat'));
+      assert.ok(failureLine(error).includes(EXPLANATIONS.verification_workspace_busy));
       return true;
     });
     mode = 'hostile';

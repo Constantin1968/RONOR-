@@ -59,7 +59,7 @@ export const EXPLANATIONS = {
   verification_budget_refused: 'Plafonul de cost cerut nu este admis de politica de buget.',
   verification_idempotency_conflict: 'Același identificator stabil a fost folosit deja pentru altă cerere.',
   verification_head_mismatch: 'Candidatul cerut nu este cel fixat de politica de mandat pe această gazdă.',
-  verification_workspace_busy: 'Spațiul de lucru este ocupat de altă operațiune; nu se rulează două în paralel.',
+  verification_workspace_busy: 'Spațiul de lucru este deja angajat de o altă verificare sau de o rulare de automatizare; dacă cea anterioară a fost întreruptă, bariera se eliberează singură la termenul mandatului ei.',
   verification_not_found: 'Nu există nicio verificare cu acest identificator.',
   verification_integrity_failed: 'Integritatea stării sau a probelor nu a putut fi confirmată; verificarea a eșuat închis.',
   verification_pins_invalid: 'Commit-urile fixate sunt invalide sau candidatul nu descinde din bază.',

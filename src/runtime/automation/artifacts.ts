@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import type { EvidenceArtifact } from './contracts';
+import { inspectExistingCommit, type CommitPins } from './existing-commit-workspace';
 
 const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
@@ -12,6 +13,7 @@ export interface WorkspaceArtifactCollector {
   verify(artifacts: EvidenceArtifact[]): EvidenceArtifact[];
   read(artifacts: EvidenceArtifact[]): Array<{ artifact: EvidenceArtifact; content: string }>;
   recordTestReport(runId: string, assignmentId: string, report: unknown): EvidenceArtifact;
+  collectCommitRange?(workspaceRoot: string, runId: string, assignmentId: string, pins: CommitPins): EvidenceArtifact[];
 }
 
 function digest(content: Buffer): string {
@@ -84,6 +86,13 @@ export function createWorkspaceArtifactCollector(artifactRoot: string, options: 
   };
 
   return {
+    collectCommitRange(workspaceRoot, runId, assignmentId, pins) {
+      const range = inspectExistingCommit(workspaceRoot, pins);
+      return [
+        persist(runId, assignmentId, 'git.diff', 'git_diff', range.diff),
+        persist(runId, assignmentId, 'git.status', 'git_status', range.status),
+      ];
+    },
     collect(workspaceRoot, runId, assignmentId) {
       const workspace = realpathSync.native(path.resolve(workspaceRoot));
       const top = realpathSync.native(execFileSync('git', ['-C', workspace, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', windowsHide: true }).trim());

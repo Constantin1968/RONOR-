@@ -4,6 +4,7 @@ import { ingressRateLimit, rateLimit, requireArchitect } from '../api/middleware
 import { prepareDevelopmentJob } from './development-jobs';
 import { interruptActiveAutomationRuns } from './run-control';
 import { reconcileLegacyAuthorFailure } from './legacy-reconciliation';
+import { createExistingCommitVerification, ExistingVerificationError } from './existing-commit-verification';
 
 // Expose the existing control plane, not query/ingest/provider/key-admin routes.
 const ROUTES: Array<[string, RegExp]> = [
@@ -15,8 +16,9 @@ const ROUTES: Array<[string, RegExp]> = [
   ['GET', /^\/control\/missions\/[A-Za-z0-9_-]+\/fabric$/],
 ];
 
-export function createDevelopmentController(env: NodeJS.ProcessEnv) {
+export function createDevelopmentController(env: NodeJS.ProcessEnv, options: { verificationFetcher?: typeof fetch } = {}) {
   const app = express();
+  const existing = createExistingCommitVerification(env, { fetcher: options.verificationFetcher });
   app.disable('x-powered-by');
   app.set('trust proxy', false);
   app.use((_req, res, next) => {
@@ -30,6 +32,28 @@ export function createDevelopmentController(env: NodeJS.ProcessEnv) {
   });
   app.use(ingressRateLimit);
   app.use(express.json({ limit: '32kb', strict: true }));
+  const verificationError = (error: unknown, res: express.Response) => {
+    res.status(error instanceof ExistingVerificationError ? error.httpStatus : 422).json({
+      ok: false, error: error instanceof ExistingVerificationError ? error.code : 'existing_verification_refused',
+    });
+  };
+  app.post('/api/development/verify-existing', requireArchitect, rateLimit, (req, res) => {
+    try {
+      const result = existing.start(req.body, req.apiKey!.key_id, req.header('idempotency-key') ?? '');
+      res.status(result.created ? 202 : 200).json({ ok: true, ...result });
+    } catch (error) { verificationError(error, res); }
+  });
+  app.get('/api/development/verifications/:id', requireArchitect, rateLimit, (req, res) => {
+    try { res.json({ ok: true, verification: existing.status(req.params.id, req.apiKey!.key_id) }); }
+    catch (error) { verificationError(error, res); }
+  });
+  app.post('/api/development/verifications/:id/cancel', requireArchitect, rateLimit, (req, res) => {
+    if (req.body && Object.keys(req.body).length) {
+      res.status(400).json({ ok: false, error: 'verification_request_invalid' }); return;
+    }
+    try { res.json({ ok: true, verification: existing.cancel(req.params.id, req.apiKey!.key_id), rollback: false }); }
+    catch (error) { verificationError(error, res); }
+  });
   app.post('/api/development/reconcile-author-failure',requireArchitect,rateLimit,(req,res)=>{
     const body=req.body as Record<string,unknown>;
     if(!body||Object.keys(body).some(k=>!['approved','run_id','proof','expected_patch_digest'].includes(k))) {
@@ -71,6 +95,14 @@ export function createDevelopmentController(env: NodeJS.ProcessEnv) {
     if (!ROUTES.some(([method, pattern]) => req.method === method && pattern.test(req.path))) {
       res.status(404).json({ ok: false, error: 'not_found' }); return;
     }
+    if (req.method === 'POST' && req.path === '/control/automation/run') {
+      try {
+        const release = existing.beginDevelopmentAdmission();
+        res.once('finish', release);
+        // A disconnected caller does not prove the asynchronous author
+        // admission stopped. Keep its durable barrier if no response finishes.
+      } catch (error) { verificationError(error, res); return; }
+    }
     next();
   }, runtime);
   app.use((_req, res) => { res.status(404).json({ ok: false, error: 'not_found' }); });
@@ -79,5 +111,5 @@ export function createDevelopmentController(env: NodeJS.ProcessEnv) {
     const status = kind === 'entity.too.large' ? 413 : kind === 'entity.parse.failed' ? 400 : 500;
     res.status(status).json({ ok: false, error: status < 500 ? 'invalid_request_body' : 'development_controller_failed' });
   });
-  return { app, stop: () => { runtime.stopAutomationRecovery(); interruptActiveAutomationRuns(); } };
+  return { app, stop: () => { existing.stop(); runtime.stopAutomationRecovery(); interruptActiveAutomationRuns(); } };
 }

@@ -72,3 +72,46 @@ test('CLI follows readiness → persistent job → bounded execution → status 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('MOCK controller: verify-existing is a distinct pinned operation without author/planner readiness', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ronor-cli-existing-test-'));
+  const credential = path.join(root, 'key'); const specFile = path.join(root, 'verification.json');
+  fs.writeFileSync(credential, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+  const spec = { base_commit: 'a'.repeat(40), head_commit: 'b'.repeat(40),
+    max_cost_usd: 1, max_runtime_minutes: 5 };
+  fs.writeFileSync(specFile, JSON.stringify(spec));
+  const seen = []; const id = `verify_${'c'.repeat(64)}`;
+  const server = http.createServer(async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : null;
+    seen.push({ route: req.url, method: req.method, body, id: req.headers['idempotency-key'] });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ ok: true, verification: {
+      verification_id: id, operation: 'verify-existing', full_development: false,
+      status: req.url.endsWith('/cancel') ? 'cancelled' : 'queued',
+    } }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const env = { RONOR_DEVELOPMENT_URL: `http://127.0.0.1:${server.address().port}`, RONOR_DEVELOPMENT_API_KEY_FILE: credential };
+  try {
+    const start = ['verify-existing', '--id=existing-cli-001', `--request=${specFile}`];
+    const result = await main(start, env);
+    assert.equal(result.verification.operation, 'verify-existing');
+    assert.equal(seen.length, 1);
+    assert.deepEqual(seen[0], { route: '/api/development/verify-existing', method: 'POST',
+      body: { approved: true, ...spec }, id: 'existing-cli-001' });
+    await main(['verification-status', `--verification=${id}`], env);
+    assert.equal((await main(['verification-cancel', `--verification=${id}`], env)).rollback, false);
+    assert.equal(seen.length, 3);
+    assert.ok(seen.every(s => !s.route.includes('/runtime/')));
+    for (const bad of [{ ...spec, head_commit: 'HEAD' }, { ...spec, workspace_root: '/not-admitted' },
+      { ...spec, command: 'node' }, { ...spec, max_cost_usd: 6 }, { ...spec, base_commit: spec.head_commit }]) {
+      fs.writeFileSync(specFile, JSON.stringify(bad));
+      await assert.rejects(main(start, env), /request_contract_refused/);
+    }
+    assert.equal(seen.length, 3);
+  } finally {
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+    // Leave the clearly labelled offline fixture available for inspection.
+  }
+});

@@ -9,6 +9,9 @@ scripts/knowledge-equivalence.sh and emits a machine-readable verdict.
 The enabled-mode run is not decoration. It is the control that proves the harness
 can DETECT a difference: a comparison that reports "no difference" is worthless
 unless it is shown to report a difference when one exists.
+
+F01 (approved): /api/v1 requires requireAuth('read'). Authenticated probes establish
+route registration; anonymous probes must see 401 on /api/v1 while /health stays public.
 """
 
 import json
@@ -65,6 +68,7 @@ def main():
     enabled = read_json("health-enabled.json")
     routes_disabled = read_routes("routes-disabled.txt")
     routes_enabled = read_routes("routes-enabled.txt")
+    routes_anon = read_routes("routes-disabled-anon.txt")
     fs_diff = (OUT / "fs-diff-disabled.txt").read_text().strip()
 
     checks = []
@@ -79,17 +83,17 @@ def main():
             }
         )
 
-    # ── BE-1 · Route set identical to baseline ──
+    # ── BE-1 · Route set identical to baseline (authenticated probe) ──
     knowledge_routes_disabled = {
         r: c for r, c in routes_disabled.items() if "/knowledge/" in r
     }
-    # Every knowledge route must be 404 in disabled mode. 404 is what an unmounted
-    # path returns; any other code would mean a handler exists.
+    # Every knowledge route must be 404 in disabled mode once past requireAuth.
+    # 404 is what an unmounted path returns; any other code would mean a handler exists.
     all_404 = all(code == "404" for code in knowledge_routes_disabled.values())
     check(
         "BE-1",
-        "No knowledge route is registered in disabled mode (all return 404)",
-        all_404,
+        "No knowledge route is registered in disabled mode (authenticated probes all return 404)",
+        all_404 and len(knowledge_routes_disabled) > 0,
         knowledge_routes_disabled,
     )
 
@@ -103,12 +107,12 @@ def main():
     all_respond = all(code != "404" for code in knowledge_routes_enabled.values())
     check(
         "BE-1-CONTROL",
-        "EVERY knowledge route responds when enabled, proving the probe detects a mount",
-        all_respond,
+        "EVERY knowledge route responds when enabled (authenticated), proving the probe detects a mount",
+        all_respond and len(knowledge_routes_enabled) > 0,
         knowledge_routes_enabled,
     )
 
-    # ── BE-2 · Baseline routes unaffected ──
+    # ── BE-2 · Baseline routes unaffected (authenticated where required) ──
     baseline_routes = {
         r: c for r, c in routes_disabled.items() if "/knowledge/" not in r
     }
@@ -117,9 +121,21 @@ def main():
     )
     check(
         "BE-2",
-        "Every baseline route still responds successfully in disabled mode",
-        baseline_ok,
+        "Every baseline route still responds successfully (auth where /api/v1 requires it; /health public)",
+        baseline_ok and len(baseline_routes) > 0,
         baseline_routes,
+    )
+
+    # ── BE-F01 · Approved auth hardening on /api/v1 ──
+    api_v1_anon = {r: c for r, c in routes_anon.items() if r.startswith("/api/v1")}
+    health_anon = routes_anon.get("/health")
+    all_401 = all(code == "401" for code in api_v1_anon.values()) and len(api_v1_anon) > 0
+    health_public = health_anon == "200"
+    check(
+        "BE-F01",
+        "F01 approved: unauthenticated /api/v1 returns 401; GET /health stays public",
+        all_401 and health_public,
+        {"api_v1_anonymous": api_v1_anon, "health_anonymous": health_anon},
     )
 
     # ── BE-3 · Exactly eight planes, in baseline order ──

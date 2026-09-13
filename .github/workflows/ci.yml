@@ -133,12 +133,15 @@ jobs:
       - name: Runtime equivalence harness (boots both modes)
         env:
           OPENAI_API_KEY: placeholder
+          # F01: harness seeds this via RONOR_API_KEYS inside the script; keep the
+          # env explicit so reviewers see the credential path in CI.
+          RONOR_API_KEYS: equivalence:eq-harness-key-not-for-production
         run: |
           npm run build
           bash scripts/knowledge-equivalence.sh
 
       - name: Pre-existing corpus intact in isolation
-        run: npx jest --testPathIgnorePatterns="tests/knowledge"
+        run: npx jest --testPathIgnorePatterns="tests/knowledge" --runInBand
 
       - name: Upload equivalence evidence
         if: always()
@@ -164,7 +167,7 @@ jobs:
       - run: npm ci
 
       - name: R-Knowledge test suites
-        run: npx jest tests/knowledge
+        run: npx jest tests/knowledge --runInBand
 
       # The benchmark's exit code is governed by the RELEASE GATE only (citation
       # accuracy and provenance completeness, both contractual, neither waivable).

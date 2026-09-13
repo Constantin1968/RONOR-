@@ -1,3 +1,5 @@
+import type { EffectDiagnostics } from './effect-diagnostics';
+
 export const AUTOMATION_ACTIONS = [
   'read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local', 'prepare_draft_pr',
   'external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy',
@@ -52,7 +54,11 @@ export interface EvidenceArtifact {
   bytes: number;
 }
 // null means accounting is unavailable. It must never be coerced to free execution.
-export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number | null; }
+export interface AdapterResult {
+  ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number | null;
+  /** Failure-only diagnostics; never a receipt, artifact or acceptance signal. */
+  effect_diagnostics?: EffectDiagnostics;
+}
 export interface VerificationReceipt {
   version: 'ronor-codex-receipt/v1';
   issuer: 'codex-verifier';

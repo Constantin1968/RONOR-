@@ -7,6 +7,7 @@ import type { TestExecutor } from './test-executor';
 import type { PostExecutionVerifier } from './post-execution-verifier';
 import { verifyMandateAuthority } from './mandate-issuer';
 import { AutomationAdapterError, describeCodexFailure } from './adapters/http';
+import { readResultEffectDiagnostics } from './effect-diagnostics';
 
 function addCost(current: number | null, additional: number | null): number | null {
   return current === null || additional === null || !Number.isFinite(additional) || additional < 0
@@ -106,13 +107,10 @@ export async function runExecutiveMission(params: {
       actor: { kind: actor, id: actor === 'agent' ? 'victoria' : actor },
     });
   };
-  /* Why a null cost is null. The accounting rule is that an unknown amount stays
-   * null and never becomes zero, so a reader of the audit trail sees null in two
-   * quite different situations: a dispatch is in flight and its amount is not yet
-   * settled, or a dispatch was aborted and the runner will never learn what it
-   * spent, while the model budget ledger has settled that amount durably. The
-   * basis names which of the two holds, so the trail says where the authoritative
-   * number lives instead of leaving a silent null. It carries no amount. */
+  /* Unknown amounts stay null, never zero. A pending dispatch is distinguished
+   * from terminal unknown accounting, which requires reconciliation. The runner
+   * cannot assert that an external ledger exists or has settled the amount.
+   * These labels carry no amount and do not establish an accounting authority. */
   const emitStatus = (
     run: AutomationRun, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent',
     basis?: 'unknown_pending_dispatch',
@@ -120,7 +118,7 @@ export async function runExecutiveMission(params: {
     id: runId, run_id: runId, mission_id: params.mandate.mission_id, stage, status: run.status,
     completed_assignments: run.completed_assignments, total_assignments: run.total_assignments,
     cost_usd: run.cost_usd === null ? null : Number(run.cost_usd.toFixed(9)),
-    cost_basis: run.cost_usd !== null ? 'runner_subtotal' : basis ?? 'unknown_ledger_authoritative',
+    cost_basis: run.cost_usd !== null ? 'runner_subtotal' : basis ?? 'unknown_reconciliation_required',
     reason_code: run.reason, updated_at: now().toISOString(),
   }, actor);
   const terminal = (run: AutomationRun, status: AutomationRun['status'], reason: string | null, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => {
@@ -209,9 +207,18 @@ export async function runExecutiveMission(params: {
       id: `${runId}-conversation-${reference.slice('conversation:'.length)}`, run_id: runId, assignment_id: assignment.id,
       kind: 'openhands_conversation', reference,
     }, 'openhands');
+    // Record refusal before the accounting gate: unknown cost must not erase
+    // its reason or diagnostics. Neither the trace nor this failure is evidence.
+    if (!result.ok) {
+      const effectDiagnostics = readResultEffectDiagnostics(result);
+      append('failure.recorded', {
+        id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.summary,
+        ...(effectDiagnostics ? { effect_diagnostics: effectDiagnostics } : {}),
+      }, 'openhands');
+    }
     if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'openhands');
     if (!result.ok || run.cost_usd > params.mandate.max_cost_usd) {
-      append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.ok ? 'cost_limit_exceeded' : result.summary }, 'openhands');
+      if (result.ok) append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: 'cost_limit_exceeded' }, 'openhands');
       return terminal(run, 'failed', result.ok ? 'cost_limit_exceeded' : result.summary, 'openhands', 'openhands');
     }
     let authoritativeArtifacts = result.artifacts ?? [];

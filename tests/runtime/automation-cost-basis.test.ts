@@ -1,6 +1,7 @@
-import { createMission, getMissionFabric } from '../../src/runtime/mission/store';
+import { appendMissionFabricEvent, createMission, getMissionFabric, verifyMissionFabric } from '../../src/runtime/mission/store';
 import { ALWAYS_DENIED_ACTIONS, objectiveHash } from '../../src/runtime/automation/policy';
-import { runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
+import { executionRunId, runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
+import { AutomationAdapterError, createOpenHandsAdapter } from '../../src/runtime/automation/adapters/http';
 import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
@@ -8,9 +9,9 @@ import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 /*
  * A null cost in the audit trail has two quite different causes: a dispatch in
  * flight whose amount is not yet settled, and a dispatch aborted or failed
- * without reporting an amount, which the runner will never learn but the model
- * budget ledger has settled durably. These tests assert that the projected run
- * state names which of the two holds, and that the basis carries no amount.
+ * without reporting an amount. The runner cannot establish whether a ledger
+ * exists or is settled. Terminal unknown amounts require reconciliation; the
+ * label carries no amount and is not an assertion of accounting authority.
  */
 
 const objective = 'Implement and verify a bounded RONOR feature.';
@@ -86,7 +87,7 @@ describe('run status cost basis', () => {
     expect(terminal.cost_basis).toBe('runner_subtotal');
   });
 
-  it('points a terminal unknown cost at the ledger rather than leaving a silent null', async () => {
+  it('requires reconciliation of terminal unknown cost without claiming a ledger has settled', async () => {
     const mission = createMission({ title: 'Cost basis, aborted dispatch', objective, operatorId: 'merlin' });
     const result = await executeMission({
       objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), testExecutor, authorityKey,
@@ -97,7 +98,52 @@ describe('run status cost basis', () => {
 
     const terminal = projectedRun(mission.mission_id, result.run_id);
     expect(terminal.cost_usd).toBeNull();
-    expect(terminal.cost_basis).toBe('unknown_ledger_authoritative');
+    expect(terminal.cost_basis).toBe('unknown_reconciliation_required');
     expect(JSON.stringify(terminal.cost_basis)).not.toMatch(/[0-9]/);
+  });
+
+  it('does not claim ledger authority for a predispatch adapter configuration error', async () => {
+    const mission = createMission({ title: 'Predispatch accounting', objective, operatorId: 'merlin' });
+    const fetcher = jest.fn();
+    const openhands = createOpenHandsAdapter({ baseUrl: 'https://bridge.invalid', fetcher });
+    const result = await executeMission({
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), authorityKey,
+      adapters: { ...adapters(jest.fn()), openhands },
+    });
+    expect(result).toMatchObject({ status: 'failed', reason: 'capability_key_required', cost_usd: null });
+    expect(projectedRun(mission.mission_id, result.run_id).cost_basis).toBe('unknown_reconciliation_required');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('blocks persisted unknown accounting before any new planning or dispatch', async () => {
+    const mission = createMission({ title: 'Persisted unknown accounting', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const runId = executionRunId(m.mandate_id);
+    appendMissionFabricEvent({
+      missionId: mission.mission_id, expectedVersion: getMissionFabric(mission.mission_id)!.version,
+      type: 'run.status_changed', actor: { kind: 'openhands', id: 'openhands' },
+      payload: { id: runId, run_id: runId, cost_usd: null, status: 'executing', cost_basis: 'unknown_pending_dispatch' },
+    });
+    const execute = jest.fn();
+    const a = adapters(execute);
+    a.langgraph.plan = jest.fn();
+    const result = await executeMission({
+      objective, workspaceRoot: workspace, branch, mandate: m, authorityKey, adapters: a,
+    });
+    expect(result).toMatchObject({ status: 'blocked', reason: 'cost_accounting_unknown', cost_usd: null });
+    expect(projectedRun(mission.mission_id, runId).cost_basis).toBe('unknown_reconciliation_required');
+    expect(a.langgraph.plan).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(verifyMissionFabric(mission.mission_id)?.valid).toBe(true);
+  });
+
+  it('keeps an explicitly known predispatch zero numeric', async () => {
+    const mission = createMission({ title: 'Known predispatch zero', objective, operatorId: 'merlin' });
+    const result = await executeMission({
+      objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), authorityKey,
+      adapters: adapters(async () => { throw new AutomationAdapterError('openhands_deadline_expired', 0); }),
+    });
+    expect(result.cost_usd).toBe(0);
+    expect(projectedRun(mission.mission_id, result.run_id)).toMatchObject({ cost_usd: 0, cost_basis: 'runner_subtotal' });
   });
 });

@@ -1,21 +1,10 @@
 import type { AutomationAction } from './contracts';
+import type { EffectDiagnostics, EffectRule, MatchLocus } from './effect-diagnostics';
+export type { EffectDiagnostics, MatchLocus } from './effect-diagnostics';
 
 /**
- * Refusal diagnostics. Carries only the identifier of the rule that matched,
- * three numbers and one closed enumeration, never any part of the scanned text:
- * no matched substring, no path, no command, no model prose, no object key from
- * the payload. A credential cannot travel in this object.
- */
-export interface EffectDiagnostics {
-  rule: string | null;
-  scanned_actions: number;
-  scanned_chars: number;
-  match_index: number | null;
-  match_locus: MatchLocus | null;
-}
-
-/**
- * Where a forbidden pattern was found inside the pending action.
+ * Where a forbidden pattern was found inside the pending action, using a
+ * structural field-name heuristic, not proof of execution safety.
  *
  * `command` is a field the worker proposes to execute. `content` is a field the
  * worker proposes to write into a file. `other` is any remaining field.
@@ -33,8 +22,6 @@ export interface EffectDiagnostics {
  * a containment argument that does not exist yet. Recording where the match sat
  * supplies the evidence for that decision without pre-empting it.
  */
-export type MatchLocus = 'command' | 'content' | 'other';
-
 export interface EffectDecision { allowed: boolean; reason: string; diagnostics?: EffectDiagnostics; }
 
 /** Fields a worker proposes to execute. */
@@ -66,15 +53,21 @@ function segments(value: unknown, locus: MatchLocus = 'other', output: Segment[]
   return output;
 }
 
-/** Locate the segment holding a match offset in the joined text. */
-function locusAt(parts: Segment[], index: number): MatchLocus | null {
+/** Classify the full matched span, ignoring only synthetic join separators. */
+function locusAt(parts: Segment[], index: number, length: number): MatchLocus | null {
   let start = 0;
+  let locus: MatchLocus | null = null;
+  const matchEnd = index + length;
   for (const part of parts) {
     const end = start + part.text.length;
-    if (index >= start && index < end) return part.locus;
+    if (start < matchEnd && end > index && part.text.length > 0) {
+      if (locus !== null && locus !== part.locus) return 'other';
+      locus = part.locus;
+    }
+    if (end >= matchEnd) break;
     start = end + 1; // the single separator character introduced by the join
   }
-  return null;
+  return locus;
 }
 
 /** Evaluate pending OpenHands actions, never observations or model prose. */
@@ -87,7 +80,7 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
     const kind = String(event.kind ?? event.type ?? '').toLowerCase();
     return kind.includes('action') && !kind.includes('observation');
   });
-  const diagnose = (rule: string | null, scannedChars: number, matchIndex: number | null, matchLocus: MatchLocus | null = null): EffectDiagnostics => ({
+  const diagnose = (rule: EffectRule | null, scannedChars: number, matchIndex: number | null, matchLocus: MatchLocus | null = null): EffectDiagnostics => ({
     rule, scanned_actions: actions.length, scanned_chars: scannedChars, match_index: matchIndex, match_locus: matchLocus,
   });
   if (actions.length < 1) return { allowed: false, reason: 'pending_action_missing', diagnostics: diagnose(null, 0, null) };
@@ -95,7 +88,7 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
   const text = parts.map((part) => part.text).join('\n');
   if (text.length > 128_000) return { allowed: false, reason: 'pending_action_oversized', diagnostics: diagnose(null, text.length, null) };
 
-  const checks: Array<[RegExp, string]> = [
+  const checks: Array<[RegExp, EffectRule]> = [
     [/\bgit\s+(?:-\S+\s+)*push\b/i, 'git_push_forbidden'],
     [/\bgit\s+remote\s+(?:add|set-url|rename|remove)\b/i, 'git_remote_mutation_forbidden'],
     [/(?:169\.254\.169\.254|metadata\.google\.internal|100\.100\.100\.200)/i, 'cloud_metadata_forbidden'],
@@ -107,7 +100,7 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
   ];
   for (const [pattern, reason] of checks) {
     const match = pattern.exec(text);
-    if (match) return { allowed: false, reason, diagnostics: diagnose(reason, text.length, match.index, locusAt(parts, match.index)) };
+    if (match) return { allowed: false, reason, diagnostics: diagnose(reason, text.length, match.index, locusAt(parts, match.index, match[0].length)) };
   }
   if (allowedActions.some((action) => ['external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy', 'financial_action', 'destructive_action'].includes(action))) {
     return { allowed: false, reason: 'consequential_capability_forbidden', diagnostics: diagnose(null, text.length, null) };

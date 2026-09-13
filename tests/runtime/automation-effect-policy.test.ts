@@ -97,4 +97,62 @@ describe('OpenHands effect policy', () => {
     expect(['command', 'content', 'other', null]).toContain(decision.diagnostics?.match_locus ?? null);
     expect(JSON.stringify(decision.diagnostics)).not.toContain('unexpected_field');
   });
+
+  it.each([
+    [{ content: 'git', command: 'push' }, ['git', 'push'], 'other'],
+    [{ command: 'git', content: 'push' }, ['git', 'push'], 'other'],
+    [{ command: ['git', '', 'push'] }, ['git', '', 'push'], 'command'],
+    [{ content: ['git', '', 'push'] }, ['git', '', 'push'], 'content'],
+    [{ content: ['git', { command: 'push' }] }, ['git', 'push'], 'other'],
+    [{ command: 'git', unexpected: 'push' }, ['git', 'push'], 'other'],
+  ])('classifies the entire cross-field match in %j without changing the scan', (action, strings, locus) => {
+    const text = ['ActionEvent', ...strings].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['run_tests']);
+    expect(decision).toEqual({
+      allowed: false, reason: 'git_push_forbidden',
+      diagnostics: {
+        rule: 'git_push_forbidden', scanned_actions: 1, scanned_chars: text.length,
+        match_index: text.indexOf('git'), match_locus: locus,
+      },
+    });
+  });
+
+  it.each(['command', 'content', 'unexpected'])('ignores a leading join separator for %s', key => {
+    const action = { empty: '', [key]: '../outside' };
+    const text = ['ActionEvent', '', '../outside'].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['read_repo']);
+    expect(decision).toEqual({
+      allowed: false, reason: 'workspace_escape_forbidden',
+      diagnostics: {
+        rule: 'workspace_escape_forbidden', scanned_actions: 1, scanned_chars: text.length,
+        match_index: text.indexOf('../') - 1, match_locus: key === 'unexpected' ? 'other' : key,
+      },
+    });
+  });
+
+  it('counts actual matched whitespace, unlike synthetic separators', () => {
+    const decision = evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { content: ' ', command: '../outside' },
+    }] }, ['read_repo']);
+    // The matched leading character is the synthetic newline, not the preceding
+    // content space. The original regexp and its exact offset are unchanged.
+    expect(decision.diagnostics).toMatchObject({ match_index: 13, match_locus: 'command' });
+    const mixed = evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { content: 'git', command: ' ', text: 'push' },
+    }] }, ['read_repo']);
+    expect(mixed.diagnostics?.match_locus).toBe('other');
+  });
+
+  it('preserves UTF-16 scan offsets and never includes object keys in the scan', () => {
+    const action = { ignored_key: '😀', command: `${escalation} npm test` };
+    const text = ['ActionEvent', '😀', `${escalation} npm test`].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['read_repo']);
+    expect(decision.diagnostics).toEqual({
+      rule: 'privilege_escalation_forbidden', scanned_actions: 1,
+      scanned_chars: text.length, match_index: text.indexOf(escalation), match_locus: 'command',
+    });
+    expect(evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { [escalation]: 'npm test' },
+    }] }, ['run_tests']).allowed).toBe(true);
+  });
 });

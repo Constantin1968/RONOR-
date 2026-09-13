@@ -5,6 +5,7 @@ import { signExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
 import { signModelBudget, type ModelBudgetContext } from '../model-budget';
 import { readVerificationFailureDiagnostic, verificationFailureCategory, type VerificationFailureDiagnostic } from '../verification-diagnostics';
+import { readResultEffectDiagnostics } from '../effect-diagnostics';
 
 type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
@@ -292,5 +293,9 @@ function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
       artifacts.push({ kind: item.kind as EvidenceArtifact['kind'], sha256: item.sha256, reference: item.reference, bytes: item.bytes });
     }
   }
-  return { ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), artifacts, cost_usd: body.cost_usd };
+  const effectDiagnostics = readResultEffectDiagnostics(body);
+  return {
+    ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), artifacts, cost_usd: body.cost_usd,
+    ...(effectDiagnostics ? { effect_diagnostics: effectDiagnostics } : {}),
+  };
 }

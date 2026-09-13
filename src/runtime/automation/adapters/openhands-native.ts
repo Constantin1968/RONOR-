@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import type { AdapterResult, OpenHandsExecutionEnvelope } from '../contracts';
 import type { NativeOpenHandsPort } from '../services/openhands-bridge';
 import { evaluatePendingOpenHandsActions } from '../pending-openhands-actions';
+import type { EffectDecision } from '../effect-policy';
+import { readEffectDiagnostics, type EffectDiagnostics } from '../effect-diagnostics';
 import { MODEL_RATE_CARD } from '../model-budget';
 
 type Fetcher = typeof fetch;
@@ -172,9 +174,11 @@ export function createNativeOpenHandsClient(config: {
         ...(config.llm.inputCostPerToken!==undefined?{input_cost_per_token:config.llm.inputCostPerToken,
           output_cost_per_token:config.llm.outputCostPerToken}:{}),
       }:undefined;
+      let refusalDiagnostics: EffectDiagnostics | null = null;
       const finish = (ok: boolean, summary: string): AdapterResult => ({
         ok: ok && cost !== null, summary: cost === null && ok ? 'openhands_cost_unknown' : summary,
         evidence: conversationId ? [`conversation:${conversationId}`] : [], cost_usd: cost,
+        ...(!ok && refusalDiagnostics ? { effect_diagnostics: refusalDiagnostics } : {}),
       });
       const pauseAndAccount = async (): Promise<boolean> => {
         if (!conversationId) return false;
@@ -283,7 +287,7 @@ export function createNativeOpenHandsClient(config: {
           const items: unknown[] = [];
           const cursors = new Set<string>();
           let pageId: string | undefined;
-          let decision = { allowed:false, reason:'pending_branch_incomplete' };
+          let decision: EffectDecision = { allowed:false, reason:'pending_branch_incomplete' };
           for (let page = 0; page < 32; page += 1) {
             const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, executionSignal);
             if (!Array.isArray(events.items) || events.items.length > 100) {
@@ -303,6 +307,8 @@ export function createNativeOpenHandsClient(config: {
               return finish(false, paused ? 'openhands_pending_state_changed' : 'openhands_pause_unconfirmed');
             }
           }
+          // Retain only closed-schema diagnostics even if rejection/pause fails.
+          if (!decision.allowed) refusalDiagnostics = readEffectDiagnostics(decision.diagnostics);
           await call(`/api/conversations/${conversationId}/events/respond_to_confirmation`, 'POST', {
             accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
           }, executionSignal);

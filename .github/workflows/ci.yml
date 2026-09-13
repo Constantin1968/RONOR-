@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -148,8 +149,6 @@ jobs:
           cache: 'npm'
       - run: npm ci
 
-      # Prefer the freshly generated G5 report from baseline-equivalence over any
-      # stale checked-in evidence/knowledge/equivalence-report.json.
       - name: Download fresh equivalence evidence
         uses: actions/download-artifact@v4
         with:
@@ -163,28 +162,39 @@ jobs:
         run: npx ts-node --transpile-only scripts/benchmark-retrieval.ts
 
       - name: Conformance verification
+        id: verify
         env:
-          # Isolate shared SQLite surfaces from other suites on this runner.
           AUDIT_DB_PATH: /tmp/ronor-conformance-audit.db
           RONOR_API_KEYS: conformance:conformance-harness-key-not-for-production
         run: npx ts-node --transpile-only scripts/verify-knowledge-conformance.ts
 
-      - name: Dump failed conformance checks
+      - name: Report failed conformance checks on PR
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f evidence/knowledge/conformance-report.json ]; then
-            python3 - <<'PY'
+          REPORT=evidence/knowledge/conformance-report.json
+          if [ ! -f "$REPORT" ]; then
+            BODY="Conformance verification failed before writing conformance-report.json (verify outcome=${{ steps.verify.outcome }})."
+          else
+            BODY=$(python3 - <<'PY'
           import json
           r=json.load(open('evidence/knowledge/conformance-report.json'))
-          print('VERDICT', r.get('verdict'))
+          lines=['## Conformance FAIL dump', f"Verdict: `{r.get('verdict')}`", '']
           for c in r.get('checks', []):
             if c.get('result')=='FAIL':
-              print('FAIL', c.get('id'), c.get('description'))
-              print(json.dumps(c.get('observed'), indent=2)[:4000])
+              lines.append(f"### {c.get('id')}: {c.get('description')}")
+              lines.append('```json')
+              lines.append(json.dumps(c.get('observed'), indent=2)[:3500])
+              lines.append('```')
+              lines.append('')
+          if len(lines)==3:
+            lines.append('_No FAIL checks in report (runner may have crashed)._')
+          print('\n'.join(lines))
           PY
-          else
-            echo "no conformance-report.json written"
+          )
           fi
+          gh pr comment ${{ github.event.pull_request.number }} --body "$BODY"
 
       - name: Upload conformance evidence
         if: always()

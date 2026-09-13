@@ -47,19 +47,54 @@ describe('OpenHands effect policy', () => {
 
   it('reports no rule and no offset when no pattern matched', () => {
     const allowed = evaluateOpenHandsEffects(pending('npm test'), ['run_tests']);
-    expect(allowed.diagnostics).toEqual({ rule: null, scanned_actions: 1, scanned_chars: expect.any(Number), match_index: null });
+    expect(allowed.diagnostics).toEqual({ rule: null, scanned_actions: 1, scanned_chars: expect.any(Number), match_index: null, match_locus: null });
 
     const capability = evaluateOpenHandsEffects(pending('git status'), ['read_repo', 'push']);
     expect(capability.diagnostics?.rule).toBeNull();
     expect(capability.diagnostics?.match_index).toBeNull();
   });
 
-  it('counts every scanned action and carries nothing beyond the four diagnostic keys', () => {
+  it('counts every scanned action and carries nothing beyond the declared diagnostic keys', () => {
     const two = { items: [{ kind: 'ActionEvent', action: { command: 'git status' } }, { kind: 'ActionEvent', action: { command: 'npm test' } }] };
     const decision = evaluateOpenHandsEffects(two, ['read_repo', 'run_tests']);
     expect(decision.diagnostics?.scanned_actions).toBe(2);
-    expect(Object.keys(decision.diagnostics ?? {}).sort()).toEqual(['match_index', 'rule', 'scanned_actions', 'scanned_chars']);
+    expect(Object.keys(decision.diagnostics ?? {}).sort()).toEqual(['match_index', 'match_locus', 'rule', 'scanned_actions', 'scanned_chars']);
     expect(JSON.stringify(decision.diagnostics)).not.toContain('npm');
     expect(JSON.stringify(decision.diagnostics)).not.toContain('git');
+  });
+
+  /*
+   * Locus of the match. The refusal itself must not depend on the locus: a
+   * forbidden token written into a file can be executed later by a test, a hook
+   * or a build step, so it is refused exactly like a command. Only the record
+   * of where it sat is new.
+   */
+  it('attributes a match in an executable field to the command locus', () => {
+    const decision = evaluateOpenHandsEffects(pending(`${escalation} npm test`), ['read_repo', 'run_tests']);
+    expect(decision.diagnostics?.match_locus).toBe('command');
+  });
+
+  it('refuses a match found only in file content, and records it as content', () => {
+    const write = { items: [{ kind: 'ActionEvent', action: { path: 'tests/fixture.ts', file_text: `const sample = '${escalation} npm test';` } }] };
+    const decision = evaluateOpenHandsEffects(write, ['read_repo', 'edit_worktree']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe('privilege_escalation_forbidden');
+    expect(decision.diagnostics?.match_locus).toBe('content');
+  });
+
+  it('inherits the command locus into nested arguments', () => {
+    const nested = { items: [{ kind: 'ActionEvent', action: { command: { args: ['npm', 'test'], shell: `${escalation} -i` } } }] };
+    const decision = evaluateOpenHandsEffects(nested, ['run_tests']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.diagnostics?.match_locus).toBe('command');
+  });
+
+  it('records an unclassified field as other and keeps the locus inside a closed enumeration', () => {
+    const odd = { items: [{ kind: 'ActionEvent', action: { unexpected_field: `${escalation} npm test` } }] };
+    const decision = evaluateOpenHandsEffects(odd, ['read_repo']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.diagnostics?.match_locus).toBe('other');
+    expect(['command', 'content', 'other', null]).toContain(decision.diagnostics?.match_locus ?? null);
+    expect(JSON.stringify(decision.diagnostics)).not.toContain('unexpected_field');
   });
 });

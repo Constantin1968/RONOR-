@@ -1,6 +1,18 @@
 import type { AutomationAction } from './contracts';
 
-export interface EffectDecision { allowed: boolean; reason: string; }
+/**
+ * Refusal diagnostics. Carries only the identifier of the rule that matched and
+ * three numbers, never any part of the scanned text: no matched substring, no
+ * path, no command, no model prose. A credential cannot travel in this object.
+ */
+export interface EffectDiagnostics {
+  rule: string | null;
+  scanned_actions: number;
+  scanned_chars: number;
+  match_index: number | null;
+}
+
+export interface EffectDecision { allowed: boolean; reason: string; diagnostics?: EffectDiagnostics; }
 
 function strings(value: unknown, output: string[] = [], depth = 0): string[] {
   if (depth > 8 || output.length > 500) return output;
@@ -20,9 +32,12 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
     const kind = String(event.kind ?? event.type ?? '').toLowerCase();
     return kind.includes('action') && !kind.includes('observation');
   });
-  if (actions.length < 1) return { allowed: false, reason: 'pending_action_missing' };
+  const diagnose = (rule: string | null, scannedChars: number, matchIndex: number | null): EffectDiagnostics => ({
+    rule, scanned_actions: actions.length, scanned_chars: scannedChars, match_index: matchIndex,
+  });
+  if (actions.length < 1) return { allowed: false, reason: 'pending_action_missing', diagnostics: diagnose(null, 0, null) };
   const text = strings(actions).join('\n');
-  if (text.length > 128_000) return { allowed: false, reason: 'pending_action_oversized' };
+  if (text.length > 128_000) return { allowed: false, reason: 'pending_action_oversized', diagnostics: diagnose(null, text.length, null) };
 
   const checks: Array<[RegExp, string]> = [
     [/\bgit\s+(?:-\S+\s+)*push\b/i, 'git_push_forbidden'],
@@ -34,12 +49,15 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
     [/\b(?:sudo|su)\b/i, 'privilege_escalation_forbidden'],
     [/\b(?:rm\s+-rf|mkfs|shutdown|reboot|poweroff)\b/i, 'destructive_command_forbidden'],
   ];
-  for (const [pattern, reason] of checks) if (pattern.test(text)) return { allowed: false, reason };
+  for (const [pattern, reason] of checks) {
+    const match = pattern.exec(text);
+    if (match) return { allowed: false, reason, diagnostics: diagnose(reason, text.length, match.index) };
+  }
   if (allowedActions.some((action) => ['external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy', 'financial_action', 'destructive_action'].includes(action))) {
-    return { allowed: false, reason: 'consequential_capability_forbidden' };
+    return { allowed: false, reason: 'consequential_capability_forbidden', diagnostics: diagnose(null, text.length, null) };
   }
   if (!allowedActions.some((action) => ['read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local', 'prepare_draft_pr'].includes(action))) {
-    return { allowed: false, reason: 'no_effect_capability' };
+    return { allowed: false, reason: 'no_effect_capability', diagnostics: diagnose(null, text.length, null) };
   }
-  return { allowed: true, reason: 'within_isolated_mandate' };
+  return { allowed: true, reason: 'within_isolated_mandate', diagnostics: diagnose(null, text.length, null) };
 }

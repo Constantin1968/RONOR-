@@ -106,10 +106,22 @@ export async function runExecutiveMission(params: {
       actor: { kind: actor, id: actor === 'agent' ? 'victoria' : actor },
     });
   };
-  const emitStatus = (run: AutomationRun, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => append('run.status_changed', {
+  /* Why a null cost is null. The accounting rule is that an unknown amount stays
+   * null and never becomes zero, so a reader of the audit trail sees null in two
+   * quite different situations: a dispatch is in flight and its amount is not yet
+   * settled, or a dispatch was aborted and the runner will never learn what it
+   * spent, while the model budget ledger has settled that amount durably. The
+   * basis names which of the two holds, so the trail says where the authoritative
+   * number lives instead of leaving a silent null. It carries no amount. */
+  const emitStatus = (
+    run: AutomationRun, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent',
+    basis?: 'unknown_pending_dispatch',
+  ) => append('run.status_changed', {
     id: runId, run_id: runId, mission_id: params.mandate.mission_id, stage, status: run.status,
     completed_assignments: run.completed_assignments, total_assignments: run.total_assignments,
-    cost_usd: run.cost_usd === null ? null : Number(run.cost_usd.toFixed(9)), reason_code: run.reason, updated_at: now().toISOString(),
+    cost_usd: run.cost_usd === null ? null : Number(run.cost_usd.toFixed(9)),
+    cost_basis: run.cost_usd !== null ? 'runner_subtotal' : basis ?? 'unknown_ledger_authoritative',
+    reason_code: run.reason, updated_at: now().toISOString(),
   }, actor);
   const terminal = (run: AutomationRun, status: AutomationRun['status'], reason: string | null, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => {
     const result = { ...run, status, reason };
@@ -176,7 +188,7 @@ export async function runExecutiveMission(params: {
     run.status = 'executing';
     // Crash between dispatch and response leaves UNKNOWN accounting in storage.
     // The in-memory subtotal remains available to add a validated response.
-    emitStatus({ ...run, cost_usd: null }, 'openhands', 'openhands');
+    emitStatus({ ...run, cost_usd: null }, 'openhands', 'openhands', 'unknown_pending_dispatch');
     let result;
     try { result = await params.adapters.openhands.execute(assignment, params.mandate, executionSignal, {run_id:runId,accounted_cost_usd:run.cost_usd}); }
     catch (error) {
@@ -243,7 +255,7 @@ export async function runExecutiveMission(params: {
   try { if (params.artifactCollector) verifiedArtifacts = params.artifactCollector.verify(workerArtifacts); }
   catch { append('failure.recorded', { id: `${runId}-artifact-integrity-failed`, run_id: runId, reason: 'artifact_integrity_failed' }, 'codex'); return terminal(run, 'failed', 'artifact_integrity_failed', 'codex', 'codex'); }
   const verificationEvidence = { claims: workerClaims, artifacts: verifiedArtifacts };
-  emitStatus({ ...run, cost_usd: null }, 'codex', 'codex');
+  emitStatus({ ...run, cost_usd: null }, 'codex', 'codex', 'unknown_pending_dispatch');
   try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal,
     {mandate:params.mandate,budget:{run_id:runId,accounted_cost_usd:run.cost_usd}}); }
   catch (error) {
@@ -269,7 +281,7 @@ export async function runExecutiveMission(params: {
   emitStatus(run, 'assurance', 'agent');
   if (expired()) return terminal(run, 'failed', 'runtime_limit_exceeded', 'assurance', 'agent');
   let assurance;
-  emitStatus({ ...run, cost_usd: null }, 'assurance', 'agent');
+  emitStatus({ ...run, cost_usd: null }, 'assurance', 'agent', 'unknown_pending_dispatch');
   try { assurance = await params.adapters.assurance.accept(params.mandate.mission_id, codex, verificationEvidence, executionSignal); }
   catch (error) {
     run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);

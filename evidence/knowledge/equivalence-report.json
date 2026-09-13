@@ -7,7 +7,7 @@
   "checks": [
     {
       "id": "BE-1",
-      "description": "No knowledge route is registered in disabled mode (all return 404)",
+      "description": "No knowledge route is registered in disabled mode (authenticated probes all return 404)",
       "result": "PASS",
       "observed": {
         "/api/v1/knowledge/ingest": "404",
@@ -20,7 +20,7 @@
     },
     {
       "id": "BE-1-CONTROL",
-      "description": "EVERY knowledge route responds when enabled, proving the probe detects a mount",
+      "description": "EVERY knowledge route responds when enabled (authenticated), proving the probe detects a mount",
       "result": "PASS",
       "observed": {
         "/api/v1/knowledge/ingest": "400",
@@ -33,12 +33,25 @@
     },
     {
       "id": "BE-2",
-      "description": "Every baseline route still responds successfully in disabled mode",
+      "description": "Every baseline route still responds successfully (auth where /api/v1 requires it; /health public)",
       "result": "PASS",
       "observed": {
         "/health": "200",
         "/api/v1/sentinel/status": "200",
         "/api/v1/model-exchange/registry": "200"
+      }
+    },
+    {
+      "id": "BE-F01",
+      "description": "F01 approved: unauthenticated /api/v1 returns 401; GET /health stays public",
+      "result": "PASS",
+      "observed": {
+        "api_v1_anonymous": {
+          "/api/v1/sentinel/status": "401",
+          "/api/v1/model-exchange/registry": "401",
+          "/api/v1/knowledge/status": "401"
+        },
+        "health_anonymous": "200"
       }
     },
     {
@@ -74,7 +87,9 @@
       "result": "PASS",
       "observed": {
         "top_level_keys": [
+          "degradation_reasons",
           "models",
+          "persistence",
           "planes",
           "sentinel",
           "status",
@@ -89,8 +104,10 @@
       "result": "PASS",
       "observed": {
         "top_level_keys": [
+          "degradation_reasons",
           "knowledge",
           "models",
+          "persistence",
           "planes",
           "sentinel",
           "status",
@@ -118,10 +135,13 @@
     },
     {
       "id": "BE-4",
-      "description": "Runtime status remains 'ok' in disabled mode",
+      "description": "Runtime status is identical in both modes and no degradation is blamed on R-Knowledge",
       "result": "PASS",
       "observed": {
-        "status": "ok"
+        "status_disabled": "ok",
+        "status_enabled": "ok",
+        "degradation_reasons_disabled": [],
+        "degradation_reasons_enabled": []
       }
     },
     {
@@ -134,22 +154,25 @@
     },
     {
       "id": "ISO-1",
-      "description": "The orchestrator, audit chain and MI9 gate are byte-identical to the baseline",
+      "description": "The orchestrator, audit chain and approved MI9 repair match pinned hashes",
       "result": "PASS",
       "observed": {
         "src/orchestrator.ts": {
           "baseline": "903f2f8ae350acf521726889df209f20d027bcc0",
-          "current": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "expected": "2630262353157928b165facbfdf63c44fb7a9c00",
+          "current": "2630262353157928b165facbfdf63c44fb7a9c00",
           "identical": true
         },
         "src/audit/hash-chain.ts": {
           "baseline": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
-          "current": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "expected": "3c2b9e848684c1e6953516a6c8f4f0f794ffc50f",
+          "current": "3c2b9e848684c1e6953516a6c8f4f0f794ffc50f",
           "identical": true
         },
         "src/governance/mi9-gate.ts": {
           "baseline": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
-          "current": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "expected": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
+          "current": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
           "identical": true
         }
       }

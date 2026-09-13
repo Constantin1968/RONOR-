@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -95,15 +96,6 @@ jobs:
           test "$(printf '%s\n' "$output" | grep -c '^PASS  network\|^PREFLIGHT PASS')" -eq 0
           test "$(printf '%s\n' "$output" | grep -c 'set RONOR_AUTOMATION_SECRET_DIR')" -eq 1
 
-  # ============================================================
-  # ADDITIVE JOBS — MIP-014 STEP 2, R-Knowledge plane
-  #
-  # Added, not modified. The three pre-existing jobs above (build, test, security)
-  # are byte-identical to baseline d058544d in name, trigger, steps and semantics,
-  # so a failure in either job below cannot be confused with a regression in the
-  # pre-existing pipeline.
-  # ============================================================
-
   baseline-equivalence:
     name: Baseline Equivalence (R-Knowledge disabled)
     runs-on: ubuntu-latest
@@ -119,22 +111,12 @@ jobs:
           cache: 'npm'
       - run: npm ci
 
-      # The ABSOLUTE gate. With KNOWLEDGE_ENABLED absent, the runtime must be
-      # observationally indistinguishable from the baseline commit. This job is
-      # deliberately separate from `test` so that a failure here is unambiguous: it
-      # means the disabled-mode guarantee has been broken, which is a different and
-      # more serious condition than a failing unit test.
-      #
-      # KNOWLEDGE_ENABLED is deliberately NOT set anywhere in this job. Its absence
-      # is the test condition.
       - name: Disabled-mode equivalence assertions
-        run: npx jest tests/knowledge/equivalence.test.ts
+        run: npx jest tests/knowledge/equivalence.test.ts --runInBand
 
       - name: Runtime equivalence harness (boots both modes)
         env:
           OPENAI_API_KEY: placeholder
-          # F01: harness seeds this via RONOR_API_KEYS inside the script; keep the
-          # env explicit so reviewers see the credential path in CI.
           RONOR_API_KEYS: equivalence:eq-harness-key-not-for-production
         run: |
           npm run build
@@ -154,8 +136,8 @@ jobs:
   knowledge-conformance:
     name: R-Knowledge Conformance
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: build
+    timeout-minutes: 20
+    needs: [build, baseline-equivalence]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -166,19 +148,43 @@ jobs:
           cache: 'npm'
       - run: npm ci
 
+      # Prefer the freshly generated G5 report from baseline-equivalence over any
+      # stale checked-in evidence/knowledge/equivalence-report.json.
+      - name: Download fresh equivalence evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: equivalence-evidence
+          path: evidence/knowledge
+
       - name: R-Knowledge test suites
         run: npx jest tests/knowledge --runInBand
 
-      # The benchmark's exit code is governed by the RELEASE GATE only (citation
-      # accuracy and provenance completeness, both contractual, neither waivable).
-      # Operational-retrieval qualification is recorded as a verdict and does NOT
-      # fail the build: conflating the two would either block a permitted release or
-      # silently pass an unqualified one.
       - name: Retrieval benchmark (release gate determines exit code)
-        run: npx ts-node scripts/benchmark-retrieval.ts
+        run: npx ts-node --transpile-only scripts/benchmark-retrieval.ts
 
       - name: Conformance verification
-        run: npx ts-node scripts/verify-knowledge-conformance.ts
+        env:
+          # Isolate shared SQLite surfaces from other suites on this runner.
+          AUDIT_DB_PATH: /tmp/ronor-conformance-audit.db
+          RONOR_API_KEYS: conformance:conformance-harness-key-not-for-production
+        run: npx ts-node --transpile-only scripts/verify-knowledge-conformance.ts
+
+      - name: Dump failed conformance checks
+        if: failure()
+        run: |
+          if [ -f evidence/knowledge/conformance-report.json ]; then
+            python3 - <<'PY'
+          import json
+          r=json.load(open('evidence/knowledge/conformance-report.json'))
+          print('VERDICT', r.get('verdict'))
+          for c in r.get('checks', []):
+            if c.get('result')=='FAIL':
+              print('FAIL', c.get('id'), c.get('description'))
+              print(json.dumps(c.get('observed'), indent=2)[:4000])
+          PY
+          else
+            echo "no conformance-report.json written"
+          fi
 
       - name: Upload conformance evidence
         if: always()

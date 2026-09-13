@@ -155,17 +155,21 @@ jobs:
           name: equivalence-evidence
           path: evidence/knowledge
 
+      # Run verify BEFORE knowledge/benchmark so CONF-4/CONF-5 see the same clean
+      # workspace as the Jest Tests job. Prior suite pollution (shared SQLite under
+      # data/, leftover stores) caused CONF-5 to report 2 suite failures while
+      # npm test on a fresh runner stayed green.
+      - name: Conformance verification
+        id: verify
+        run: |
+          rm -f data/*.db data/*.db-* data/*.db-wal data/*.db-shm 2>/dev/null || true
+          npx ts-node --transpile-only scripts/verify-knowledge-conformance.ts
+
       - name: R-Knowledge test suites
         run: npx jest tests/knowledge --runInBand
 
       - name: Retrieval benchmark (release gate determines exit code)
         run: npx ts-node --transpile-only scripts/benchmark-retrieval.ts
-
-      # Do NOT set RONOR_API_KEYS / AUDIT_DB_PATH here: CONF-5 re-runs the whole
-      # suite and those vars change auth/bootstrap behaviour vs the green Jest Tests job.
-      - name: Conformance verification
-        id: verify
-        run: npx ts-node --transpile-only scripts/verify-knowledge-conformance.ts
 
       - name: Report failed conformance checks on PR
         if: failure()

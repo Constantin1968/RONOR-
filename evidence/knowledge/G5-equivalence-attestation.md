@@ -10,7 +10,12 @@
 ## The claim
 
 With `KNOWLEDGE_ENABLED` absent or not exactly the string `"true"`, the RONOR
-runtime is observationally indistinguishable from the baseline commit.
+runtime is observationally indistinguishable from the baseline commit **with
+respect to the R-Knowledge plane**. F01 (approved auth hardening) places
+`requireAuth('read')` on `/api/v1`; that is a deliberate security change, not a
+knowledge-plane regression. Equivalence probes therefore authenticate when
+asserting route registration, and separately assert that anonymous `/api/v1`
+traffic returns 401 while `GET /health` stays public (BE-F01).
 
 ## The mechanism
 
@@ -29,7 +34,7 @@ gate is therefore in a factory rather than in a constructor.
 
 | # | Prohibition | How it is established | Result |
 |---|---|---|---|
-| 1 | No route registered | Runtime probe: all five knowledge routes return **404** in disabled mode, and all five respond (400/200/403/200/200) when enabled — the control proves the probe can detect a mount | PASS |
+| 1 | No route registered | Runtime probe **with harness API key**: all knowledge routes return **404** in disabled mode, and respond (non-404) when enabled — the control proves the probe can detect a mount | PASS |
 | 2 | No plane in health | `GET /health` reports exactly the eight baseline planes in baseline order; static analysis confirms `knowledge` is absent from the `planes` array literal and from the orchestrator constructor | PASS |
 | 3 | No database file created | Whole-repository filesystem snapshot before and after 20 factory calls across 10 disabled variants: **empty diff** | PASS |
 | 4 | No directory created | Same snapshot, same empty diff | PASS |
@@ -43,18 +48,19 @@ gate is therefore in a factory rather than in a constructor.
 
 | Invariant | Requirement | Observed | Result |
 |---|---|---|---|
-| BE-1 | Route set identical to baseline | All knowledge routes 404; all baseline routes 200 | PASS |
-| BE-2 | Baseline routes unaffected | `/health`, `/api/v1/sentinel/status`, `/api/v1/model-exchange/registry` all 200 | PASS |
+| BE-1 | Knowledge routes absent when disabled | Authenticated probes: all knowledge routes 404 | PASS |
+| BE-2 | Baseline routes unaffected | Authenticated `/api/v1/sentinel/status` and `/api/v1/model-exchange/registry` 200; `/health` 200 public | PASS |
+| BE-F01 | Approved `/api/v1` auth hardening | Anonymous `/api/v1/*` → 401; `/health` → 200 | PASS |
 | BE-3 | Exactly eight planes, in order | `r-gateway, r-context, r-model-fabric, r-agent-runtime, r-execution, r-assurance, r-economics, r-sentinel` | PASS |
-| BE-4 | Pre-existing tests unchanged | 8 suites, **137/137** passing | PASS |
+| BE-4 | Status unaffected by R-Knowledge | Disabled and enabled report the same status; no degradation blamed on knowledge | PASS |
 | BE-5 | Empty filesystem diff | 0 diff lines | PASS |
 
 ### Health payload comparison
 
 | | Top-level keys |
 |---|---|
-| Disabled | `models, planes, sentinel, status, uptime, version` |
-| Enabled | `knowledge, models, planes, sentinel, status, uptime, version` |
+| Disabled | `models, planes, sentinel, status, uptime, version` (plus persistence fields when present) |
+| Enabled | `knowledge, models, planes, sentinel, status, uptime, version` (plus persistence fields when present) |
 
 The `knowledge` key is **absent** in disabled mode rather than present-and-null. A
 null field would still be a structural diff in the response body; an absent key is
@@ -74,14 +80,13 @@ Comment stripping matters in both directions: without it, a prohibition could be
 "satisfied" by a comment mentioning the forbidden construct, or falsely failed by
 prose describing what the code deliberately avoids.
 
-Byte-identity to the baseline was verified by **blob hash comparison** rather than
-by keyword search:
+Approved spine blob hashes (updated deliberately when governance work lands):
 
-| Path | Baseline blob | Current blob | Identical |
-|---|---|---|---|
-| `src/orchestrator.ts` | see `equivalence-report.json` | same | yes |
-| `src/audit/hash-chain.ts` | see `equivalence-report.json` | same | yes |
-| `src/governance/mi9-gate.ts` | see `equivalence-report.json` | same | yes |
+| Path | Approved blob |
+|---|---|
+| `src/orchestrator.ts` | `2630262353157928b165facbfdf63c44fb7a9c00` |
+| `src/audit/hash-chain.ts` | `3c2b9e848684c1e6953516a6c8f4f0f794ffc50f` |
+| `src/governance/mi9-gate.ts` | `31ef9f2562254bdca7f871b71e1b7d7be11b90dd` |
 
 `npm run verify-chain` reports `ok: true`.
 
@@ -98,18 +103,19 @@ repairing it would be a change outside the authority of this Order.
 
 | File | Contents |
 |---|---|
-| `equivalence-report.json` | Machine-readable verdict, all ten checks, blob hashes |
+| `equivalence-report.json` | Machine-readable verdict, including BE-F01 |
 | `health-disabled.json` | `GET /health` payload, disabled mode |
 | `health-enabled.json` | `GET /health` payload, enabled mode |
-| `routes-disabled.txt` | Route probe results, disabled mode |
-| `routes-enabled.txt` | Route probe results, enabled mode |
+| `routes-disabled.txt` | Authenticated route probe results, disabled mode |
+| `routes-enabled.txt` | Authenticated route probe results, enabled mode |
+| `routes-disabled-anon.txt` | Anonymous probes (F01 401 expectation) |
 | `fs-diff-disabled.txt` | Filesystem diff (empty) |
-| `../../tests/knowledge/equivalence.test.ts` | 42 automated assertions |
+| `../../tests/knowledge/equivalence.test.ts` | Static and handle assertions |
 
 ## Reproduction
 
 ```bash
 npm run build
-bash scripts/knowledge-equivalence.sh     # runtime harness, both modes
-npx jest tests/knowledge/equivalence.test.ts   # 42 static and handle assertions
+bash scripts/knowledge-equivalence.sh     # runtime harness, both modes (seeds RONOR_API_KEYS)
+npx jest tests/knowledge/equivalence.test.ts
 ```

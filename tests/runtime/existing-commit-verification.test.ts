@@ -159,7 +159,10 @@ it('rejects short, expression, wrong HEAD, nonancestor and dirty candidates befo
     { base_commit: 'f'.repeat(40) }, { base_commit: unrelated },
   ]) expect((await submit({ ...spec(), ...pins })).status).toBeGreaterThanOrEqual(400);
   fs.writeFileSync(path.join(repo, 'value.txt'), 'dirty\n');
-  expect((await submit()).status).toBe(422);
+  const dirty = await submit();
+  expect(dirty.status).toBe(422);
+  // The operator must be told which refusal this is, not merely that it failed.
+  expect(dirty.body).toEqual({ ok: false, error: 'verification_workspace_dirty' });
   expect(calls).toEqual([]);
 });
 

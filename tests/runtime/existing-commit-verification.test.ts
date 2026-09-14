@@ -399,3 +399,113 @@ it('records no observed cost when the egress ledger is unreachable or unconfigur
     expect(verification.observed_cost_basis).toBeNull();
   } finally { local.stop(); }
 });
+
+/** Builds a controller whose egress ledger answers a signed read exactly as the
+ * proxy would, so the barrier proof has a real authority to consult. */
+function withLedgerController(budget: (id: string) => Response) {
+  const withLedger: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname === 'model-egress-proxy') {
+      const id = decodeURIComponent(url.pathname.replace('/budget/', ''));
+      if (!verifyBudgetQuery(new Headers(init?.headers).get('x-ronor-budget-query') ?? '', id,
+        env.RONOR_AUTOMATION_CAPABILITY_KEY!))
+        return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 });
+      return budget(id);
+    }
+    return fetcher(input, init);
+  };
+  return createDevelopmentController({ ...env, RONOR_MODEL_EGRESS_URL: 'http://model-egress-proxy:3004' },
+    { verificationFetcher: withLedger });
+}
+const unknownBudget = () => new Response(JSON.stringify({ ok: false, error: 'budget_unknown' }), { status: 404 });
+
+it('returns the workspace after a cancellation once the worktree and the ledger prove nothing is left running', async () => {
+  // Until now a verification cancelled after one second held the workspace for
+  // the rest of its signed mandate. The barrier may be released early, but only
+  // against proof: the evidence runner must report itself idle and the ledger
+  // must show no dispatch outstanding. Both are asked, neither is assumed.
+  pauseEvidence = true;
+  const local = withLedgerController(unknownBudget);
+  try {
+    const architectHeader = { Authorization: `Bearer ${architect}` };
+    const post = (path: string, body: object, key = crypto.randomUUID()) =>
+      request(local.app).post(path).set(architectHeader).set('Idempotency-Key', key).send(body);
+    const first = await post('/api/development/verify-existing', spec());
+    const id = first.body.verification.verification_id;
+    for (let i = 0; i < 200 && !calls.includes('automation-evidence-runner/v1/verify-existing'); i++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    // While it is genuinely running, the workspace is closed to everyone.
+    expect((await post('/api/development/verify-existing', spec())).status).toBe(409);
+    expect((await post(`/api/development/verifications/${id}/cancel`, {})).body.verification.status).toBe('cancelled');
+    pauseEvidence = false;
+    let admitted: any;
+    for (let i = 0; i < 200; i++) {
+      admitted = await post('/api/development/verify-existing', spec());
+      if (admitted.status < 300) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    // Released well inside the one-minute mandate, so this is the proof and not
+    // the deadline expiring underneath the test.
+    expect(admitted.status).toBeLessThan(300);
+    expect(Date.parse((await request(local.app).get(`/api/development/verifications/${id}`)
+      .set(architectHeader)).body.verification.deadline)).toBeGreaterThan(Date.now());
+    expect(calls).toContain('automation-evidence-runner/health');
+    expect(calls.filter(c => c === 'codex-verifier/v1/verify')).toHaveLength(0);
+  } finally { local.stop(); }
+});
+
+it('keeps the barrier after a cancellation while a model dispatch is still unresolved', async () => {
+  // An unresolved dispatch means the provider may still be working and may still
+  // charge. That is exactly the case the deadline exists for, so the barrier
+  // must stay even though the worktree itself is idle.
+  pauseEvidence = true;
+  const local = withLedgerController(id => new Response(JSON.stringify({ ok: true,
+    protocol: 'ronor-model-egress/v1', rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id,
+    settled_micro_usd: 4000, settled_reservations: 1, pending_reservations: 1,
+    outstanding_micro_usd: 200000, frozen: true }), { status: 200 }));
+  try {
+    const architectHeader = { Authorization: `Bearer ${architect}` };
+    const post = (path: string, body: object) => request(local.app).post(path)
+      .set(architectHeader).set('Idempotency-Key', crypto.randomUUID()).send(body);
+    const first = await post('/api/development/verify-existing', spec());
+    const id = first.body.verification.verification_id;
+    for (let i = 0; i < 200 && !calls.includes('automation-evidence-runner/v1/verify-existing'); i++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    expect((await post(`/api/development/verifications/${id}/cancel`, {})).body.verification.status).toBe('cancelled');
+    pauseEvidence = false;
+    for (let i = 0; i < 30; i++) {
+      expect((await post('/api/development/verify-existing', spec())).status).toBe(409);
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    // The run stays terminal and the mandate has not expired, so the barrier is
+    // held by the unresolved dispatch and not by the clock.
+    const verification = (await request(local.app).get(`/api/development/verifications/${id}`)
+      .set(architectHeader)).body.verification;
+    expect(verification.status).toBe('cancelled');
+    expect(Date.parse(verification.deadline)).toBeGreaterThan(Date.now());
+  } finally { local.stop(); }
+});
+
+it('keeps the barrier when the evidence runner reports itself still busy', async () => {
+  // The worktree authority is the evidence runner's own flag. If it says busy,
+  // no ledger answer may override it: a test could still be writing files.
+  pauseEvidence = true;
+  const local = withLedgerController(unknownBudget);
+  try {
+    alter = (url, body) => url.hostname === 'automation-evidence-runner' && url.pathname === '/health'
+      ? { body: { ...body, existing_verification_busy: true } } : undefined;
+    const architectHeader = { Authorization: `Bearer ${architect}` };
+    const post = (path: string, body: object) => request(local.app).post(path)
+      .set(architectHeader).set('Idempotency-Key', crypto.randomUUID()).send(body);
+    const first = await post('/api/development/verify-existing', spec());
+    const id = first.body.verification.verification_id;
+    for (let i = 0; i < 200 && !calls.includes('automation-evidence-runner/v1/verify-existing'); i++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    expect((await post(`/api/development/verifications/${id}/cancel`, {})).body.verification.status).toBe('cancelled');
+    pauseEvidence = false;
+    for (let i = 0; i < 30; i++) {
+      expect((await post('/api/development/verify-existing', spec())).status).toBe(409);
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  } finally { local.stop(); }
+});

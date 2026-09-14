@@ -9,6 +9,7 @@ import { EXISTING_ASSIGNMENT, inspectExistingCommit, validCommitPins, type Commi
 import { issueArchitectMandate, signMandateAuthority, verifyMandateAuthority } from './mandate-issuer';
 import { verificationEvidenceDigest } from './verification-receipt';
 import { createCostReconciler, type ObservedCost } from './cost-reconciliation';
+import { createBarrierQuiescence } from './barrier-quiescence';
 
 type Status = 'queued' | 'evidence' | 'codex' | 'victoria' | 'verified' | 'failed' | 'cancelled' | 'interrupted';
 const ACTIVE: Status[] = ['queued', 'evidence', 'codex', 'victoria'];
@@ -111,6 +112,8 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
   const release = (owner: string) => {
     getDb().prepare('DELETE FROM runtime_existing_commit_admission WHERE workspace=? AND owner=?').run(gateKey, owner);
   };
+  const holdsGate = (owner: string) => Boolean(getDb()
+    .prepare('SELECT 1 FROM runtime_existing_commit_admission WHERE workspace=? AND owner=?').get(gateKey, owner));
   const running = new Map<string, AbortController>();
   let stopped = false;
   const workspace = () => env.RONOR_AUTOMATION_WORKTREE!;
@@ -199,12 +202,44 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
         change(current, { observed });
     } catch { /* Integrity loss is not repaired by an accounting note. */ }
   }
+  const quiescence = createBarrierQuiescence({
+    baseUrl: env.RONOR_EVIDENCE_RUNNER_URL, token: env.RONOR_EVIDENCE_RUNNER_TOKEN, fetcher,
+  });
+  const releasing = new Set<string>();
+  /** A finished run keeps the workspace barrier only while something it started
+   * may still be running. Hold it on doubt, release it on proof: the evidence
+   * runner must report itself idle, and the egress ledger must show either that
+   * nothing was ever dispatched for this run or that every dispatch has settled.
+   * Anything unreadable leaves the barrier standing until the signed deadline,
+   * which is the behaviour this replaces and remains the safe floor. */
+  async function attemptQuietRelease(id: string) {
+    if (releasing.has(id) || running.has(id)) return;
+    let row: RecordState | null;
+    try { row = store.read(id); } catch { return; }
+    if (!row || active(row.status) || !holdsGate(id)) return;
+    releasing.add(id);
+    try {
+      const outcome = await reconciler.outcome(id);
+      const modelQuiet = outcome.kind === 'never-dispatched' ||
+        outcome.kind === 'settled' && outcome.cost.unresolved_dispatches === 0;
+      if (!modelQuiet || !await quiescence.proveWorktreeIdle()) return;
+      // Re-read inside the same guard: a new run may have been admitted, and
+      // release is owner scoped, so it can never take another owner's barrier.
+      const current = store.read(id);
+      if (current && !active(current.status) && !running.has(id) && holdsGate(id)) release(id);
+    } catch { /* Doubt retains the barrier. */ }
+    finally { releasing.delete(id); }
+  }
   // Runs killed with the process never reached their own accounting. Observe
-  // them once at start so a restart cannot silently erase what was spent.
+  // them once at start so a restart cannot silently erase what was spent, and
+  // give back a workspace that a lost process is provably no longer using.
   setImmediate(() => {
     let ids: string[] = [];
     try { ids = store.allIds(); } catch { return; }
-    for (const id of ids) void reconcile(id).catch(() => { /* Accounting is best effort. */ });
+    for (const id of ids) {
+      void reconcile(id).catch(() => { /* Accounting is best effort. */ });
+      void attemptQuietRelease(id).catch(() => { /* The barrier stays. */ });
+    }
   });
   async function attestAuthority(baseUrl: string, token: string, service: string, protocol: string, capability: string, signal: AbortSignal) {
     const response = await fetcher(new URL('/health', baseUrl), {
@@ -328,7 +363,10 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
         const row = store.read(id)!;
         if (row.status === 'verified' || row.status === 'failed' && phase === 'queued') release(id);
       } catch { /* Keep the admission barrier after integrity loss. */ }
-      void reconcile(id).catch(() => { /* Accounting is best effort. */ });
+      void reconcile(id)
+        .catch(() => { /* Accounting is best effort. */ })
+        .then(() => attemptQuietRelease(id))
+        .catch(() => { /* The barrier stays. */ });
     }
   }
   return {
@@ -403,6 +441,9 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
         try { collector().verify(row.evidence!.artifacts); }
         catch { row = change(row, { status: 'failed', reason: 'verification_integrity_failed', victoria_accepted: false }); }
       }
+      // Reading a finished run is the natural moment to find out whether the
+      // workspace it held has become free, without a timer or a polling loop.
+      if (!active(row.status)) void attemptQuietRelease(id).catch(() => { /* The barrier stays. */ });
       return publicStatus(row);
     },
     cancel(id: string, architectKeyId: string) {
@@ -410,6 +451,8 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
       let row = store.read(id)!;
       if (active(row.status)) row = change(row, { status: 'cancelled', reason: 'verification_cancelled' });
       running.get(id)?.abort();
+      // The abort only asks; the barrier comes back when the work is proven over.
+      void attemptQuietRelease(id).catch(() => { /* The barrier stays. */ });
       return publicStatus(row);
     },
     stop() {

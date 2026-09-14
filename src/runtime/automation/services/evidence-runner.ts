@@ -14,7 +14,13 @@ export function createEvidenceRunnerApp(config: {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '8kb' })); app.use(createServiceRateLimit());
   const authorised = (header: string | undefined) => header === `Bearer ${config.token}`;
   app.get('/health', (req, res) => authorised(req.header('authorization'))
-    ? res.json({ ok: true, protocol: 'ronor-evidence-runner/v1', service_id: 'automation-evidence-runner', capabilities: ['git-evidence', 'allowlisted-tests', ...(config.boundedTests && config.artifacts.collectCommitRange ? ['verify-existing'] : [])] })
+    ? res.json({ ok: true, protocol: 'ronor-evidence-runner/v1', service_id: 'automation-evidence-runner',
+      capabilities: ['git-evidence', 'allowlisted-tests', ...(config.boundedTests && config.artifacts.collectCommitRange ? ['verify-existing'] : [])],
+      // Whether a bounded test is still executing inside the worktree. The flag
+      // clears only after that execution has actually terminated, so a caller
+      // holding an admission barrier for a cancelled run can learn from here
+      // that the worktree is quiet instead of waiting out the signed deadline.
+      existing_verification_busy: existingBusy })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));
   let existingBusy = false;
   app.post('/v1/verify-existing', async (req, res) => {

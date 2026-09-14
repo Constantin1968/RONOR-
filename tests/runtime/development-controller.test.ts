@@ -179,6 +179,17 @@ describe('controller credential boundary', () => {
     expect(result.RONOR_AUTOMATION_RECOVERY_ENABLED).toBe('false');
     expect(() => controllerEnvironment({})).toThrow('controller_secret_missing_or_short');
   });
+  it('forwards the settlement address but never a model gateway credential', () => {
+    const result = controllerEnvironment({ ...configuration(),
+      RONOR_MODEL_EGRESS_URL: 'http://model-egress-proxy:3004',
+      RONOR_MODEL_GATEWAY_CODEX_TOKEN: 'not-forwarded',
+      RONOR_MODEL_GATEWAY_BASE_URL: 'https://not-forwarded.invalid/v1' });
+    // The address alone travels: without it a run that ended without reporting
+    // a cost stays unaccounted, and with a client token the controller could spend.
+    expect(result.RONOR_MODEL_EGRESS_URL).toBe('http://model-egress-proxy:3004');
+    expect(result.RONOR_MODEL_GATEWAY_CODEX_TOKEN).toBeUndefined();
+    expect(result.RONOR_MODEL_GATEWAY_BASE_URL).toBeUndefined();
+  });
   it('rejects shared identities', () => {
     const env = configuration(); env.RONOR_ASSURANCE_TOKEN = env.RONOR_OPENHANDS_TOKEN;
     expect(() => controllerEnvironment(env)).toThrow('controller_secret_identity_conflict');

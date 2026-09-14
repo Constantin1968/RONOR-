@@ -17,7 +17,12 @@ export function controllerEnvironment(source: NodeJS.ProcessEnv): NodeJS.Process
   for (const [name, value] of Object.entries(source)) {
     if (name.startsWith('RONOR_AUTOMATION_') ||
         ['RONOR_LANGGRAPH_URL', 'RONOR_OPENHANDS_URL', 'RONOR_CODEX_VERIFIER_URL',
-          'RONOR_ASSURANCE_URL', 'RONOR_EVIDENCE_RUNNER_URL'].includes(name)) env[name] = value;
+          'RONOR_ASSURANCE_URL', 'RONOR_EVIDENCE_RUNNER_URL',
+          // Address of the read-only budget settlement, so a run that ended
+          // without reporting a cost can still be accounted for. It is an
+          // address, not a credential: the read is signed with the capability
+          // key, and no model gateway client token is inherited here.
+          'RONOR_MODEL_EGRESS_URL'].includes(name)) env[name] = value;
   }
   for (const name of CONTROLLER_SECRETS) {
     const secret = secretValue(name, source);

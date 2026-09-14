@@ -26,6 +26,10 @@ interface RecordState {
   receipt: VerificationReceipt | null; victoria_accepted: boolean; cost_usd: number | null;
   /** Absent on rows written before cost reconciliation existed. */
   observed?: ObservedCost | null;
+  /** Set the moment the model verifier is asked, and never cleared. A cancelled
+   * run carries it too, because the verifier may still be mid-request and the
+   * budget may appear at the proxy after this controller has stopped waiting. */
+  reached_model?: boolean;
 }
 export class ExistingVerificationError extends Error {
   constructor(readonly code: string, readonly httpStatus = 422) { super(code); }
@@ -230,8 +234,19 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
     releasing.add(id);
     try {
       const outcome = await reconciler.outcome(id);
-      const modelQuiet = outcome.kind === 'never-dispatched' ||
-        outcome.kind === 'settled' && outcome.cost.unresolved_dispatches === 0;
+      // A run that never left the queue or the evidence phase has no budget,
+      // and none can appear later because nothing downstream was ever asked.
+      // A run that reached the model is different: the verifier may still be
+      // mid-request when this controller stops waiting, and the budget appears
+      // only when that request arrives at the proxy. For such a run an absent
+      // budget proves nothing, so it must be seen settled with no dispatch
+      // outstanding — which was observed happening seconds after a cancellation.
+      const reachedModel = row.status === 'codex' || row.status === 'victoria' ||
+        row.reason === 'verification_codex_failed' || row.cost_usd === null || row.receipt !== null ||
+        Boolean(row.reached_model);
+      const modelQuiet = outcome.kind === 'settled'
+        ? outcome.cost.unresolved_dispatches === 0
+        : outcome.kind === 'never-dispatched' && !reachedModel;
       if (!modelQuiet || !await quiescence.proveWorktreeIdle()) return;
       // Re-read inside the same guard: a new run may have been admitted, and
       // release is owner scoped, so it can never take another owner's barrier.
@@ -322,7 +337,10 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
         `range-sha256:${before.diff_sha256}`, 'workspace:clean', 'tests:pass',
       ], artifacts: result.artifacts };
       phase = 'codex';
-      row = change(row, { status: phase, evidence, evidence_digest: verificationEvidenceDigest(evidence), cost_usd: null });
+      // `reached_model` is written before the request leaves, so an abort can
+      // never lose the fact that a paid dispatch became possible.
+      row = change(row, { status: phase, reached_model: true, evidence,
+        evidence_digest: verificationEvidenceDigest(evidence), cost_usd: null });
       const codex = createCodexVerifierAdapter({
         baseUrl: env.RONOR_CODEX_VERIFIER_URL!, token: env.RONOR_CODEX_VERIFIER_TOKEN!,
         capabilityKey: env.RONOR_AUTOMATION_CAPABILITY_KEY, plaintextServiceHosts: ['codex-verifier'], fetcher,

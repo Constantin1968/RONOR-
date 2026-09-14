@@ -29,6 +29,7 @@ let calls: string[];
 let alter: (url: URL, body: any) => { status?: number; body?: any } | undefined;
 let pauseEvidence: boolean;
 let fetcher: typeof fetch;
+let pauseCodex = false;
 const architect = crypto.randomBytes(32).toString('hex');
 const admin = crypto.randomBytes(32).toString('hex');
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {
@@ -82,9 +83,16 @@ beforeEach(() => {
   });
   const victoria = createAssuranceAuthorityApp({ serviceToken: env.RONOR_ASSURANCE_TOKEN!, artifacts,
     receiptPublicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }).toString() });
-  calls = []; alter = () => undefined; pauseEvidence = false;
+  calls = []; alter = () => undefined; pauseEvidence = false; pauseCodex = false;
   fetcher = async (input, init) => {
     const url = new URL(String(input)); calls.push(`${url.hostname}${url.pathname}`);
+    if (pauseCodex && url.hostname === 'codex-verifier' && url.pathname === '/v1/verify') {
+      return new Promise((_resolve, reject) => {
+        const abort = () => reject(new Error('MOCK INTERRUPTED'));
+        init?.signal?.addEventListener('abort', abort, { once: true });
+        if (init?.signal?.aborted) abort();
+      });
+    }
     if (pauseEvidence && url.pathname === '/v1/verify-existing') {
       return new Promise((_resolve, reject) => {
         const abort = () => reject(new Error('MOCK INTERRUPTED'));
@@ -507,5 +515,34 @@ it('keeps the barrier when the evidence runner reports itself still busy', async
       expect((await post('/api/development/verify-existing', spec())).status).toBe(409);
       await new Promise(resolve => setTimeout(resolve, 10));
     }
+  } finally { local.stop(); }
+});
+
+it('keeps the barrier when a cancelled run had already reached the model and the proxy shows no budget yet', async () => {
+  // Observed on the host: the model verifier keeps working after the controller
+  // stops waiting for it, and the budget appears at the proxy only when that
+  // request arrives. An absent budget therefore proves nothing for a run that
+  // reached the model, and must not be read as "nothing was ever dispatched".
+  pauseCodex = true;
+  const local = withLedgerController(unknownBudget);
+  try {
+    const architectHeader = { Authorization: `Bearer ${architect}` };
+    const post = (path: string, body: object) => request(local.app).post(path)
+      .set(architectHeader).set('Idempotency-Key', crypto.randomUUID()).send(body);
+    const first = await post('/api/development/verify-existing', spec());
+    const id = first.body.verification.verification_id;
+    for (let i = 0; i < 400 && !calls.includes('codex-verifier/v1/verify'); i++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    expect(calls).toContain('codex-verifier/v1/verify');
+    expect((await post(`/api/development/verifications/${id}/cancel`, {})).body.verification.status).toBe('cancelled');
+    pauseCodex = false;
+    for (let i = 0; i < 30; i++) {
+      expect((await post('/api/development/verify-existing', spec())).status).toBe(409);
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const verification = (await request(local.app).get(`/api/development/verifications/${id}`)
+      .set(architectHeader)).body.verification;
+    expect(verification.status).toBe('cancelled');
+    expect(Date.parse(verification.deadline)).toBeGreaterThan(Date.now());
   } finally { local.stop(); }
 });

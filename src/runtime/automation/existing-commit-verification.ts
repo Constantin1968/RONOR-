@@ -148,6 +148,16 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
   }
   function claim(owner: string) {
     ensureRuntimeLedgerSchema();
+    // A caller wanting the workspace is the natural moment to re-ask whether the
+    // finished run still holding it has anything left running. The attempt is
+    // asynchronous, so this request is still refused; the next one is admitted
+    // once the proof arrives. No timer, no polling loop, no clock dependence.
+    try {
+      const gate = getDb().prepare('SELECT owner FROM runtime_existing_commit_admission WHERE workspace=?')
+        .get(gateKey) as { owner: string } | undefined;
+      if (gate && gate.owner !== owner && gate.owner.startsWith('verify_'))
+        void attemptQuietRelease(gate.owner).catch(() => { /* The barrier stays. */ });
+    } catch { /* An unreadable gate is handled by the transaction below. */ }
     getDb().transaction(() => {
       const gate = getDb().prepare('SELECT owner FROM runtime_existing_commit_admission WHERE workspace=?')
         .get(gateKey) as { owner: string } | undefined;

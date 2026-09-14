@@ -201,10 +201,11 @@ function main(): number {
   };
 
   // Run exactly the baseline suites, named individually, in isolation.
+  // --runInBand: shared SQLite audit/runtime DBs race under parallel workers.
   if (baselineSuitePaths.length > 0 && missingBaselineSuites.length === 0) {
     try {
       const output = execSync(
-        `npx jest --runTestsByPath ${baselineSuitePaths.join(' ')} 2>&1 || true`,
+        `npx jest --runInBand --runTestsByPath ${baselineSuitePaths.join(' ')} 2>&1 || true`,
         { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
       );
       baselineTests = parseJest(output);
@@ -220,7 +221,7 @@ function main(): number {
   let nonKnowledgeTotals = { suites: 0, tests: 0, failures: 0 };
   try {
     const output = execSync(
-      'npx jest --testPathIgnorePatterns="tests/knowledge" 2>&1 || true',
+      'npx jest --runInBand --testPathIgnorePatterns="tests/knowledge" 2>&1 || true',
       { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
     );
     nonKnowledgeTotals = parseJest(output);
@@ -247,7 +248,7 @@ function main(): number {
   );
 
   try {
-    const output = execSync('npx jest 2>&1 || true', {
+    const output = execSync('npx jest --runInBand 2>&1 || true', {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,

@@ -52,7 +52,9 @@ import { RONOROrchestrator } from './orchestrator';
 import { createRuntimeRouter } from './runtime/api/routes';
 import {
   errorHandler as runtimeErrorHandler,
+  ingressRateLimit,
   provenanceMiddleware,
+  requireAuth,
 } from './runtime/api/middleware';
 import { bootstrapApiKeys } from './runtime/api/auth';
 import { providerStatuses } from './runtime/providers/registry';
@@ -246,6 +248,10 @@ async function bootstrap(): Promise<void> {
   // runtime change a regression risk for Core Active.
   const runtimeRouter = createRuntimeRouter();
   app.use('/api/runtime', provenanceMiddleware, runtimeRouter, runtimeErrorHandler);
+
+  // F01: Core Active /api/v1 requires auth + ingress metering, matching the
+  // Runtime Active posture. Top-level GET /health stays public (below).
+  app.use('/api/v1', ingressRateLimit, provenanceMiddleware, requireAuth('read'));
 
   // Mount API routes
   app.use('/api/v1', createRouter(orchestrator));

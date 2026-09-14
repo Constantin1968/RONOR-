@@ -13,13 +13,19 @@ import { createWorkspaceArtifactCollector } from '../../src/runtime/automation/a
 import { inspectExistingCommit } from '../../src/runtime/automation/existing-commit-workspace';
 import { createEvidenceRunnerApp } from '../../src/runtime/automation/services/evidence-runner';
 import { createBoundedTestExecutor } from '../../src/runtime/automation/bounded-test-executor';
-import { createAllowlistedTestExecutor } from '../../src/runtime/automation/test-executor';
-import { createAssuranceAuthorityApp, createCodexVerifierApp } from '../../src/runtime/automation/services/verification-authorities';
-import { signBudgetQuery, verifyBudgetQuery, verifyModelBudget } from '../../src/runtime/automation/model-budget';
+import { MODEL_RATE_CARD, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
+import { startProtocolFaithfulStack, type ProtocolFaithfulStack } from '../support/protocol-faithful-stack';
 
-// OFFLINE MOCK-TRANSPORT WORKFLOW. The evaluator is explicitly a test double.
-// Local fixture Git/test execution, evidence integrity, budget signature and
-// Ed25519/Victoria receipt verification use the real implementations.
+// PROTOCOL-FAITHFUL WORKFLOW. There is no transport double and no evaluator
+// double any more: the evidence runner, the Codex verifier with the production
+// OpenAI-Responses evaluator, the Victoria assurance authority and the model
+// egress proxy with its SQLite budget ledger all listen on real loopback
+// sockets and are reached with the real `fetch`. Only two things are supplied
+// by the test — hostname resolution to those ports, and the paid model
+// provider itself, which answers on the wire in the Responses protocol with
+// real `usage` counters. Fixture Git, test execution, evidence integrity,
+// budget signing, metering, settlement and Ed25519 receipts are the real
+// implementations end to end.
 const previousDb = process.env.AUDIT_DB_PATH;
 let root: string, repo: string, artifactRoot: string;
 let base: string, head: string;
@@ -30,6 +36,7 @@ let alter: (url: URL, body: any) => { status?: number; body?: any } | undefined;
 let pauseEvidence: boolean;
 let fetcher: typeof fetch;
 let pauseCodex = false;
+let stack: ProtocolFaithfulStack;
 const architect = crypto.randomBytes(32).toString('hex');
 const admin = crypto.randomBytes(32).toString('hex');
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {
@@ -37,7 +44,7 @@ const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {
 }).trim();
 const spec = () => ({ approved: true, base_commit: base, head_commit: head, max_cost_usd: 1, max_runtime_minutes: 1 });
 
-beforeEach(() => {
+beforeEach(async () => {
   closeDb(); resetSchemaGuard(); process.env.AUDIT_DB_PATH = ':memory:';
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'ronor-existing-test-'));
   repo = path.join(root, 'repo'); artifactRoot = path.join(root, 'artifacts');
@@ -49,6 +56,9 @@ beforeEach(() => {
   git('add', 'value.txt'); git('commit', '-m', 'fixture base'); base = git('rev-parse', 'HEAD');
   fs.writeFileSync(path.join(repo, 'value.txt'), 'candidate\n');
   git('add', 'value.txt'); git('commit', '-m', 'fixture candidate'); head = git('rev-parse', 'HEAD');
+  const capabilityKey = crypto.randomBytes(32).toString('hex');
+  stack = await startProtocolFaithfulStack({ worktree: repo, artifactRoot, ledgerDir: root, capabilityKey,
+    commands: [{ id: 'offline-node-test', executable: process.execPath, args: ['-e', 'process.exit(0)'], timeout_ms: 5000 }] });
   env = {
     RONOR_ARCHITECT_API_KEY: architect, RONOR_ADMIN_API_KEY: admin,
     RONOR_AUTOMATION_ENABLED: 'true', RONOR_AUTOMATION_RECOVERY_ENABLED: 'false',
@@ -56,65 +66,23 @@ beforeEach(() => {
     RONOR_AUTOMATION_ARTIFACT_ROOT: artifactRoot, RONOR_AUTOMATION_BRANCH: 'work/verification',
     RONOR_AUTOMATION_EXPECTED_ORIGIN: 'https://example.invalid/fixture.git', RONOR_AUTOMATION_EXPECTED_HEAD: head,
     RONOR_AUTOMATION_MANDATE_SIGNING_KEY: crypto.randomBytes(32).toString('hex'),
-    RONOR_AUTOMATION_CAPABILITY_KEY: crypto.randomBytes(32).toString('hex'),
-    RONOR_EVIDENCE_RUNNER_TOKEN: crypto.randomBytes(32).toString('hex'),
-    RONOR_CODEX_VERIFIER_TOKEN: crypto.randomBytes(32).toString('hex'),
-    RONOR_ASSURANCE_TOKEN: crypto.randomBytes(32).toString('hex'),
-    RONOR_EVIDENCE_RUNNER_URL: 'http://automation-evidence-runner:3005',
-    RONOR_CODEX_VERIFIER_URL: 'http://codex-verifier:3002', RONOR_ASSURANCE_URL: 'http://victoria-assurance:3003',
+    RONOR_AUTOMATION_CAPABILITY_KEY: capabilityKey,
+    ...stack.env,
   };
   bootstrapApiKeys(env);
-  const artifacts = createWorkspaceArtifactCollector(artifactRoot);
-  const testConfig = { artifacts, approvedRoot: repo, baseEnv: {},
-    commands: [{ id: 'offline-node-test', executable: process.execPath, args: ['-e', 'process.exit(0)'], timeout_ms: 1000 }] };
-  const runner = createEvidenceRunnerApp({ token: env.RONOR_EVIDENCE_RUNNER_TOKEN!, workspaceRoot: repo, artifacts,
-    tests: createAllowlistedTestExecutor(testConfig), boundedTests: createBoundedTestExecutor(testConfig) });
-  const keys = crypto.generateKeyPairSync('ed25519');
-  const codex = createCodexVerifierApp({
-    serviceToken: env.RONOR_CODEX_VERIFIER_TOKEN!, artifacts,
-    receiptPrivateKey: keys.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-    evaluator: { async evaluate(input) {
-      const budget = verifyModelBudget(input.budgetToken!, env.RONOR_AUTOMATION_CAPABILITY_KEY!);
-      expect(budget).toMatchObject({ role: 'verifier', mission_id: input.missionId, budget_id: input.missionId,
-        ceiling_micro_usd: 1_000_000, prior_micro_usd: 0 });
-      expect(input.materials.find(m => m.artifact.kind === 'git_diff')!.content).toContain('+candidate');
-      return { verdict: 'pass', summary: 'MOCK EVALUATOR ONLY', evidence: ['mock-evaluation:pass'], cost_usd: 0.01 };
-    } },
-  });
-  const victoria = createAssuranceAuthorityApp({ serviceToken: env.RONOR_ASSURANCE_TOKEN!, artifacts,
-    receiptPublicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }).toString() });
-  calls = []; alter = () => undefined; pauseEvidence = false; pauseCodex = false;
-  fetcher = async (input, init) => {
-    const url = new URL(String(input)); calls.push(`${url.hostname}${url.pathname}`);
-    if (pauseCodex && url.hostname === 'codex-verifier' && url.pathname === '/v1/verify') {
-      return new Promise((_resolve, reject) => {
-        const abort = () => reject(new Error('MOCK INTERRUPTED'));
-        init?.signal?.addEventListener('abort', abort, { once: true });
-        if (init?.signal?.aborted) abort();
-      });
-    }
-    if (pauseEvidence && url.pathname === '/v1/verify-existing') {
-      return new Promise((_resolve, reject) => {
-        const abort = () => reject(new Error('MOCK INTERRUPTED'));
-        init?.signal?.addEventListener('abort', abort, { once: true });
-        if (init?.signal?.aborted) abort();
-      });
-    }
-    const apps = { 'automation-evidence-runner': runner, 'codex-verifier': codex, 'victoria-assurance': victoria };
-    const app = apps[url.hostname as keyof typeof apps];
-    if (!app) throw new Error('MOCK refuses unexpected host');
-    const http = init?.method === 'POST' ? request(app).post(url.pathname) : request(app).get(url.pathname);
-    const headers = new Headers(init?.headers);
-    headers.forEach((value, name) => http.set(name, value));
-    if (init?.body) http.send(JSON.parse(String(init.body)));
-    const response = await http;
-    const replacement = alter(url, response.body);
-    return new Response(JSON.stringify(replacement?.body ?? response.body), { status: replacement?.status ?? response.status });
-  };
+  calls = stack.calls; alter = () => undefined; pauseEvidence = false; pauseCodex = false;
+  stack.setTamper((host, pathname, body) => alter(new URL(`http://${host}${pathname}`), body));
+  // A held route stops answering, so the client's own abort tears down a real
+  // socket exactly as an interrupted service would.
+  stack.setHold((host, pathname) =>
+    (pauseEvidence && pathname === '/v1/verify-existing') ||
+    (pauseCodex && host === 'codex-verifier' && pathname === '/v1/verify'));
+  fetcher = stack.fetcher;
   controller = createDevelopmentController(env, { verificationFetcher: fetcher });
 });
 afterEach(async () => {
   controller.stop();
+  await stack.stop();
   await new Promise(resolve => setTimeout(resolve, 20));
   closeDb(); resetSchemaGuard();
   // Fixture files are intentionally left available for inspection.
@@ -131,23 +99,37 @@ async function terminal(id: string) {
     if (['verified', 'failed', 'cancelled', 'interrupted'].includes(response.body.verification?.status)) return response.body.verification;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
-  throw new Error('MOCK workflow did not settle');
+  throw new Error('protocol-faithful workflow did not settle');
 }
 
-it('MOCK-labelled complete workflow uses real range/test/receipt gates without author or planner', async () => {
+it('complete workflow runs the real range/test/model/receipt gates without author or planner', async () => {
   const started = await submit();
   expect(started.status).toBe(202);
   const result = await terminal(started.body.verification.verification_id);
+  // The cost is the catalogue arithmetic over the counters the provider really
+  // reported, computed independently by the evaluator and by the proxy ledger.
+  const expected = (1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd) / 1_000_000;
   expect(result).toMatchObject({ operation: 'verify-existing', full_development: false, status: 'verified',
-    base_commit: base, head_commit: head, victoria_accepted: true, cost_usd: 0.01 });
+    base_commit: base, head_commit: head, victoria_accepted: true });
+  expect(result.cost_usd).toBeCloseTo(expected, 9);
   expect(result.evidence_digest).toMatch(/^[a-f0-9]{64}$/);
   expect(calls).toEqual([
     'automation-evidence-runner/health', 'codex-verifier/health', 'victoria-assurance/health',
-    'automation-evidence-runner/v1/verify-existing', 'codex-verifier/v1/verify', 'victoria-assurance/v1/assure',
+    'automation-evidence-runner/v1/verify-existing', 'codex-verifier/v1/verify',
+    // The verifier's model request travels through the real egress proxy to the
+    // provider, and is metered there; nothing shortcuts that hop.
+    'model-egress-proxy/v1/responses', 'model-provider/v1/responses',
+    'victoria-assurance/v1/assure',
   ]);
+  expect(stack.providerRequests[0]).toMatchObject({ model: MODEL_RATE_CARD.model });
+  expect(String(stack.providerRequests[0].input)).toContain('+candidate');
+  const settlement = stack.ledger.settlement(result.verification_id ?? started.body.verification.verification_id);
+  expect(settlement).toMatchObject({ settled_reservations: 1, pending_reservations: 0, frozen: false });
+  expect(settlement!.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd);
   expect(getDb().prepare('SELECT COUNT(*) AS n FROM runtime_automation_runs').get()).toEqual({ n: 0 });
   const stored = getDb().prepare('SELECT payload FROM runtime_existing_commit_verifications').get() as { payload: string };
-  expect(stored.payload).not.toContain('MOCK EVALUATOR ONLY');
+  // The model's free text is never persisted into the verification record.
+  expect(stored.payload).not.toContain('Diff is coherent');
   expect(JSON.parse(stored.payload).mandate.allowed_actions).toEqual(['read_repo', 'run_tests']);
   expect(JSON.stringify(result)).not.toContain(repo);
   expect(JSON.stringify(result)).not.toContain('candidate\\n');
@@ -206,7 +188,27 @@ it('fails closed on non-2xx Codex even when its body claims pass and never auto-
   const count = calls.length;
   expect((await submit(spec(), key)).body.verification.status).toBe('failed');
   expect(calls).toHaveLength(count);
-  expect((await submit()).status).toBe(409); // Ambiguous remote failures retain admission until deadline.
+  // The refusal is injected on the wire after the verifier already dispatched
+  // its model request, so the provider really was paid. The failure is recorded
+  // with the cost the proxy settled, not as a free run.
+  const id = started.body.verification.verification_id;
+  const settled = stack.ledger.settlement(id)!;
+  expect(settled).toMatchObject({ settled_reservations: 1, pending_reservations: 0, frozen: false });
+  expect(settled.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd);
+  const failed = (await status(id)).body.verification;
+  expect(failed.reason).toBe('codex_failure_response_invalid');
+  expect(failed.cost_usd).toBeCloseTo(settled.settled_micro_usd / 1_000_000, 9);
+  // With the dispatch settled and the worktree idle, the barrier is released on
+  // proof rather than held to the deadline. Nothing is assumed: both authorities
+  // were asked, and the mandate has not expired.
+  let admitted: any;
+  for (let i = 0; i < 40; i++) {
+    admitted = await submit(spec(), crypto.randomUUID());
+    if (admitted.status < 300) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  expect(admitted.status).toBeLessThan(300);
+  expect(Date.parse((await status(id)).body.verification.deadline)).toBeGreaterThan(Date.now());
 });
 
 it('Victoria rejects a forged but structurally valid receipt; no fabricated acceptance', async () => {
@@ -339,7 +341,7 @@ it('observes the settled egress ledger for a run that ended without reporting a 
   let queried: { id: string; authorised: boolean } | null = null;
   const withLedger: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    if (url.hostname === 'model-egress-proxy') {
+    if (url.hostname === 'model-egress-proxy' && url.pathname.startsWith('/budget/')) {
       const id = decodeURIComponent(url.pathname.replace('/budget/', ''));
       const proof = new Headers(init?.headers).get('x-ronor-budget-query') ?? '';
       const authorised = verifyBudgetQuery(proof, id, env.RONOR_AUTOMATION_CAPABILITY_KEY!);
@@ -381,7 +383,9 @@ it('observes the settled egress ledger for a run that ended without reporting a 
 
 it('records no observed cost when the egress ledger is unreachable or unconfigured', async () => {
   const refusing: typeof fetch = async (input, init) => {
-    if (new URL(String(input)).hostname === 'model-egress-proxy') throw new Error('MOCK ledger unreachable');
+    const url = new URL(String(input));
+    if (url.hostname === 'model-egress-proxy' && url.pathname.startsWith('/budget/'))
+      throw new Error('ledger read refused by fault injection');
     return fetcher(input, init);
   };
   const local = createDevelopmentController({ ...env, RONOR_MODEL_EGRESS_URL: 'http://model-egress-proxy:3004' },
@@ -413,7 +417,7 @@ it('records no observed cost when the egress ledger is unreachable or unconfigur
 function withLedgerController(budget: (id: string) => Response) {
   const withLedger: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    if (url.hostname === 'model-egress-proxy') {
+    if (url.hostname === 'model-egress-proxy' && url.pathname.startsWith('/budget/')) {
       const id = decodeURIComponent(url.pathname.replace('/budget/', ''));
       if (!verifyBudgetQuery(new Headers(init?.headers).get('x-ronor-budget-query') ?? '', id,
         env.RONOR_AUTOMATION_CAPABILITY_KEY!))

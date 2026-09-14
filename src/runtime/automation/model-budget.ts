@@ -16,6 +16,30 @@ export interface ModelBudgetClaims {
   expires_at: string; rate_card: typeof MODEL_RATE_CARD.id;
 }
 export class ModelBudgetError extends Error {}
+
+/** Read-only settlement report for one budget. `settled_micro_usd` is the sum of
+ * the amounts actually charged by the provider, which is what an interrupted run
+ * really cost; it is not the reserved worst case and not an invoice. */
+export interface BudgetSettlement {
+  budget_id: string; settled_micro_usd: number; settled_reservations: number;
+  pending_reservations: number; outstanding_micro_usd: number; frozen: boolean;
+}
+const BUDGET_QUERY_DOMAIN = 'ronor-budget-query/v1:';
+/** Authorises a read-only settlement query. Deliberately not the dispatch token:
+ * a settlement is read after the mandate has expired, when a dispatch token is
+ * already worthless, and it must never admit a request to a provider. */
+export function signBudgetQuery(budgetId: string, key: string): string {
+  if (Buffer.byteLength(key) < 32 || !safeId(budgetId)) throw new ModelBudgetError('budget_query_invalid');
+  return crypto.createHmac('sha256', key).update(`${BUDGET_QUERY_DOMAIN}${budgetId}`).digest('base64url');
+}
+export function verifyBudgetQuery(token: string, budgetId: string, key: string): boolean {
+  try {
+    if (typeof token !== 'string' || token.length > 256) return false;
+    const expected = Buffer.from(signBudgetQuery(budgetId, key), 'base64url');
+    const actual = Buffer.from(token, 'base64url');
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  } catch { return false; }
+}
 const safeId = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(v);
 const integer = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 
@@ -115,6 +139,21 @@ export class ModelBudgetLedger {
       (SELECT COUNT(*) FROM model_reservations r WHERE r.budget=b.id AND r.state='pending') AS pending,
       (SELECT COALESCE(SUM(amount),0) FROM model_reservations r WHERE r.budget=b.id AND r.state='pending') AS outstanding
       FROM model_budgets b WHERE id=?`).get(id) as ReturnType<ModelBudgetLedger['snapshot']> ?? null;
+  }
+  /** Settled reality for one budget, or null when the budget is unknown. Reading
+   * never changes accounting: an unresolved dispatch stays frozen and unreported. */
+  settlement(id: string): BudgetSettlement | null {
+    if (!safeId(id)) return null;
+    const budget = this.db.prepare('SELECT frozen FROM model_budgets WHERE id=?').get(id) as { frozen: number } | undefined;
+    if (!budget) return null;
+    const settled = this.db.prepare(
+      "SELECT COALESCE(SUM(actual),0) AS total, COUNT(*) AS count FROM model_reservations WHERE budget=? AND state='settled'")
+      .get(id) as { total: number; count: number };
+    const pending = this.db.prepare(
+      "SELECT COALESCE(SUM(amount),0) AS total, COUNT(*) AS count FROM model_reservations WHERE budget=? AND state='pending'")
+      .get(id) as { total: number; count: number };
+    return { budget_id: id, settled_micro_usd: settled.total, settled_reservations: settled.count,
+      pending_reservations: pending.count, outstanding_micro_usd: pending.total, frozen: budget.frozen === 1 };
   }
   close(): void { this.db.close(); }
 }

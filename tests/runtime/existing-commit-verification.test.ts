@@ -15,7 +15,7 @@ import { createEvidenceRunnerApp } from '../../src/runtime/automation/services/e
 import { createBoundedTestExecutor } from '../../src/runtime/automation/bounded-test-executor';
 import { createAllowlistedTestExecutor } from '../../src/runtime/automation/test-executor';
 import { createAssuranceAuthorityApp, createCodexVerifierApp } from '../../src/runtime/automation/services/verification-authorities';
-import { verifyModelBudget } from '../../src/runtime/automation/model-budget';
+import { signBudgetQuery, verifyBudgetQuery, verifyModelBudget } from '../../src/runtime/automation/model-budget';
 
 // OFFLINE MOCK-TRANSPORT WORKFLOW. The evaluator is explicitly a test double.
 // Local fixture Git/test execution, evidence integrity, budget signature and
@@ -28,6 +28,7 @@ let controller: ReturnType<typeof createDevelopmentController>;
 let calls: string[];
 let alter: (url: URL, body: any) => { status?: number; body?: any } | undefined;
 let pauseEvidence: boolean;
+let fetcher: typeof fetch;
 const architect = crypto.randomBytes(32).toString('hex');
 const admin = crypto.randomBytes(32).toString('hex');
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {
@@ -82,7 +83,7 @@ beforeEach(() => {
   const victoria = createAssuranceAuthorityApp({ serviceToken: env.RONOR_ASSURANCE_TOKEN!, artifacts,
     receiptPublicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }).toString() });
   calls = []; alter = () => undefined; pauseEvidence = false;
-  const fetcher: typeof fetch = async (input, init) => {
+  fetcher = async (input, init) => {
     const url = new URL(String(input)); calls.push(`${url.hostname}${url.pathname}`);
     if (pauseEvidence && url.pathname === '/v1/verify-existing') {
       return new Promise((_resolve, reject) => {
@@ -320,4 +321,81 @@ it('test runner enforces a bounded child deadline and emits no passing report on
   expect(result.passed).toBe(false);
   expect(Date.now() - started).toBeLessThan(3000);
   expect(JSON.parse(artifacts.read([result.artifact])[0].content).results[0].signal).toBe('SIGKILL');
+});
+
+it('observes the settled egress ledger for a run that ended without reporting a cost', async () => {
+  // A codex-phase failure leaves the reported cost null, yet the provider was
+  // already paid. The settled ledger is the only witness, and it lives in the
+  // proxy container, so the controller must ask for it over a signed read.
+  const egressUrl = 'http://model-egress-proxy:3004';
+  let queried: { id: string; authorised: boolean } | null = null;
+  const withLedger: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname === 'model-egress-proxy') {
+      const id = decodeURIComponent(url.pathname.replace('/budget/', ''));
+      const proof = new Headers(init?.headers).get('x-ronor-budget-query') ?? '';
+      const authorised = verifyBudgetQuery(proof, id, env.RONOR_AUTOMATION_CAPABILITY_KEY!);
+      queried = { id, authorised };
+      if (!authorised) return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      return new Response(JSON.stringify({ ok: true, protocol: 'ronor-model-egress/v1',
+        rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id, settled_micro_usd: 17284,
+        settled_reservations: 2, pending_reservations: 1, outstanding_micro_usd: 40000, frozen: true }), { status: 200 });
+    }
+    return fetcher(input, init);
+  };
+  const local = createDevelopmentController({ ...env, RONOR_MODEL_EGRESS_URL: egressUrl },
+    { verificationFetcher: withLedger });
+  try {
+    alter = (url, body) => url.pathname === '/v1/verify' ? { body: { ...body, verdict: 'fail' } } : undefined;
+    const started = await request(local.app).post('/api/development/verify-existing')
+      .set('Authorization', `Bearer ${architect}`).set('Idempotency-Key', crypto.randomUUID()).send(spec());
+    const id = started.body.verification.verification_id;
+    const read = () => request(local.app).get(`/api/development/verifications/${id}`)
+      .set('Authorization', `Bearer ${architect}`);
+    let verification: any;
+    for (let i = 0; i < 500; i++) {
+      verification = (await read()).body.verification;
+      if (verification?.observed_cost_usd !== null && verification?.observed_cost_usd !== undefined) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    expect(verification.status).toBe('failed');
+    expect(verification.cost_usd).toBeNull();
+    // Observed, not reported: recorded beside the missing figure, never as it.
+    expect(verification.observed_cost_usd).toBeCloseTo(0.017284, 9);
+    expect(verification.observed_cost_basis).toBe('egress-ledger-settled');
+    expect(verification.observed_unresolved_dispatches).toBe(1);
+    expect(verification.observed_budget_frozen).toBe(true);
+    expect(verification.accounting_basis).toBe('catalog-not-invoice');
+    expect(queried).toMatchObject({ id, authorised: true });
+    expect(signBudgetQuery(id, env.RONOR_AUTOMATION_CAPABILITY_KEY!)).toHaveLength(43);
+  } finally { local.stop(); }
+});
+
+it('records no observed cost when the egress ledger is unreachable or unconfigured', async () => {
+  const refusing: typeof fetch = async (input, init) => {
+    if (new URL(String(input)).hostname === 'model-egress-proxy') throw new Error('MOCK ledger unreachable');
+    return fetcher(input, init);
+  };
+  const local = createDevelopmentController({ ...env, RONOR_MODEL_EGRESS_URL: 'http://model-egress-proxy:3004' },
+    { verificationFetcher: refusing });
+  try {
+    alter = (url, body) => url.pathname === '/v1/verify' ? { body: { ...body, verdict: 'fail' } } : undefined;
+    const started = await request(local.app).post('/api/development/verify-existing')
+      .set('Authorization', `Bearer ${architect}`).set('Idempotency-Key', crypto.randomUUID()).send(spec());
+    const id = started.body.verification.verification_id;
+    let verification: any;
+    for (let i = 0; i < 500; i++) {
+      verification = (await request(local.app).get(`/api/development/verifications/${id}`)
+        .set('Authorization', `Bearer ${architect}`)).body.verification;
+      if (['failed', 'cancelled', 'interrupted', 'verified'].includes(verification?.status)) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
+    verification = (await request(local.app).get(`/api/development/verifications/${id}`)
+      .set('Authorization', `Bearer ${architect}`)).body.verification;
+    // An unreadable ledger is reported as unknown, never as zero.
+    expect(verification.status).toBe('failed');
+    expect(verification.observed_cost_usd).toBeNull();
+    expect(verification.observed_cost_basis).toBeNull();
+  } finally { local.stop(); }
 });

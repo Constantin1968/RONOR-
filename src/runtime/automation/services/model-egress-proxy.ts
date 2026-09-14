@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { createServiceRateLimit } from './rate-limit';
 import net from 'node:net';
 import express, { type Request } from 'express';
-import { ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyModelBudget } from '../model-budget';
+import { MODEL_RATE_CARD, ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyBudgetQuery, verifyModelBudget } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const ALLOWED_PATHS = new Set(['/v1/responses', '/v1/chat/completions', '/v1/models']);
@@ -53,6 +53,21 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
   app.get('/health', (req, res) => authorised(req, config.clientTokens)
     ? res.json({ ok: true, protocol: 'ronor-model-egress/v1', service_id: 'model-egress-proxy', capabilities: ['responses', 'chat-completions', 'models'] })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));
+  // Read-only settlement report. The controller cannot see the ledger file, so
+  // without this route an interrupted run's real cost stays unknown to it even
+  // though the proxy settled it. Authorised by a signed query over the budget
+  // identifier alone: it returns integers, never a body, a token or an objective,
+  // and it can neither reserve, settle nor unfreeze anything.
+  app.get('/budget/:id', (req, res) => {
+    if (!config.budget) { res.status(404).json({ ok: false, error: 'budget_accounting_disabled' }); return; }
+    const id = req.params.id;
+    if (!verifyBudgetQuery(req.header('x-ronor-budget-query') ?? '', id, config.budget.key)) {
+      res.status(401).json({ ok: false, error: 'unauthorized' }); return;
+    }
+    const settlement = config.budget.ledger.settlement(id);
+    if (!settlement) { res.status(404).json({ ok: false, error: 'budget_unknown' }); return; }
+    res.json({ ok: true, protocol: 'ronor-model-egress/v1', rate_card: MODEL_RATE_CARD.id, ...settlement });
+  });
   app.use('/v1', async (req, res) => {
     const path = `/v1${req.path === '/' ? '' : req.path}`;
     if (!authorised(req, config.clientTokens)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }

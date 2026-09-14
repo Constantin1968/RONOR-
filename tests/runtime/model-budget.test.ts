@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ModelBudgetLedger, MAX_CONCURRENT_DISPATCH, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge } from '../../src/runtime/automation/model-budget';
+import { ModelBudgetLedger, MAX_CONCURRENT_DISPATCH, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const key = 'budget-authority-test-key-32-bytes-long';
@@ -115,5 +115,35 @@ describe('text-only request reservations', () => {
     expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'))).toBe(260);
     expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'))).toBe(0);
     expect(modelResponseCharge(Buffer.from('{}'))).toBeNull();
+  });
+});
+
+describe('read-only settlement report', () => {
+  it('reports what was actually settled, apart from what is still unresolved', () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const first = ledger.reserve(claims(0), 300000); ledger.settle(first, 17284);
+    const second = ledger.reserve(claims(0.017284), 200000);
+    const report = ledger.settlement('r-budget')!;
+    expect(report).toMatchObject({ budget_id: 'r-budget', settled_micro_usd: 17284,
+      settled_reservations: 1, pending_reservations: 1, outstanding_micro_usd: 200000, frozen: false });
+    // An unresolved outcome stays unresolved: it freezes the budget and remains
+    // counted as outstanding, so the settled sum is reported as a floor.
+    ledger.settle(second, null);
+    expect(ledger.settlement('r-budget')).toMatchObject({ settled_micro_usd: 17284, settled_reservations: 1,
+      pending_reservations: 1, outstanding_micro_usd: 200000, frozen: true });
+    expect(ledger.settlement('unknown-budget')).toBeNull();
+    expect(ledger.settlement('../etc/passwd')).toBeNull();
+    ledger.close();
+  });
+  it('authorises a settlement query by budget identifier without admitting a dispatch', () => {
+    const proof = signBudgetQuery('r-budget', key);
+    expect(verifyBudgetQuery(proof, 'r-budget', key)).toBe(true);
+    expect(verifyBudgetQuery(proof, 'r-other', key)).toBe(false);
+    expect(verifyBudgetQuery(proof, 'r-budget', key + 'x')).toBe(false);
+    expect(verifyBudgetQuery(proof + 'x', 'r-budget', key)).toBe(false);
+    expect(verifyBudgetQuery('', 'r-budget', key)).toBe(false);
+    expect(() => signBudgetQuery('r-budget', 'short-key')).toThrow('budget_query_invalid');
+    // A query proof is not a dispatch authorization and cannot be replayed as one.
+    expect(verifyModelBudget(proof, key)).toBeNull();
   });
 });

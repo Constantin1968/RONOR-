@@ -8,6 +8,7 @@ import { createHttpPostExecutionVerifier, readBoundedVerificationJson } from './
 import { EXISTING_ASSIGNMENT, inspectExistingCommit, validCommitPins, type CommitPins } from './existing-commit-workspace';
 import { issueArchitectMandate, signMandateAuthority, verifyMandateAuthority } from './mandate-issuer';
 import { verificationEvidenceDigest } from './verification-receipt';
+import { createCostReconciler, type ObservedCost } from './cost-reconciliation';
 
 type Status = 'queued' | 'evidence' | 'codex' | 'victoria' | 'verified' | 'failed' | 'cancelled' | 'interrupted';
 const ACTIVE: Status[] = ['queued', 'evidence', 'codex', 'victoria'];
@@ -22,6 +23,8 @@ interface RecordState {
   status: Status; reason: string | null; created_at: string; updated_at: string;
   evidence: VerificationEvidence | null; evidence_digest: string | null;
   receipt: VerificationReceipt | null; victoria_accepted: boolean; cost_usd: number | null;
+  /** Absent on rows written before cost reconciliation existed. */
+  observed?: ObservedCost | null;
 }
 export class ExistingVerificationError extends Error {
   constructor(readonly code: string, readonly httpStatus = 422) { super(code); }
@@ -81,6 +84,12 @@ function publicStatus(value: RecordState) {
     status: value.status, reason: value.reason, evidence_digest: value.evidence_digest,
     codex_receipt_present: value.receipt !== null, victoria_accepted: value.victoria_accepted,
     cost_usd: value.cost_usd, accounting_basis: 'catalog-not-invoice',
+    // What the egress ledger actually settled. Present above all when the run
+    // ended without reporting a cost of its own; null when unobserved.
+    observed_cost_usd: value.observed?.observed_cost_usd ?? null,
+    observed_cost_basis: value.observed?.observed_cost_basis ?? null,
+    observed_unresolved_dispatches: value.observed?.unresolved_dispatches ?? null,
+    observed_budget_frozen: value.observed?.budget_frozen ?? null,
     max_cost_usd: value.request.max_cost_usd, deadline: value.mandate.expires_at,
     created_at: value.created_at, updated_at: value.updated_at,
   };
@@ -173,6 +182,30 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
     }
   }
   const fetcher = options.fetcher ?? fetch;
+  const reconciler = createCostReconciler({
+    baseUrl: env.RONOR_MODEL_EGRESS_URL, key: env.RONOR_AUTOMATION_CAPABILITY_KEY, fetcher,
+  });
+  /** A run that ends without a reported cost is not a free run. Read the settled
+   * ledger once, record it beside the reported figure and never in its place. */
+  async function reconcile(id: string) {
+    let row: RecordState | null;
+    try { row = store.read(id); } catch { return; }
+    if (!row || active(row.status) || row.cost_usd !== null || row.observed) return;
+    const observed = await reconciler.observe(id);
+    if (!observed) return;
+    try {
+      const current = store.read(id);
+      if (current && !active(current.status) && current.cost_usd === null && !current.observed)
+        change(current, { observed });
+    } catch { /* Integrity loss is not repaired by an accounting note. */ }
+  }
+  // Runs killed with the process never reached their own accounting. Observe
+  // them once at start so a restart cannot silently erase what was spent.
+  setImmediate(() => {
+    let ids: string[] = [];
+    try { ids = store.allIds(); } catch { return; }
+    for (const id of ids) void reconcile(id).catch(() => { /* Accounting is best effort. */ });
+  });
   async function attestAuthority(baseUrl: string, token: string, service: string, protocol: string, capability: string, signal: AbortSignal) {
     const response = await fetcher(new URL('/health', baseUrl), {
       method: 'GET', redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
@@ -295,6 +328,7 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
         const row = store.read(id)!;
         if (row.status === 'verified' || row.status === 'failed' && phase === 'queued') release(id);
       } catch { /* Keep the admission barrier after integrity loss. */ }
+      void reconcile(id).catch(() => { /* Accounting is best effort. */ });
     }
   }
   return {

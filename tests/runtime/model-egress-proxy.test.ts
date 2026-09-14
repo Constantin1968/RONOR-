@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { createModelEgressProxy, modelGatewayBaseUrl } from '../../src/runtime/automation/services/model-egress-proxy';
-import { ModelBudgetLedger, signModelBudget } from '../../src/runtime/automation/model-budget';
+import { ModelBudgetLedger, signBudgetQuery, signModelBudget } from '../../src/runtime/automation/model-budget';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const token = 'gateway-token-for-tests-0123456789';
@@ -71,6 +71,26 @@ describe('production model budget enforcement', () => {
     expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed()).send(payload)).status).toBe(403);
     expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed(0.999)).send(payload)).status).toBe(409);
     expect(fetcher).not.toHaveBeenCalled(); ledger.close();
+  });
+  it('exposes the settled ledger read-only, to a signed query alone', async () => {
+    const ledger = new ModelBudgetLedger(':memory:');
+    const fetcher = jest.fn(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
+    const proof = signBudgetQuery('r-proxy',key);
+    const ok = await request(app).get('/budget/r-proxy').set('x-ronor-budget-query',proof);
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ok:true,budget_id:'r-proxy',settled_micro_usd:260,settled_reservations:1,pending_reservations:0,frozen:false});
+    // A client credential is not a settlement authority, and a settlement proof
+    // is not a client credential.
+    expect((await request(app).get('/budget/r-proxy')).status).toBe(401);
+    expect((await request(app).get('/budget/r-proxy').set('Authorization',`Bearer ${token}`)).status).toBe(401);
+    expect((await request(app).get('/budget/r-proxy').set('x-ronor-budget-query',signBudgetQuery('r-other',key))).status).toBe(401);
+    expect((await request(app).get('/budget/r-other').set('x-ronor-budget-query',signBudgetQuery('r-other',key))).status).toBe(404);
+    expect((await request(app).post('/v1/chat/completions').set('x-ronor-budget-query',proof).send(payload)).status).toBe(401);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(ok.body)).not.toContain(upstreamToken);
+    ledger.close();
   });
   it('shares cumulative accounting between author and verifier and strips the signed authorization upstream', async () => {
     const ledger = new ModelBudgetLedger(':memory:');

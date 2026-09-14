@@ -10,6 +10,12 @@ services:
     image: ronor-development-controller:${RONOR_EXISTING_VERIFY_TAG:?reviewed source commit}
     environment:
       RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_EXISTING_VERIFY_HEAD:?exact approved candidate commit}
+      # Read-only settlement of the model budget, for a run that ended without
+      # reporting its cost. The controller holds no model gateway client token,
+      # so joining this network grants it the signed ledger read alone and no
+      # provider access; it stays off the uplink network and has no Internet route.
+      RONOR_MODEL_EGRESS_URL: http://model-egress-proxy:3004
+    networks: [automation-control, model-egress]
   openhands-bridge:
     build:
       context: ${RONOR_EXISTING_VERIFY_SOURCE:?absolute reviewed source directory}

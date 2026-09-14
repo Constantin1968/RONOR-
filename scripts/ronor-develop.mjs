@@ -185,7 +185,18 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     const record = result.verification;
     // A refusal reason is only explained when it is one this file knows.
     const explained = record && known(record.reason) ? { reason_explained: EXPLANATIONS[record.reason] } : {};
-    return { verification: record, ...explained,
+    // A run that ended without reporting a cost still spent money. When the
+    // egress ledger was read, say plainly that this figure is observed, that it
+    // is a floor while dispatches remain unresolved, and that it is not an invoice.
+    const observed = record && record.cost_usd === null && record.observed_cost_usd !== null &&
+      record.observed_cost_usd !== undefined
+      ? { cost_observed_explained: `Costul raportat lipseste. Registrul de iesire arata ${record.observed_cost_usd} USD decontati efectiv` +
+          (record.observed_unresolved_dispatches
+            ? `, plus ${record.observed_unresolved_dispatches} cerere(ri) cu rezultat neconfirmat, deci cifra este un prag minim.`
+            : '.') +
+          ' Baza este tariful de catalog aplicat contoarelor furnizorului, nu o factura.' }
+      : {};
+    return { verification: record, ...explained, ...observed,
       ...(command === 'verification-cancel' ? { rollback: false } : {}) };
   }
   if (command === 'readiness') {

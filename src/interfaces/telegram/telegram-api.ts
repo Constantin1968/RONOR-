@@ -135,6 +135,31 @@ export class TelegramApiClient {
   }
 
   /**
+   * Resolve a Telegram file_id to a file_path, then download the file bytes.
+   * Used by /upload_case to fetch the .xlsx / .csv the trainer attached.
+   *
+   * Telegram's own limit for bot downloads is 20 MB. We cap at 10 MB to avoid
+   * pulling a memory-heavy blob through the container: a day of bids/prices
+   * fits comfortably in under 1 MB.
+   */
+  async downloadFile(fileId: string, maxBytes = 10 * 1024 * 1024): Promise<{ bytes: Buffer; filePath: string }> {
+    const file = await post<{ file_id: string; file_unique_id: string; file_size?: number; file_path?: string }>(
+      this.token,
+      'getFile',
+      { file_id: fileId },
+    );
+    if (!file.file_path) throw new TelegramApiError('getFile', null, 'getFile returned no file_path');
+    if (file.file_size && file.file_size > maxBytes) {
+      throw new TelegramApiError('getFile', null, `file too large: ${file.file_size} > ${maxBytes}`);
+    }
+    const url = `https://api.telegram.org/file/bot${this.token}/${file.file_path}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new TelegramApiError('downloadFile', res.status, `download failed: ${res.statusText}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    return { bytes: buf, filePath: file.file_path };
+  }
+
+  /**
    * Send a message, chunking it if it exceeds `maxChars`.
    *
    * Long answers from the runtime are split on paragraph boundaries where

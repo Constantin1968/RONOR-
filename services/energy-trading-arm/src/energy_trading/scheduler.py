@@ -596,7 +596,11 @@ class JobRunner:
         a re-posted identical table must not trigger a rerun.
         """
         fp: dict[str, str] = {}
-        for pattern in ("ntc_*.csv", "prices_*.csv", "bids_*.csv"):
+        # ``disputes_*.jsonl`` is listed so a contested day is picked up by watch
+        # the moment the trainer records a dispute; the actual re-run is caused
+        # by the corrected rows written into ``bids_<day>.csv`` from the same
+        # dispute request (see ``energy_trading.dispute.append_dispute``).
+        for pattern in ("ntc_*.csv", "prices_*.csv", "bids_*.csv", "disputes_*.jsonl"):
             for f in sorted(self.settings.data_dir.glob(pattern)):
                 fp[f.name] = hashlib.sha1(f.read_bytes()).hexdigest()
         for f in sorted(self.store.root.glob("briefs/*_overrides.json")):

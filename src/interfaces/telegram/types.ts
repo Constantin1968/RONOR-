@@ -38,6 +38,22 @@ export interface TelegramChat {
   username?: string;
 }
 
+export interface TelegramDocument {
+  file_id: string;
+  file_unique_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+}
+
+export interface TelegramPhotoSize {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  file_size?: number;
+}
+
 export interface TelegramMessage {
   message_id: number;
   from?: TelegramUser;
@@ -45,6 +61,10 @@ export interface TelegramMessage {
   /** Unix seconds. */
   date: number;
   text?: string;
+  caption?: string;
+  document?: TelegramDocument;
+  /** Photo comes as an array of resized versions; the largest is last. */
+  photo?: TelegramPhotoSize[];
   reply_to_message?: TelegramMessage;
   entities?: Array<{ type: string; offset: number; length: number }>;
 }
@@ -111,6 +131,8 @@ export type CommandName =
   | 'upload_case'
   | 'feedback'
   | 'correct'
+  | 'dispute'
+  | 'history'
   | 'unknown';
 
 export interface ParsedCommand {
@@ -139,6 +161,14 @@ export interface PendingApproval {
    * dispatches to /api/settle on the trading arm rather than to the runtime.
    */
   tradeTicketId?: string;
+  /**
+   * For `trade` kind only: the arm-side trade ids the trainer's /trade_request
+   * proposed. On approve, these are the ids passed to /api/nominate; the whole
+   * book is then settled with /api/settle. Kept on the approval so that a
+   * settlement path cannot silently nominate more or fewer trades than were
+   * shown to the sovereign at the moment of co-sign.
+   */
+  tradeIds?: string[];
   /** The runtime request id of the governed attempt that raised the gate. */
   requestId: string;
   /** Opaque, one-time settlement id issued and stored by the runtime. */

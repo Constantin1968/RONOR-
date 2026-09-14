@@ -48,6 +48,8 @@ export function createApproval(params: {
   approvalId?: string;
   /** For `trade` kind only: the trading arm's ticket id. */
   tradeTicketId?: string;
+  /** For `trade` kind only: the arm-side proposed trade ids. */
+  tradeIds?: string[];
   requestId: string;
   runtimeApprovalId: string | null;
   heldResponse: PendingApproval['heldResponse'];
@@ -67,6 +69,7 @@ export function createApproval(params: {
     approvalId: params.approvalId ?? newApprovalId(),
     kind: params.kind,
     tradeTicketId: params.tradeTicketId,
+    tradeIds: params.tradeIds,
     requestId: params.requestId,
     runtimeApprovalId: params.runtimeApprovalId,
     heldResponse: params.heldResponse,

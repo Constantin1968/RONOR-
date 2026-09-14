@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from energy_trading.agent import AgentConfig, CrossBorderAgent
 from energy_trading.config import settings
+from energy_trading.dispute import DisputeRequest, append_dispute, list_disputes
 from energy_trading.hub import hub_snapshot
 from energy_trading.interconnectors import INTERCONNECTORS, ZONES
 from energy_trading.market_data import SimulatedProvider
@@ -226,6 +227,35 @@ async def ops_upload(
         ingestor._file(source, "document", file.filename, intake)
         out["reply"] = format_reply(intake)
     return out
+
+
+@app.post("/api/dispute", dependencies=[Depends(require_api_token)])
+def dispute(
+    req: DisputeRequest,
+    x_operator_who: Annotated[str | None, Header(alias="X-Operator-Who")] = None,
+) -> dict:
+    """Record a trainer / operator dispute against a ticket or a specific trade.
+
+    The dispute is appended to ``data/disputes_<day>.jsonl`` (never rewritten).
+    If ``corrective_action`` carries structured values (capacity / cbc / limits /
+    filled / realized keyed by corridor and hour), they are merged into
+    ``data/bids_<day>.csv`` via ``write_bids_csv`` so the twin re-runs the day
+    on the next ``watch`` tick. Free-text ``reason`` never touches the intake
+    regex parser — it lives in the jsonl only, as audit evidence.
+    """
+    actor = (x_operator_who or "").strip() or "unknown"
+    return append_dispute(req, actor=actor)
+
+
+@app.get("/api/disputes")
+def disputes(day: str | None = None) -> dict:
+    """Read back disputes, optionally filtered to one ISO day."""
+    if day is not None:
+        try:
+            datetime.fromisoformat(day)
+        except ValueError:
+            raise HTTPException(400, f"Invalid day '{day}', expected ISO date")
+    return list_disputes(day)
 
 
 @app.get("/api/claims")

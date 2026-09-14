@@ -70,6 +70,10 @@ import {
   cmdCorrect,
   cmdTradeRequest,
   settleTradeTicket,
+  cmdDispute,
+  cmdUploadCaseHint,
+  handleUploadCasePayload,
+  cmdHistory,
   tradingTrainerOnboarding,
 } from './energy-trading/handlers';
 import type {
@@ -223,7 +227,7 @@ function parseCommand(text: string): ParsedCommand {
     // is what lets that refusal be specific ("trading arm not enabled") rather
     // than generic ("unknown command").
     'energy_status', 'energy_report', 'day', 'pl', 'brief',
-    'trade_request', 'upload_case', 'feedback', 'correct',
+    'trade_request', 'upload_case', 'feedback', 'correct', 'dispute', 'history',
   ];
   const name: CommandName = (knownCommands.includes(cmd as CommandName) ? cmd : 'unknown') as CommandName;
   return { name, argument, raw: trimmed };
@@ -253,9 +257,31 @@ export class RonorTelegramBot {
     this.trading = config.energyTrading.enabled
       ? new TradingClient({
           baseUrl: config.energyTrading.baseUrl,
-          token: config.energyTrading.apiToken,
+          apiToken: config.energyTrading.apiToken,
         })
       : null;
+  }
+
+  // Per-chat/user tracking for /upload_case: the first message with the
+  // command sets a pending intent; the next document or text from the same
+  // (chatId, userId) is routed to handleUploadCasePayload. TTL keeps stale
+  // intents from catching an unrelated later document.
+  private readonly pendingUploadCase = new Map<string, { day: string; createdAt: number }>();
+  private readonly UPLOAD_CASE_TTL_MS = 10 * 60_000;
+
+  private todayIsoCet(): string {
+    // The arm and RO grid work in CET; keep a common day format across bot
+    // and arm rather than mixing local sandbox time with arm-side clock.
+    const d = new Date();
+    // Compute Europe/Bucharest date without a full timezone library — the day
+    // boundary is what matters, not sub-second precision.
+    const s = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Bucharest',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+    return s;
   }
 
   // -------------------------------------------------------------------------
@@ -369,11 +395,17 @@ export class RonorTelegramBot {
     const userId = msg.from?.id;
     const chatId = msg.chat.id;
     const text = msg.text ?? '';
+    const hasDocument = msg.document !== undefined;
+    const hasPhoto = msg.photo !== undefined && msg.photo.length > 0;
 
-    if (!userId || msg.text === undefined || text.trim().length === 0) return;
+    // A message with only a document/photo has no `text` field; we still want
+    // to look at it, because /upload_case may have primed a pending intent.
+    if (!userId) return;
+    if (!hasDocument && !hasPhoto && (msg.text === undefined || text.trim().length === 0)) return;
+
     // Conversational mode: plain text (no / prefix) is treated as /query.
     // Auth and rate-limit checks still run below before the query is forwarded.
-    const isPlainText = !text.startsWith('/');
+    const isPlainText = !hasDocument && !hasPhoto && !text.startsWith('/');
 
     if (!this.config.allowedUserIds.has(userId)) {
       logger.warn(`rejected message from unauthorised user ${userId}`);
@@ -388,6 +420,33 @@ export class RonorTelegramBot {
       await this.tg.sendMessage({
         chat_id: chatId,
         text: `⏱ Rate limit reached. You may send ${this.config.rateLimitPerMinute} commands per minute.`,
+      });
+      return;
+    }
+
+    // /upload_case pending intent: if the previous command from this user was
+    // /upload_case, route the next document / text / photo to the handler and
+    // clear the intent. TTL guards against a stray later document being
+    // interpreted as case data.
+    const uploadKey = `${chatId}:${userId}`;
+    const pendingUpload = this.pendingUploadCase.get(uploadKey);
+    if (pendingUpload && Date.now() - pendingUpload.createdAt <= this.UPLOAD_CASE_TTL_MS) {
+      // A slash-command interrupts the upload flow — don't hijack it.
+      if (hasDocument || hasPhoto || (text && !text.startsWith('/'))) {
+        this.pendingUploadCase.delete(uploadKey);
+        await this.handleUploadCaseMessage(chatId, userId, msg, pendingUpload.day);
+        return;
+      }
+    } else if (pendingUpload) {
+      // Stale intent — discard.
+      this.pendingUploadCase.delete(uploadKey);
+    }
+
+    // Documents/photos without a pending intent: politely note the correct flow.
+    if (hasDocument || hasPhoto) {
+      await this.tg.sendMessage({
+        chat_id: chatId,
+        text: 'Send /upload_case first, then attach the .xlsx or .csv (or paste text) as your next message.',
       });
       return;
     }
@@ -450,6 +509,8 @@ export class RonorTelegramBot {
       case 'upload_case':
       case 'feedback':
       case 'correct':
+      case 'dispute':
+      case 'history':
         await this.cmdTrading(chatId, msg, userId, cmd.name, cmd.argument);
         break;
       default:
@@ -490,6 +551,86 @@ export class RonorTelegramBot {
     } else {
       await this.doReject(chatId, userId, approvalId, null);
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // /upload_case follow-up: route the next document / text from the primed
+  // (chatId, userId) to the arm. Refuse images/PDFs per Muse's Decizia 2.
+  // -------------------------------------------------------------------------
+
+  private async handleUploadCaseMessage(
+    chatId: number,
+    userId: number,
+    msg: TelegramMessage,
+    day: string,
+  ): Promise<void> {
+    const gate = this.gateTrading(userId, 'contribute');
+    if (!gate.proceed) {
+      await this.tg.sendMessage({ chat_id: chatId, text: gate.text, parse_mode: 'HTML' });
+      return;
+    }
+    const client = this.trading!;
+    const assignment = this.roleOf(userId)!;
+    const userName = `${msg.from?.first_name ?? 'Operator'}${msg.from?.last_name ? ' ' + msg.from.last_name : ''}`;
+    const ctx = { userId, userName, assignment, client };
+
+    if (msg.photo && msg.photo.length > 0) {
+      const text = await handleUploadCasePayload(ctx, { kind: 'image', day });
+      await this.tg.sendMessage({ chat_id: chatId, text, parse_mode: 'HTML' });
+      return;
+    }
+
+    if (msg.document) {
+      const doc = msg.document;
+      const filename = doc.file_name ?? 'unnamed';
+      const mime = (doc.mime_type ?? '').toLowerCase();
+      const lower = filename.toLowerCase();
+      const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)$/i.test(lower);
+      const isPdf = mime === 'application/pdf' || lower.endsWith('.pdf');
+      const isFile =
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.xls') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.json') ||
+        mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        mime === 'text/csv' ||
+        mime === 'application/json';
+
+      let payloadText: string;
+      if (isImage) {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'image', filename, day });
+      } else if (isPdf) {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'pdf', filename, day });
+      } else if (isFile) {
+        try {
+          const { bytes } = await this.tg.downloadFile(doc.file_id);
+          payloadText = await handleUploadCasePayload(ctx, {
+            kind: 'file',
+            bytes,
+            filename,
+            day,
+          });
+        } catch (err) {
+          logger.error('failed to download upload_case document', err);
+          payloadText = `⛔ Failed to download attachment: ${(err as Error).message}`;
+        }
+      } else {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'unsupported', filename, day });
+      }
+      await this.tg.sendMessage({ chat_id: chatId, text: payloadText, parse_mode: 'HTML' });
+      return;
+    }
+
+    const pasted = (msg.text ?? '').trim();
+    if (pasted.length === 0) {
+      await this.tg.sendMessage({
+        chat_id: chatId,
+        text: 'No attachment or text found. Send /upload_case again then attach the .xlsx / .csv or paste the numbers.',
+      });
+      return;
+    }
+    const text = await handleUploadCasePayload(ctx, { kind: 'text', text: pasted, day });
+    await this.tg.sendMessage({ chat_id: chatId, text, parse_mode: 'HTML' });
   }
 
   // -------------------------------------------------------------------------
@@ -550,10 +691,23 @@ export class RonorTelegramBot {
       case 'correct':
         text = await cmdCorrect(ctx, argument);
         break;
-      case 'upload_case':
-        text =
-          '📎 Reply to this message with the .xlsx (or .csv/.json) case file attached. ' +
-          '(File upload plumbing is in the arm; the bot-side attachment reader is delivered in the follow-up.)';
+      case 'upload_case': {
+        const hint = cmdUploadCaseHint(argument);
+        text = hint.text;
+        // Track the pending upload so the next document / text from this chat
+        // is routed to handleUploadCasePayload. Keyed by chatId + userId to
+        // avoid one operator's upload catching another's next document.
+        this.pendingUploadCase.set(`${chatId}:${userId}`, {
+          day: hint.day ?? this.todayIsoCet(),
+          createdAt: Date.now(),
+        });
+        break;
+      }
+      case 'dispute':
+        text = await cmdDispute(ctx, argument);
+        break;
+      case 'history':
+        text = await cmdHistory(ctx, argument);
         break;
       case 'trade_request': {
         const r = await cmdTradeRequest(ctx, argument);
@@ -566,6 +720,7 @@ export class RonorTelegramBot {
             approvalId: r.ticketId, // arm's ticket id doubles as the approval id
             kind: 'trade',
             tradeTicketId: r.ticketId,
+            tradeIds: r.proposedTradeIds ?? [],
             requestId: r.ticketId,
             runtimeApprovalId: null,
             heldResponse: null,
@@ -636,9 +791,11 @@ export class RonorTelegramBot {
             '/pl [day] — proof-of-optimisation summary',
             '/brief &lt;question&gt; — free-form question to the arm',
             '/trade_request corridor=... day=... hour=... volume=... side=... — initiate a trade (requires sovereign co-sign)',
-            '/upload_case — upload an ops xlsx (trader/trainer)',
+            '/upload_case [day=YYYY-MM-DD] — upload an ops .xlsx/.csv, or paste text (no OCR)',
             '/feedback &lt;text&gt; — record trainer feedback',
             '/correct &lt;text&gt; — record a correction against arm reasoning',
+            '/dispute ticket:trade [day=YYYY-MM-DD] [reason] — open a dispute for a nominated trade',
+            '/history day=YYYY-MM-DD — re-run the arm for a given day (reads bids + disputes)',
             '',
           ]
         : []),
@@ -1005,6 +1162,7 @@ export class RonorTelegramBot {
         const cancelled = await settleTradeTicket(
           this.trading,
           approval.tradeTicketId,
+          approval.tradeIds ?? [],
           approval.requestedByName,
           'cancelled',
           reason,
@@ -1165,6 +1323,7 @@ export class RonorTelegramBot {
         const settled = await settleTradeTicket(
           this.trading,
           approval.tradeTicketId,
+          approval.tradeIds ?? [],
           approval.requestedByName, // approved on behalf of the requester
           'executed',
           null,

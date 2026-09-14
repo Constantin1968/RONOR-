@@ -81,8 +81,10 @@ export function tradingBucketFor(command: string): TradingCommandBucket | null {
     case 'upload_case':
     case 'feedback':
     case 'correct':
+    case 'dispute':
       return 'contribute';
     case 'trade_request':
+    case 'history':
       return 'initiate';
     // /approve and /reject go through settle() rather than this map, because
     // whether they touch a TRADE pending or a general RONOR pending is decided

@@ -98,6 +98,19 @@ export type CommandName =
   | 'approve'
   | 'reject'
   | 'pending'
+  // Energy trading arm commands. Available only when the trading module is
+  // enabled in the bridge config (TRADING_ARM_BASE_URL set). Even when
+  // enabled, each is gated by the caller's role assignment — an allowed user
+  // without a trading role is refused every one of them.
+  | 'energy_status'
+  | 'energy_report'
+  | 'day'
+  | 'pl'
+  | 'brief'
+  | 'trade_request'
+  | 'upload_case'
+  | 'feedback'
+  | 'correct'
   | 'unknown';
 
 export interface ParsedCommand {
@@ -119,8 +132,13 @@ export interface ParsedCommand {
  */
 export interface PendingApproval {
   approvalId: string;
-  /** `query` or `mission` — determines which endpoint settles it. */
-  kind: 'query' | 'mission';
+  /** `query`, `mission`, or `trade` — determines which endpoint settles it. */
+  kind: 'query' | 'mission' | 'trade';
+  /**
+   * For `trade` kind only: the trading arm's ticket id. Settling the approval
+   * dispatches to /api/settle on the trading arm rather than to the runtime.
+   */
+  tradeTicketId?: string;
   /** The runtime request id of the governed attempt that raised the gate. */
   requestId: string;
   /** Opaque, one-time settlement id issued and stored by the runtime. */

@@ -1,0 +1,22 @@
+{
+  "UA": {
+    "zone": "UA",
+    "source": "OREE DAM (IPS) / NBU EUR",
+    "url": "https://www.oree.com.ua/index.php/PXS/get_pxs_hdata/14.09.2026/DAM/2",
+    "unit": "EUR/MWh",
+    "rate_uah_eur": 51.7643,
+    "rate_day": "2026-09-13",
+    "fetched_at": "2026-09-13T16:07:56.375220+00:00",
+    "hours": 23,
+    "verified_typed": true
+  },
+  "RO": {
+    "zone": "RO",
+    "source": "OPCOM PZU",
+    "url": "https://www.opcom.ro/rapoarte-pzu-raportPIP-export-csv/14/9/2026/en",
+    "unit": "EUR/MWh",
+    "fetched_at": "2026-09-13T11:16:58.670260+00:00",
+    "hours": 24,
+    "verified_typed": false
+  }
+}

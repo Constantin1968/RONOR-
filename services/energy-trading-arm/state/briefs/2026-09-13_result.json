@@ -1,0 +1,276 @@
+{
+  "day": "2026-09-13",
+  "ntc": "ntc_2026-09-13.csv",
+  "ntc_fallback": false,
+  "prices": "prices_2026-09-13.csv",
+  "evidence": "operator_provided",
+  "price_coverage": {
+    "MD": 7,
+    "RO": 24,
+    "UA": 24
+  },
+  "sources": {
+    "UA": "OREE DAM (IPS) / NBU EUR",
+    "RO": "OPCOM PZU"
+  },
+  "no_ntc_borders": [],
+  "bids": "bids_2026-09-13.csv",
+  "won_capacity": {
+    "RO-UA": {
+      "0": 15.0,
+      "1": 15.0,
+      "2": 15.0,
+      "3": 15.0,
+      "4": 15.0,
+      "5": 15.0,
+      "6": 15.0,
+      "7": 15.0,
+      "8": 15.0,
+      "9": 15.0,
+      "10": 15.0,
+      "11": 15.0,
+      "16": 15.0,
+      "17": 15.0,
+      "18": 15.0,
+      "19": 15.0,
+      "20": 15.0,
+      "21": 15.0,
+      "22": 15.0
+    },
+    "UA-RO": {
+      "0": 15.0,
+      "1": 15.0,
+      "2": 15.0,
+      "3": 15.0,
+      "4": 15.0,
+      "5": 15.0,
+      "6": 15.0,
+      "7": 15.0,
+      "8": 15.0,
+      "10": 15.0,
+      "11": 15.0,
+      "12": 15.0,
+      "13": 15.0,
+      "14": 15.0,
+      "15": 15.0,
+      "16": 15.0,
+      "17": 15.0,
+      "18": 15.0,
+      "19": 15.0,
+      "20": 15.0,
+      "21": 15.0,
+      "22": 15.0
+    },
+    "UA-MD": {
+      "10": 10.0,
+      "11": 10.0,
+      "12": 10.0,
+      "13": 10.0
+    },
+    "UA-MD-RO": {
+      "0": 30.0,
+      "1": 30.0,
+      "2": 30.0,
+      "3": 30.0,
+      "4": 30.0,
+      "5": 30.0,
+      "6": 30.0,
+      "7": 30.0,
+      "8": 30.0,
+      "9": 30.0,
+      "10": 30.0,
+      "11": 30.0,
+      "12": 30.0,
+      "13": 30.0,
+      "14": 30.0,
+      "15": 30.0
+    }
+  },
+  "bid_limits": [],
+  "implied_costs": {},
+  "missing_price_zones": [],
+  "decisions": [],
+  "trades_proposed": 5,
+  "expected_pnl_eur": 8517.0,
+  "hub_summary": {
+    "zones": {
+      "BG": {
+        "hours": 24,
+        "import_hours": 17,
+        "export_hours": 7,
+        "mean_basis": -57.48
+      },
+      "RS": {
+        "hours": 24,
+        "import_hours": 17,
+        "export_hours": 7,
+        "mean_basis": -57.62
+      },
+      "HU": {
+        "hours": 24,
+        "import_hours": 17,
+        "export_hours": 7,
+        "mean_basis": -56.09
+      },
+      "MD": {
+        "hours": 24,
+        "import_hours": 21,
+        "export_hours": 3,
+        "mean_basis": -60.01
+      },
+      "UA": {
+        "hours": 24,
+        "import_hours": 23,
+        "export_hours": 1,
+        "mean_basis": -38.55
+      }
+    },
+    "wheeling_count": 88,
+    "wheeling_expected_eur": 1279742.48,
+    "best_wheel": {
+      "hour": 21,
+      "from_zone": "RS",
+      "to_zone": "UA",
+      "buy_price": 84.09,
+      "sell_price": 202.84,
+      "gross_spread": 118.75,
+      "transport_cost": 2.93,
+      "net_spread": 115.82,
+      "capacity_mw": 450.0,
+      "expected_profit_eur": 52119.21
+    }
+  },
+  "alerts": [
+    {
+      "level": "warning",
+      "rule": "thin_cbc",
+      "message": "MD-UA: CBC subțire — 23/24 ore sub 50 MW; ferestre utile: 21. Recomandare: skip sau doar ferestrele utile.",
+      "context": {
+        "border": "MD-UA",
+        "mean_mw": 15.4,
+        "prev_mean_mw": 12.1,
+        "thin_hours": 23,
+        "usable_hours": [
+          21
+        ]
+      }
+    },
+    {
+      "level": "info",
+      "rule": "wide_basis",
+      "message": "BG: 17 ore cu basis ≥ 40 €/MWh vs RO, max -146.91 la ora 21 (import, 800 MW); ore: 00, 01, 02, 03, 04, 05, 06, 07 (+9)",
+      "context": {
+        "zone": "BG",
+        "hours": 17,
+        "widest": {
+          "zone": "BG",
+          "hour": 21,
+          "price": 85.46,
+          "ro_price": 232.37,
+          "basis": -146.91,
+          "direction": "import",
+          "transport_cost": 0.91,
+          "net_edge": 146.0,
+          "capacity_mw": 800.0
+        }
+      }
+    },
+    {
+      "level": "info",
+      "rule": "wide_basis",
+      "message": "RS: 17 ore cu basis ≥ 40 €/MWh vs RO, max -148.28 la ora 21 (import, 600 MW); ore: 00, 01, 02, 03, 04, 05, 06, 07 (+9)",
+      "context": {
+        "zone": "RS",
+        "hours": 17,
+        "widest": {
+          "zone": "RS",
+          "hour": 21,
+          "price": 84.09,
+          "ro_price": 232.37,
+          "basis": -148.28,
+          "direction": "import",
+          "transport_cost": 1.19,
+          "net_edge": 147.09,
+          "capacity_mw": 600.0
+        }
+      }
+    },
+    {
+      "level": "info",
+      "rule": "wide_basis",
+      "message": "HU: 17 ore cu basis ≥ 40 €/MWh vs RO, max -147.00 la ora 21 (import, 1000 MW); ore: 00, 01, 02, 03, 04, 05, 06, 07 (+9)",
+      "context": {
+        "zone": "HU",
+        "hours": 17,
+        "widest": {
+          "zone": "HU",
+          "hour": 21,
+          "price": 85.37,
+          "ro_price": 232.37,
+          "basis": -147.0,
+          "direction": "import",
+          "transport_cost": 0.83,
+          "net_edge": 146.17,
+          "capacity_mw": 1000.0
+        }
+      }
+    },
+    {
+      "level": "info",
+      "rule": "wide_basis",
+      "message": "MD: 15 ore cu basis ≥ 40 €/MWh vs RO, max -143.29 la ora 21 (import, 0 MW); ore: 00, 04, 05, 06, 07, 08, 10, 14 (+7)",
+      "context": {
+        "zone": "MD",
+        "hours": 15,
+        "widest": {
+          "zone": "MD",
+          "hour": 21,
+          "price": 89.08,
+          "ro_price": 232.37,
+          "basis": -143.29,
+          "direction": "import",
+          "transport_cost": 1.5,
+          "net_edge": 141.79,
+          "capacity_mw": 0.0
+        }
+      }
+    },
+    {
+      "level": "info",
+      "rule": "wide_basis",
+      "message": "UA: 14 ore cu basis ≥ 40 €/MWh vs RO, max -82.57 la ora 22 (import, 15 MW); ore: 00, 01, 02, 03, 04, 05, 06, 07 (+6)",
+      "context": {
+        "zone": "UA",
+        "hours": 14,
+        "widest": {
+          "zone": "UA",
+          "hour": 22,
+          "price": 144.89,
+          "ro_price": 227.46,
+          "basis": -82.57,
+          "direction": "import",
+          "transport_cost": 2.35,
+          "net_edge": 80.22,
+          "capacity_mw": 15.0
+        }
+      }
+    },
+    {
+      "level": "info",
+      "rule": "best_wheel",
+      "message": "Wheeling RS→RO→UA ora 21: net 115.82 €/MWh × 450 MW",
+      "context": {
+        "hour": 21,
+        "from_zone": "RS",
+        "to_zone": "UA",
+        "buy_price": 84.09,
+        "sell_price": 202.84,
+        "gross_spread": 118.75,
+        "transport_cost": 2.93,
+        "net_spread": 115.82,
+        "capacity_mw": 450.0,
+        "expected_profit_eur": 52119.21
+      }
+    }
+  ]
+}

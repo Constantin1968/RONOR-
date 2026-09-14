@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-14 05:25:02.172928",
+  "opportunities_scanned": 41,
+  "trades_proposed": 5,
+  "trades_rejected": 1,
+  "total_expected_pnl": 8517.0,
+  "evidence_level": "operator_provided",
+  "claim_id": "CLM-0001",
+  "rejections": [
+    "Cap 5 trades/run reached; 36 left unscanned"
+  ]
+}

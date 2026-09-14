@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>RONOR — Trading energie</title>
+<meta name="theme-color" content="#0b1020" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RONOR" />
+<link rel="manifest" href="/static/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/static/icon.svg" />
+<link rel="stylesheet" href="/static/styles.css" />
+<link rel="stylesheet" href="/static/operator.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="op">
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">R</div>
+    <div>
+      <h1>RONOR · Trading energie</h1>
+      <p>România hub regional · RO · UA · MD · BG · RS · HU</p>
+    </div>
+  </div>
+  <div class="right">
+    <div class="health" id="health"><span class="dot"></span><span id="healthText">mă conectez…</span></div>
+    <button id="activateBtn" class="ghost">Activează agentul</button>
+    <a class="ghost link" href="/static/avansat.html">Panou avansat</a>
+  </div>
+</header>
+
+<main class="op-layout">
+
+  <section class="panel day">
+    <div class="dayhead">
+      <h2>Ziua</h2>
+      <div class="daynav">
+        <button id="prevDay" class="ghost">‹</button>
+        <input type="date" id="day" />
+        <button id="nextDay" class="ghost">›</button>
+        <button id="refreshBtn" class="ghost" title="Rulează din nou pe datele curente">↻ Rulează</button>
+      </div>
+    </div>
+    <div id="evidence" class="evidence"></div>
+    <div id="borders" class="borders-list"></div>
+    <pre id="brief" class="brief">Se încarcă…</pre>
+  </section>
+
+  <section class="panel auth">
+    <h2>De autorizat <span id="pendingCount" class="count"></span></h2>
+    <p class="muted small">Agentul propune. Tu confirmi. Nimic nu pleacă fără tine.</p>
+    <div id="pending" class="pending"></div>
+    <div class="btnrow">
+      <button id="authAllBtn" class="primary">Autorizez tot ce e bifat</button>
+    </div>
+    <h3>Autorizate azi</h3>
+    <div id="nominated" class="nominated muted small">—</div>
+  </section>
+
+  <section class="panel chat">
+    <h2>Vorbește cu RONOR</h2>
+    <div id="chatLog" class="chatlog">
+      <div class="msg bot">Spune-mi ce vrei, în cuvintele tale. De exemplu: „cum stau lucrurile azi?”, „ce trebuie să autorizez?”, „skip UA-MD”, „ce capacitate avem mâine?”</div>
+    </div>
+    <form id="chatForm" class="chatform">
+      <input id="chatInput" type="text" placeholder="RONOR, …" autocomplete="off" />
+      <button class="primary" type="submit">Trimite</button>
+    </form>
+    <div class="chips">
+      <button class="chip" data-q="cum stau lucrurile azi?">azi</button>
+      <button class="chip" data-q="ce avem mâine?">mâine</button>
+      <button class="chip" data-q="ce trebuie să autorizez?">de autorizat</button>
+      <button class="chip" data-q="cum e vremea?">vremea</button>
+      <button class="chip" data-q="ești acolo?">status</button>
+    </div>
+  </section>
+
+</main>
+<script src="/static/operator.js"></script>
+</body>
+</html>

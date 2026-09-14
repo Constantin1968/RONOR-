@@ -38,7 +38,16 @@ function newApprovalId(): string {
 }
 
 export function createApproval(params: {
-  kind: 'query' | 'mission';
+  kind: 'query' | 'mission' | 'trade';
+  /**
+   * Optional override. When supplied, this id is stored verbatim instead of a
+   * generated one. Used by the energy trading module so the arm's own ticket
+   * id doubles as the approval id — the sovereign then approves with the same
+   * id they saw in the request confirmation.
+   */
+  approvalId?: string;
+  /** For `trade` kind only: the trading arm's ticket id. */
+  tradeTicketId?: string;
   requestId: string;
   runtimeApprovalId: string | null;
   heldResponse: PendingApproval['heldResponse'];
@@ -55,8 +64,9 @@ export function createApproval(params: {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + params.ttlMinutes * 60_000);
   const approval: PendingApproval = {
-    approvalId: newApprovalId(),
+    approvalId: params.approvalId ?? newApprovalId(),
     kind: params.kind,
+    tradeTicketId: params.tradeTicketId,
     requestId: params.requestId,
     runtimeApprovalId: params.runtimeApprovalId,
     heldResponse: params.heldResponse,

@@ -1,0 +1,653 @@
+{
+  "openai": [
+    {
+      "type": "function",
+      "function": {
+        "name": "ziua",
+        "description": "Ziua de tranzacționare într-un mesaj: prețuri (reale/simulate), NTC, ce e închis, ce e subțire, ce propune agentul și ce trebuie confirmat. Prima unealtă de apelat pentru 'cum stă ziua', 'ce facem azi/mâine'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "capacitate",
+        "description": "Capacitățile transfrontaliere (NTC/ATC) pe ore pentru RO-UA, UA-RO, UA-MD, MD-UA, RO-MD, MD-RO: medie, minim, ferestre utile, ce e închis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "hub",
+        "description": "România ca hub regional: basis-ul (diferența de preț) față de piețele vecine (HU, BG, RS, MD, UA), oportunități de wheeling și arbitraj.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "meteo",
+        "description": "Prognoza meteo și semnalele de cerere/eolian/solar pentru RO, BG, RS, HU, MD, UA.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "granite",
+        "description": "Lista interconectorilor acoperiți, cu TSO, capacitate tehnică, tarife și pierderi.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "propuneri",
+        "description": "Rulează agentul pe o zi: caută spread-uri nete pozitive, aplică limitele de risc și REMIT și pune propunerile în book cu status 'proposed'. Nu nominalizează nimic.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "de_autorizat",
+        "description": "Ce așteaptă confirmarea omului: propunerile 'proposed' grupate pe direcție, cu MWh și P&L așteptat și ID-urile XB-....",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "autorizeaza",
+        "description": "Nominalizează propuneri — DOAR când operatorul uman a spus explicit că autorizează. ids: 'tot' sau ID-uri 'XB-0001 XB-0002'. Se înregistrează cine a autorizat.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "'tot' sau lista de ID-uri XB-.... separate prin spațiu"
+            }
+          },
+          "required": [
+            "ids"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "book",
+        "description": "Portofoliul curent: tranzacții pe status (proposed / nominated / settled), volume, P&L.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "deconteaza",
+        "description": "Decontează tranzacțiile nominalizate cu livrare trecută și calculează P&L realizat.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "pl",
+        "description": "Raportul P/L Digital Twin pentru o zi livrată (implicit ieri): ce a câștigat real poziția operatorului la prețurile publicate (OPCOM RO, OREE UA), ce ar fi făcut twin-ul, idealul cu hindsight, CBC plătit, ore ratate, cumulat pe lună. Pentru 'cât am făcut ieri', 'P/L pe 13.09', 'rezultatul zilei'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "preturi",
+        "description": "Citește acum prețurile publicate (OPCOM pentru RO, OREE + curs NBU pentru UA) pentru azi și mâine, sau pentru o zi dată, și le pune în fișierele zilei. Sursele sunt citite oricum periodic; util când operatorul întreabă 'a ieșit OPCOM?'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "status",
+        "description": "Starea modulului: veghe 24/7 activă/oprită, ce urmează, ce veghează, reîncercări, ultimele job-uri, book, mod Ollama.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "alerte",
+        "description": "Ultimele alerte: concentrare pe o graniță, basis larg, CBC subțire, erori de workeri.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "description": "Câte alerte (implicit 5)"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "suveranitate",
+        "description": "Raportul doctrinei: dependență de import, bilanț energie/carbon, expunere pe zone.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "registru",
+        "description": "Registrul afirmațiilor (claims): fiecare rulare, nominalizare și decontare, cu nivel de evidență și cine a autorizat.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "description": "Câte intrări (implicit 5)"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "doctrina",
+        "description": "Principiile doctrinei de suveranitate energetică pe care le urmează modulul.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "intreaba",
+        "description": "Caută în documentația și doctrina modulului (README, doctrina de suveranitate) și răspunde ancorat în text. Pentru întrebări conceptuale: ce e basis-ul, cum funcționează cuplarea piețelor, ce e REMIT, ce reguli urmează agentul.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "intrebare": {
+              "type": "string",
+              "description": "Întrebarea, în cuvintele operatorului"
+            }
+          },
+          "required": [
+            "intrebare"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "activeaza",
+        "description": "Pornește veghea 24/7: meteo 06:00, ziua 09:00, recap 18:00, plus date noi → ziua refăcută în ≤1 min, decontare orară, memento înainte de gate, reîncercări.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "opreste",
+        "description": "Oprește veghea 24/7. Nimic nu mai rulează automat până la 'activeaza'.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "noteaza",
+        "description": "Trimite modulului o notă operațională brută: tabel NTC lipit ca text, prețuri pe intervale, decizii ('skip UA-MD'). Modulul o parsează și o aplică zilei.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "Nota exact așa cum a scris-o operatorul"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      }
+    }
+  ],
+  "mcp": [
+    {
+      "name": "ziua",
+      "description": "Ziua de tranzacționare într-un mesaj: prețuri (reale/simulate), NTC, ce e închis, ce e subțire, ce propune agentul și ce trebuie confirmat. Prima unealtă de apelat pentru 'cum stă ziua', 'ce facem azi/mâine'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "capacitate",
+      "description": "Capacitățile transfrontaliere (NTC/ATC) pe ore pentru RO-UA, UA-RO, UA-MD, MD-UA, RO-MD, MD-RO: medie, minim, ferestre utile, ce e închis.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "hub",
+      "description": "România ca hub regional: basis-ul (diferența de preț) față de piețele vecine (HU, BG, RS, MD, UA), oportunități de wheeling și arbitraj.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "meteo",
+      "description": "Prognoza meteo și semnalele de cerere/eolian/solar pentru RO, BG, RS, HU, MD, UA.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "granite",
+      "description": "Lista interconectorilor acoperiți, cu TSO, capacitate tehnică, tarife și pierderi.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "propuneri",
+      "description": "Rulează agentul pe o zi: caută spread-uri nete pozitive, aplică limitele de risc și REMIT și pune propunerile în book cu status 'proposed'. Nu nominalizează nimic.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "de_autorizat",
+      "description": "Ce așteaptă confirmarea omului: propunerile 'proposed' grupate pe direcție, cu MWh și P&L așteptat și ID-urile XB-....",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "autorizeaza",
+      "description": "Nominalizează propuneri — DOAR când operatorul uman a spus explicit că autorizează. ids: 'tot' sau ID-uri 'XB-0001 XB-0002'. Se înregistrează cine a autorizat.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "string",
+            "description": "'tot' sau lista de ID-uri XB-.... separate prin spațiu"
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "book",
+      "description": "Portofoliul curent: tranzacții pe status (proposed / nominated / settled), volume, P&L.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "deconteaza",
+      "description": "Decontează tranzacțiile nominalizate cu livrare trecută și calculează P&L realizat.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "pl",
+      "description": "Raportul P/L Digital Twin pentru o zi livrată (implicit ieri): ce a câștigat real poziția operatorului la prețurile publicate (OPCOM RO, OREE UA), ce ar fi făcut twin-ul, idealul cu hindsight, CBC plătit, ore ratate, cumulat pe lună. Pentru 'cât am făcut ieri', 'P/L pe 13.09', 'rezultatul zilei'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "preturi",
+      "description": "Citește acum prețurile publicate (OPCOM pentru RO, OREE + curs NBU pentru UA) pentru azi și mâine, sau pentru o zi dată, și le pune în fișierele zilei. Sursele sunt citite oricum periodic; util când operatorul întreabă 'a ieșit OPCOM?'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Ziua: 'azi', 'maine' sau o dată ca '14.09' / '2026-09-14'. Implicit azi."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "status",
+      "description": "Starea modulului: veghe 24/7 activă/oprită, ce urmează, ce veghează, reîncercări, ultimele job-uri, book, mod Ollama.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "alerte",
+      "description": "Ultimele alerte: concentrare pe o graniță, basis larg, CBC subțire, erori de workeri.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "integer",
+            "description": "Câte alerte (implicit 5)"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "suveranitate",
+      "description": "Raportul doctrinei: dependență de import, bilanț energie/carbon, expunere pe zone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "registru",
+      "description": "Registrul afirmațiilor (claims): fiecare rulare, nominalizare și decontare, cu nivel de evidență și cine a autorizat.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "integer",
+            "description": "Câte intrări (implicit 5)"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "doctrina",
+      "description": "Principiile doctrinei de suveranitate energetică pe care le urmează modulul.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "intreaba",
+      "description": "Caută în documentația și doctrina modulului (README, doctrina de suveranitate) și răspunde ancorat în text. Pentru întrebări conceptuale: ce e basis-ul, cum funcționează cuplarea piețelor, ce e REMIT, ce reguli urmează agentul.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intrebare": {
+            "type": "string",
+            "description": "Întrebarea, în cuvintele operatorului"
+          }
+        },
+        "required": [
+          "intrebare"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "activeaza",
+      "description": "Pornește veghea 24/7: meteo 06:00, ziua 09:00, recap 18:00, plus date noi → ziua refăcută în ≤1 min, decontare orară, memento înainte de gate, reîncercări.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "opreste",
+      "description": "Oprește veghea 24/7. Nimic nu mai rulează automat până la 'activeaza'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "noteaza",
+      "description": "Trimite modulului o notă operațională brută: tabel NTC lipit ca text, prețuri pe intervale, decizii ('skip UA-MD'). Modulul o parsează și o aplică zilei.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Nota exact așa cum a scris-o operatorul"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      }
+    }
+  ]
+}

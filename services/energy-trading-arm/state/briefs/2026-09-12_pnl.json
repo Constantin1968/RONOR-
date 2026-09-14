@@ -1,0 +1,28 @@
+{
+  "day": "2026-09-12",
+  "corridors": [],
+  "totals": {
+    "operator": 0.0,
+    "operator_own_costs": 0.0,
+    "twin": 0.0,
+    "perfect": 0.0,
+    "cbc_paid": 0.0,
+    "held_mwh": 0.0,
+    "unknown_mwh": 0.0,
+    "filled_mwh": 0.0
+  },
+  "operator_known": false,
+  "undetermined_hours": 0,
+  "net": {
+    "operator": null,
+    "operator_own_costs": null,
+    "twin": 0.0,
+    "perfect": 0.0
+  },
+  "capture": {
+    "operator": null,
+    "twin": null
+  },
+  "own_costs_applied": false,
+  "computed_at": "2026-09-13T11:02:16.462735+00:00"
+}

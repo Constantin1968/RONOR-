@@ -1,0 +1,20 @@
+[Unit]
+Description=Energy Trading Agent (RO hub, cross-border ops, 24/7 scheduler)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trader
+WorkingDirectory=/opt/energy-trading-agent
+EnvironmentFile=/opt/energy-trading-agent/.env
+ExecStart=/opt/energy-trading-agent/.venv/bin/uvicorn energy_trading.api:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/energy-trading-agent/state /opt/energy-trading-agent/data
+
+[Install]
+WantedBy=multi-user.target

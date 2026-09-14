@@ -3,13 +3,28 @@ import { createServiceRateLimit } from './rate-limit';
 import type { EvidenceArtifact, VerificationEvidence, VerificationVerdict } from '../contracts';
 import type { WorkspaceArtifactCollector } from '../artifacts';
 import { signVerificationReceipt, verifyVerificationReceipt } from '../verification-receipt';
+import { AccountedEvaluationError } from './codex-evaluator';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const KINDS = new Set(['git_diff', 'git_status', 'test_report', 'event_log']);
+const SAFE_CODEX_EVALUATOR_FAILURE_CODES = new Set([
+  'codex_api_response_too_large', 'codex_api_usage_missing', 'codex_api_usage_invalid',
+  'codex_api_output_missing', 'codex_api_output_not_json', 'codex_api_output_invalid',
+  'codex_api_timeout', 'codex_api_unavailable',
+]);
+
+function codexEvaluatorFailureCode(error: unknown): string {
+  if (error instanceof AccountedEvaluationError) {
+    const code = error.message;
+    // Compare the full match as well: `$` alone also accepts a final newline.
+    if (typeof code === 'string' && (SAFE_CODEX_EVALUATOR_FAILURE_CODES.has(code) || /^codex_api_http_[1-5][0-9]{2}$/.exec(code)?.[0] === code)) return code;
+  }
+  return 'codex_evaluator_failed';
+}
 
 export interface VerifiedMaterial { artifact: EvidenceArtifact; content: string; }
 export interface CodexEvaluationPort {
-  evaluate(input: { missionId: string; claims: string[]; materials: VerifiedMaterial[] }): Promise<{ verdict: 'pass' | 'fail'; summary: string; evidence: string[]; cost_usd: number }>;
+  evaluate(input: { missionId: string; claims: string[]; materials: VerifiedMaterial[]; budgetToken?: string }): Promise<{ verdict: 'pass' | 'fail'; summary: string; evidence: string[]; cost_usd: number }>;
 }
 
 function authorised(header: string | undefined, token: string): boolean { return header === `Bearer ${token}`; }
@@ -65,19 +80,34 @@ export function createCodexVerifierApp(config: { serviceToken: string; receiptPr
   app.post('/v1/verify', async (req, res) => {
     if (!authorised(req.header('authorization'), config.serviceToken)) { res.status(401).json({ ok: false, error: 'unauthorized' }); return; }
     const missionId = req.body?.mission_id; const evidence = parseEvidence(req.body?.evidence);
-    if (typeof missionId !== 'string' || !SAFE_ID.test(missionId) || !evidence) { res.status(400).json({ ok: false, error: 'invalid_verification_request' }); return; }
-    if (!hasRequiredEvidence(evidence)) { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Required independent evidence is incomplete.', evidence: ['required-evidence:missing'], cost_usd: 0 }); return; }
+    if (typeof missionId !== 'string' || !SAFE_ID.test(missionId) || !evidence) { res.status(400).json({ ok: false, error: 'invalid_verification_request', failure_code: 'codex_request_invalid' }); return; }
+    if (!hasRequiredEvidence(evidence)) { res.status(422).json({ ok: false, verdict: 'fail', failure_code: 'codex_evidence_missing', summary: 'Required independent evidence is incomplete.', evidence: ['required-evidence:missing'], cost_usd: 0 }); return; }
+    let cost: number | null = 0;
+    let phase: 'artifact_read' | 'evaluator' | 'evaluator_result' | 'receipt_signing' = 'artifact_read';
     try {
       const materials = config.artifacts.read(evidence.artifacts);
       if (!testMaterialsProvePass(evidence, materials)) {
-        res.status(422).json({ ok: false, verdict: 'fail', summary: 'Test evidence does not deterministically prove a passing run.', evidence: ['test-evidence:invalid'], cost_usd: 0 });
+        res.status(422).json({ ok: false, verdict: 'fail', failure_code: 'codex_test_evidence_invalid', summary: 'Test evidence does not deterministically prove a passing run.', evidence: ['test-evidence:invalid'], cost_usd: 0 });
         return;
       }
-      const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials });
+      phase = 'evaluator';
+      cost = null;
+      const verdict = await config.evaluator.evaluate({ missionId, claims: evidence.claims, materials,
+        ...(typeof req.body?.budget_token === 'string' ? {budgetToken:req.body.budget_token} : {}) });
+      phase = 'evaluator_result';
+      if (verdict && Number.isFinite(verdict.cost_usd) && verdict.cost_usd >= 0) cost = verdict.cost_usd;
       if (!verdict || !['pass', 'fail'].includes(verdict.verdict) || typeof verdict.summary !== 'string' || verdict.summary.length > 4000 || !Array.isArray(verdict.evidence) || verdict.evidence.length > 50 || !verdict.evidence.every((item) => typeof item === 'string' && item.length <= 2000) || !Number.isFinite(verdict.cost_usd) || verdict.cost_usd < 0) throw new Error('invalid_evaluator_result');
+      phase = 'receipt_signing';
       const receipt = signVerificationReceipt({ privateKeyPem: config.receiptPrivateKey, missionId, verdict: verdict.verdict, evidence, now: config.now?.() });
-      res.status(verdict.verdict === 'pass' ? 200 : 422).json({ ok: verdict.verdict === 'pass', ...verdict, receipt });
-    } catch { res.status(422).json({ ok: false, verdict: 'fail', summary: 'Independent verification failed closed.', evidence: ['verification:failed-closed'], cost_usd: 0 }); }
+      res.status(verdict.verdict === 'pass' ? 200 : 422).json({ ok: verdict.verdict === 'pass', ...verdict,
+        ...(verdict.verdict === 'fail' ? { failure_code: 'codex_verdict_rejected' } : {}), receipt });
+    } catch (error) {
+      const failureCode = phase === 'evaluator' ? codexEvaluatorFailureCode(error)
+        : phase === 'evaluator_result' ? 'codex_evaluator_result_invalid'
+        : phase === 'receipt_signing' ? 'codex_receipt_signing_failed' : 'codex_artifact_read_failed';
+      res.status(422).json({ ok: false, verdict: 'fail', failure_code: failureCode, summary: 'Independent verification failed closed.',
+        evidence: ['verification:failed-closed'], cost_usd: error instanceof AccountedEvaluationError ? error.cost_usd : cost });
+    }
   });
   return app;
 }

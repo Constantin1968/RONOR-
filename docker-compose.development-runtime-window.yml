@@ -1,0 +1,13 @@
+# Apply last, after every installed overlay, including artifact and evidence-home.
+# Replaces exactly one service: the controller, on the SAME image already
+# installed (ronor-development-controller:${RONOR_ARTIFACT_TAG}). No code, no
+# build, no new image. The only difference is the explicit execution bound
+# RONOR_AUTOMATION_MAX_RUNTIME_MINUTES, supplied by runtime-window.env, which is
+# raised for one supervised probe so the final assignment can finish. The cost
+# ceiling, the fix-cycle ceiling, every other service, the budget ledger, the
+# mandate keys and every secret remain exactly as installed.
+services:
+  controller:
+    image: ronor-development-controller:${RONOR_ARTIFACT_TAG:?reviewed revision}
+    environment:
+      RONOR_AUTOMATION_MAX_RUNTIME_MINUTES: ${RONOR_AUTOMATION_MAX_RUNTIME_MINUTES:?explicit execution bound}

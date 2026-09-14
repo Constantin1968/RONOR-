@@ -6,6 +6,7 @@ import path from 'path';
 import { isAutomationAction, type AdapterResult, type OpenHandsExecutionEnvelope } from '../contracts';
 import { verifyExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
+import { verifyModelBudget } from '../model-budget';
 
 export interface NativeOpenHandsPort {
   execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult>;
@@ -99,6 +100,7 @@ export function createOpenHandsBridgeApp(config: {
   client: NativeOpenHandsPort;
   nonces?: CapabilityNonceStore;
   now?: () => Date;
+  requireBudget?: boolean;
 }) {
   const app = express();
   app.use(createServiceRateLimit());
@@ -135,8 +137,15 @@ export function createOpenHandsBridgeApp(config: {
     const envelope = parseEnvelope((req.body as Record<string, unknown> | undefined)?.envelope);
     if (!claims || !envelope) { res.status(403).json({ ok: false, error: 'invalid_capability' }); return; }
     if (claims.assignment_id !== envelope.assignment_id || claims.objective_hash !== envelope.objective_hash ||
-        claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0')) {
+        claims.expires_at !== envelope.deadline || claims.allowed_actions.join('\0') !== envelope.allowed_actions.join('\0') ||
+        JSON.stringify(claims.resume)!==JSON.stringify(envelope.resume)) {
       res.status(403).json({ ok: false, error: 'capability_mismatch' }); return;
+    }
+    if (config.requireBudget || envelope.budget_token !== undefined) {
+      const budget = typeof envelope.budget_token === 'string' ? verifyModelBudget(envelope.budget_token, config.capabilityKey, now().getTime()) : null;
+      if (!budget || budget.role !== 'author' || budget.mission_id !== claims.mission_id || budget.expires_at !== claims.expires_at) {
+        res.status(403).json({ok:false,error:'budget_capability_mismatch'}); return;
+      }
     }
     let consumed = false;
     try { consumed = nonces.consume(claims.nonce, claims.expires_at); }
@@ -157,8 +166,8 @@ export function createOpenHandsBridgeApp(config: {
       const result = await config.client.execute(envelope, controller.signal);
       assertAutomationOutputSafe(result);
       if (!res.destroyed) {
-        if (controller.signal.aborted) res.status(409).json({ ok: false, error: 'openhands_execution_cancelled' });
-        else res.status(result.ok ? 200 : 422).json(result);
+        // Execution failure is a valid result, including its accounting and safe reason.
+        res.status(200).json(controller.signal.aborted ? { ...result, ok: false } : result);
       }
     } catch {
       if (!res.destroyed) res.status(controller.signal.aborted ? 409 : 502).json({

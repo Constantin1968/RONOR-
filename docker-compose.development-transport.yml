@@ -1,0 +1,9 @@
+# Apply after all installed overlays. Only the controller image changes.
+# The bridge, model proxy, model identity and budgets remain untouched.
+services:
+  controller:
+    build:
+      context: ${RONOR_TRANSPORT_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_TRANSPORT_TAG:?reviewed revision}

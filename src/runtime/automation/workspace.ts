@@ -1,6 +1,8 @@
 import { execFileSync } from 'child_process';
 import { lstatSync, realpathSync } from 'fs';
 import path from 'path';
+import { branchMatchesPolicy } from './policy';
+import crypto from 'node:crypto';
 
 export interface WorkspaceSnapshot {
   canonical_path: string;
@@ -25,7 +27,7 @@ export interface WorkspacePolicy {
 export interface WorkspaceVerdict { valid: boolean; reason: string | null; snapshot?: WorkspaceSnapshot; }
 
 function git(cwd: string, args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  return execFileSync('git', ['--no-optional-locks', '-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
 function inside(candidate: string, root: string): boolean {
@@ -57,7 +59,7 @@ export function validateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, policy: W
   if (snapshot.is_link) return { valid: false, reason: 'workspace_link_refused' };
   if (!snapshot.is_git_worktree || snapshot.git_toplevel !== snapshot.canonical_path) return { valid: false, reason: 'workspace_not_dedicated_git_root' };
   if (snapshot.branch === 'main' || snapshot.branch === 'master') return { valid: false, reason: 'protected_branch_refused' };
-  if (!policy.branch_prefix.endsWith('/') || !snapshot.branch.startsWith(policy.branch_prefix)) return { valid: false, reason: 'branch_outside_policy' };
+  if (!branchMatchesPolicy(snapshot.branch, policy.branch_prefix)) return { valid: false, reason: 'branch_outside_policy' };
   if (policy.expected_origin && snapshot.origin !== policy.expected_origin) return { valid: false, reason: 'repository_identity_mismatch' };
   if (policy.expected_head && snapshot.head !== policy.expected_head) return { valid: false, reason: 'base_commit_mismatch' };
   if (policy.require_clean && !snapshot.clean) return { valid: false, reason: 'workspace_not_clean' };
@@ -67,4 +69,16 @@ export function validateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, policy: W
 export function inspectAndValidateWorkspace(workspaceRoot: string, policy: WorkspacePolicy): WorkspaceVerdict {
   try { return validateWorkspaceSnapshot(inspectAutomationWorkspace(workspaceRoot, policy.approved_root), policy); }
   catch { return { valid: false, reason: 'workspace_inspection_failed' }; }
+}
+
+/** A narrowly scoped legacy recovery: tracked, unstaged changes only. */
+export function recoveryWorkspaceDigests(workspaceRoot: string): {workspace: string; patch: string} {
+  if (git(workspaceRoot,['ls-files','--others','--exclude-standard']) ||
+      git(workspaceRoot,['diff','--cached','--name-only'])) throw new Error('recovery_workspace_not_admitted');
+  const patch = git(workspaceRoot,['diff','--binary','--no-ext-diff','--no-textconv']);
+  const hash = (s:string) => crypto.createHash('sha256').update(s).digest('hex');
+  return {patch:hash(patch),workspace:hash(JSON.stringify({
+    head:git(workspaceRoot,['rev-parse','HEAD']),branch:git(workspaceRoot,['branch','--show-current']),
+    status:git(workspaceRoot,['status','--porcelain=v1','--untracked-files=all']),patch,
+  }))};
 }

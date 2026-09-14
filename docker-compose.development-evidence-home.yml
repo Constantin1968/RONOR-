@@ -1,0 +1,14 @@
+# Apply last, after every installed overlay, including the artifact stage.
+# Replaces exactly one service: the evidence runner. Its test child process
+# now receives a resolvable home directory and an ephemeral npm cache, both
+# inside the container's only writable path. The controller, the OpenHands
+# bridge and the agent, the model egress proxy, the verifier, the assurance
+# service, the LangGraph service, and every budget, ledger, mandate and
+# secret remain exactly as installed.
+services:
+  automation-evidence-runner:
+    build:
+      context: ${RONOR_EVIDENCE_HOME_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: evidence
+    image: ronor-development-evidence:${RONOR_EVIDENCE_HOME_TAG:?reviewed revision}

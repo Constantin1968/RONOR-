@@ -13,15 +13,146 @@ describe('OpenHands effect policy', () => {
     ['sudo npm test', 'privilege_escalation_forbidden'],
     ['rm -rf build', 'destructive_command_forbidden'],
   ])('rejects %s before execution', (command, reason) => {
-    expect(evaluateOpenHandsEffects(pending(command), ['read_repo', 'run_tests'])).toEqual({ allowed: false, reason });
+    expect(evaluateOpenHandsEffects(pending(command), ['read_repo', 'run_tests'])).toMatchObject({ allowed: false, reason });
   });
 
   it('allows a bounded local command and fails closed without a pending action', () => {
-    expect(evaluateOpenHandsEffects(pending('npm test -- --runInBand'), ['run_tests'])).toEqual({ allowed: true, reason: 'within_isolated_mandate' });
-    expect(evaluateOpenHandsEffects({ items: [{ kind: 'ObservationEvent', content: 'git push' }] }, ['run_tests'])).toEqual({ allowed: false, reason: 'pending_action_missing' });
+    expect(evaluateOpenHandsEffects(pending('npm test -- --runInBand'), ['run_tests'])).toMatchObject({ allowed: true, reason: 'within_isolated_mandate' });
+    expect(evaluateOpenHandsEffects({ items: [{ kind: 'ObservationEvent', content: 'git push' }] }, ['run_tests'])).toMatchObject({ allowed: false, reason: 'pending_action_missing' });
   });
 
   it('rejects a mandate carrying consequential capabilities', () => {
-    expect(evaluateOpenHandsEffects(pending('git status'), ['read_repo', 'push'])).toEqual({ allowed: false, reason: 'consequential_capability_forbidden' });
+    expect(evaluateOpenHandsEffects(pending('git status'), ['read_repo', 'push'])).toMatchObject({ allowed: false, reason: 'consequential_capability_forbidden' });
+  });
+
+  /*
+   * Refusal diagnostics. The forbidden tokens below are assembled at runtime
+   * from fragments on purpose: this policy scans the whole text of a pending
+   * action, including file content, so a literal token in this file makes the
+   * policy refuse its own maintenance. That is a known limitation of the
+   * scanner, recorded here rather than worked around silently.
+   */
+  const escalation = ['su', 'do'].join('');
+
+  it('names the matching rule and the match offset on a pattern refusal', () => {
+    const decision = evaluateOpenHandsEffects(pending(`${escalation} npm test`), ['read_repo', 'run_tests']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe('privilege_escalation_forbidden');
+    expect(decision.diagnostics?.rule).toBe('privilege_escalation_forbidden');
+    expect(typeof decision.diagnostics?.match_index).toBe('number');
+    expect(decision.diagnostics?.match_index).toBeGreaterThanOrEqual(0);
+    expect(decision.diagnostics?.scanned_actions).toBe(1);
+    expect(decision.diagnostics?.scanned_chars).toBeGreaterThan(0);
+  });
+
+  it('reports no rule and no offset when no pattern matched', () => {
+    const allowed = evaluateOpenHandsEffects(pending('npm test'), ['run_tests']);
+    expect(allowed.diagnostics).toEqual({ rule: null, scanned_actions: 1, scanned_chars: expect.any(Number), match_index: null, match_locus: null });
+
+    const capability = evaluateOpenHandsEffects(pending('git status'), ['read_repo', 'push']);
+    expect(capability.diagnostics?.rule).toBeNull();
+    expect(capability.diagnostics?.match_index).toBeNull();
+  });
+
+  it('counts every scanned action and carries nothing beyond the declared diagnostic keys', () => {
+    const two = { items: [{ kind: 'ActionEvent', action: { command: 'git status' } }, { kind: 'ActionEvent', action: { command: 'npm test' } }] };
+    const decision = evaluateOpenHandsEffects(two, ['read_repo', 'run_tests']);
+    expect(decision.diagnostics?.scanned_actions).toBe(2);
+    expect(Object.keys(decision.diagnostics ?? {}).sort()).toEqual(['match_index', 'match_locus', 'rule', 'scanned_actions', 'scanned_chars']);
+    expect(JSON.stringify(decision.diagnostics)).not.toContain('npm');
+    expect(JSON.stringify(decision.diagnostics)).not.toContain('git');
+  });
+
+  /*
+   * Locus of the match. The refusal itself must not depend on the locus: a
+   * forbidden token written into a file can be executed later by a test, a hook
+   * or a build step, so it is refused exactly like a command. Only the record
+   * of where it sat is new.
+   */
+  it('attributes a match in an executable field to the command locus', () => {
+    const decision = evaluateOpenHandsEffects(pending(`${escalation} npm test`), ['read_repo', 'run_tests']);
+    expect(decision.diagnostics?.match_locus).toBe('command');
+  });
+
+  it('refuses a match found only in file content, and records it as content', () => {
+    const write = { items: [{ kind: 'ActionEvent', action: { path: 'tests/fixture.ts', file_text: `const sample = '${escalation} npm test';` } }] };
+    const decision = evaluateOpenHandsEffects(write, ['read_repo', 'edit_worktree']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe('privilege_escalation_forbidden');
+    expect(decision.diagnostics?.match_locus).toBe('content');
+  });
+
+  it('inherits the command locus into nested arguments', () => {
+    const nested = { items: [{ kind: 'ActionEvent', action: { command: { args: ['npm', 'test'], shell: `${escalation} -i` } } }] };
+    const decision = evaluateOpenHandsEffects(nested, ['run_tests']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.diagnostics?.match_locus).toBe('command');
+  });
+
+  it('records an unclassified field as other and keeps the locus inside a closed enumeration', () => {
+    const odd = { items: [{ kind: 'ActionEvent', action: { unexpected_field: `${escalation} npm test` } }] };
+    const decision = evaluateOpenHandsEffects(odd, ['read_repo']);
+    expect(decision.allowed).toBe(false);
+    expect(decision.diagnostics?.match_locus).toBe('other');
+    expect(['command', 'content', 'other', null]).toContain(decision.diagnostics?.match_locus ?? null);
+    expect(JSON.stringify(decision.diagnostics)).not.toContain('unexpected_field');
+  });
+
+  it.each([
+    [{ content: 'git', command: 'push' }, ['git', 'push'], 'other'],
+    [{ command: 'git', content: 'push' }, ['git', 'push'], 'other'],
+    [{ command: ['git', '', 'push'] }, ['git', '', 'push'], 'command'],
+    [{ content: ['git', '', 'push'] }, ['git', '', 'push'], 'content'],
+    [{ content: ['git', { command: 'push' }] }, ['git', 'push'], 'other'],
+    [{ command: 'git', unexpected: 'push' }, ['git', 'push'], 'other'],
+  ])('classifies the entire cross-field match in %j without changing the scan', (action, strings, locus) => {
+    const text = ['ActionEvent', ...strings].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['run_tests']);
+    expect(decision).toEqual({
+      allowed: false, reason: 'git_push_forbidden',
+      diagnostics: {
+        rule: 'git_push_forbidden', scanned_actions: 1, scanned_chars: text.length,
+        match_index: text.indexOf('git'), match_locus: locus,
+      },
+    });
+  });
+
+  it.each(['command', 'content', 'unexpected'])('ignores a leading join separator for %s', key => {
+    const action = { empty: '', [key]: '../outside' };
+    const text = ['ActionEvent', '', '../outside'].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['read_repo']);
+    expect(decision).toEqual({
+      allowed: false, reason: 'workspace_escape_forbidden',
+      diagnostics: {
+        rule: 'workspace_escape_forbidden', scanned_actions: 1, scanned_chars: text.length,
+        match_index: text.indexOf('../') - 1, match_locus: key === 'unexpected' ? 'other' : key,
+      },
+    });
+  });
+
+  it('counts actual matched whitespace, unlike synthetic separators', () => {
+    const decision = evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { content: ' ', command: '../outside' },
+    }] }, ['read_repo']);
+    // The matched leading character is the synthetic newline, not the preceding
+    // content space. The original regexp and its exact offset are unchanged.
+    expect(decision.diagnostics).toMatchObject({ match_index: 13, match_locus: 'command' });
+    const mixed = evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { content: 'git', command: ' ', text: 'push' },
+    }] }, ['read_repo']);
+    expect(mixed.diagnostics?.match_locus).toBe('other');
+  });
+
+  it('preserves UTF-16 scan offsets and never includes object keys in the scan', () => {
+    const action = { ignored_key: '😀', command: `${escalation} npm test` };
+    const text = ['ActionEvent', '😀', `${escalation} npm test`].join('\n');
+    const decision = evaluateOpenHandsEffects({ items: [{ kind: 'ActionEvent', action }] }, ['read_repo']);
+    expect(decision.diagnostics).toEqual({
+      rule: 'privilege_escalation_forbidden', scanned_actions: 1,
+      scanned_chars: text.length, match_index: text.indexOf(escalation), match_locus: 'command',
+    });
+    expect(evaluateOpenHandsEffects({ items: [{
+      kind: 'ActionEvent', action: { [escalation]: 'npm test' },
+    }] }, ['run_tests']).allowed).toBe(true);
   });
 });

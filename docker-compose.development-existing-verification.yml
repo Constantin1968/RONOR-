@@ -1,0 +1,26 @@
+# Opt-in overlay, LAST after the installed development-only Compose files.
+# Never apply to the business runtime. Build/recreate only the three named services.
+# Keep the installed mounts, identities, networks and restart policy unchanged.
+services:
+  controller:
+    build:
+      context: ${RONOR_EXISTING_VERIFY_SOURCE:?absolute reviewed source directory}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_EXISTING_VERIFY_TAG:?reviewed source commit}
+    environment:
+      RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_EXISTING_VERIFY_HEAD:?exact approved candidate commit}
+  openhands-bridge:
+    build:
+      context: ${RONOR_EXISTING_VERIFY_SOURCE:?absolute reviewed source directory}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-development-bridge:${RONOR_EXISTING_VERIFY_TAG:?reviewed source commit}
+  automation-evidence-runner:
+    build:
+      context: ${RONOR_EXISTING_VERIFY_SOURCE:?absolute reviewed source directory}
+      dockerfile: Dockerfile.development-tools
+      target: evidence
+    image: ronor-development-evidence:${RONOR_EXISTING_VERIFY_TAG:?reviewed source commit}
+    environment:
+      RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_EXISTING_VERIFY_HEAD:?exact approved candidate commit}

@@ -4,6 +4,8 @@ import { tmpdir } from 'os';
 import path from 'path';
 import type { AddressInfo } from 'net';
 import { signExecutionCapability } from '../../src/runtime/automation/capability';
+import { signModelBudget } from '../../src/runtime/automation/model-budget';
+import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 import { createOpenHandsBridgeApp, FileCapabilityNonceStore, MemoryCapabilityNonceStore } from '../../src/runtime/automation/services/openhands-bridge';
 import type { OpenHandsExecutionEnvelope } from '../../src/runtime/automation/contracts';
 
@@ -21,6 +23,19 @@ const capability = (nonce = 'nonce-1') => signExecutionCapability({
 }, key);
 
 describe('RONOR OpenHands bridge', () => {
+  it('binds a required monetary authorization to the execution mission and deadline before native dispatch', async () => {
+    const execute = jest.fn(async()=>({ok:true,summary:'done',evidence:[],cost_usd:0}));
+    const app = createOpenHandsBridgeApp({capabilityKey:key,serviceToken,client:{execute},requireBudget:true});
+    const make = (mission_id:string) => signModelBudget({mission_id,max_cost_usd:1,expires_at:deadline} as ExecutionMandate,
+      {run_id:'r1',accounted_cost_usd:0},'author',key);
+    const send = (budget_token?:string,nonce='budget')=>request(app).post('/v1/execute')
+      .set('Authorization',`Bearer ${serviceToken}`).set('X-RONOR-Capability',capability(nonce)).send({envelope:{...envelope,budget_token}});
+    expect((await send()).status).toBe(403);
+    expect((await send(make('other-mission'))).status).toBe(403);
+    expect(execute).not.toHaveBeenCalled();
+    expect((await send(make('msn1'),'valid-budget')).status).toBe(200);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
   it('requires the bridge identity for health attestation', async () => {
     const app = createOpenHandsBridgeApp({ capabilityKey: key, serviceToken, client: { execute: jest.fn() } });
     expect((await request(app).get('/health')).status).toBe(401);

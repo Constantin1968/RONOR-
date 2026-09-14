@@ -16,6 +16,13 @@ function config(userId: number): TelegramConfig {
     maxMessageChars: 3800,
     pollTimeoutSeconds: 1,
     rateLimitPerMinute: 20,
+    energyTrading: {
+      enabled: false,
+      baseUrl: '',
+      apiToken: '',
+      roleMap: new Map(),
+      tradingApprovers: new Set(),
+    },
   };
 }
 

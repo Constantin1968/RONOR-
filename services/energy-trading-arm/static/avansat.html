@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⚡ Panou avansat — Cross-Border Power Agent</title>
+<link rel="stylesheet" href="/static/styles.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">⚡</div>
+    <div>
+      <h1>Cross-Border Power Agent</h1>
+      <p>SDAC · SIDC · JAO explicit · REMIT screened</p>
+    </div>
+  </div>
+  <a href="/" style="color:var(--muted);font-size:13px;margin-right:14px">← Ecran operator</a><div class="health" id="health"><span class="dot"></span><span id="healthText">connecting…</span></div>
+</header>
+
+<main class="layout">
+  <section class="panel controls">
+    <h2>Run control</h2>
+    <label>Delivery day <input type="date" id="day" value="2026-09-12" /></label>
+    <div class="grid2">
+      <label>Min net spread (€/MWh)<input type="number" id="minSpread" value="0.5" step="0.1" min="0" /></label>
+      <label>Volume (MW)<input type="number" id="volume" value="100" step="10" min="1" max="1500" /></label>
+    </div>
+    <div class="grid2">
+      <label>Max trades<input type="number" id="maxTrades" value="12" min="1" max="100" /></label>
+      <label>&nbsp;<button id="runBtn" class="primary">▶ Run agent</button></label>
+    </div>
+    <div class="btnrow">
+      <button id="nominateBtn">Nominate all</button>
+      <button id="settleBtn">Settle</button>
+      <button id="resetBtn" class="danger">Reset book</button>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span>Scanned</span><strong id="kScanned">–</strong></div>
+      <div class="kpi"><span>Proposed</span><strong id="kProposed">–</strong></div>
+      <div class="kpi"><span>Exp. PnL</span><strong id="kPnl">–</strong></div>
+      <div class="kpi"><span>Book PnL</span><strong id="kBook">–</strong></div>
+    </div>
+    <h3>Date zilnice (RO/UA/MD)</h3>
+    <p class="hint">Lipește informațiile zilnice, ex:<br><code>RO-UA ATC 450 MW</code> · <code>RO ora 18 pret 112,5</code></p>
+    <textarea id="opsText" rows="5" placeholder="RO-UA ATC 450 MW&#10;UA-MD ATC 600&#10;RO-MD ATC 400&#10;RO ora 18 pret 112,5&#10;MD 19h 121"></textarea>
+    <div class="btnrow">
+      <button id="parseBtn">Parsează</button>
+      <button id="parseRunBtn" class="primary">Parsează + Rulează</button>
+    </div>
+    <div class="uploadrow">
+      <label class="filelabel">📎 Excel zilnic (WhatsApp) <input type="file" id="opsFile" accept=".xlsx,.xlsm" /></label>
+      <button id="uploadBtn">Încarcă</button>
+      <button id="uploadRunBtn" class="primary">Încarcă + Rulează</button>
+    </div>
+    <pre id="opsPre" class="log mini hidden"></pre>
+    <h3>Borders</h3>
+    <div id="borders" class="borders"></div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="opps">Opportunities</button>
+      <button class="tab" data-tab="book">Trade book</button>
+      <button class="tab" data-tab="log">Agent log</button>
+    </div>
+    <div id="tab-opps" class="tabpanel">
+      <table><thead><tr><th>Delivery</th><th>Border</th><th>Flow</th><th>Buy</th><th>Sell</th><th>Net €/MWh</th><th>MW</th><th>Exp. €</th></tr></thead>
+      <tbody id="oppRows"><tr><td colspan="8" class="muted">Run the agent to scan spreads.</td></tr></tbody></table>
+    </div>
+    <div id="tab-book" class="tabpanel hidden">
+      <table><thead><tr><th>ID</th><th>Delivery</th><th>Border</th><th>MW</th><th>Buy→Sell</th><th>Exp. €</th><th>Status</th></tr></thead>
+      <tbody id="bookRows"><tr><td colspan="7" class="muted">Book is empty.</td></tr></tbody></table>
+    </div>
+    <div id="tab-log" class="tabpanel hidden"><pre id="logPre" class="log">No runs yet.</pre></div>
+  </section>
+</main>
+
+<footer>Implicit coupling = SDAC Euphemia · Explicit = JAO eCAT · Constraints: per-border / portfolio / VaR95 / REMIT screen. Synthetic prices until ENTSO-E token is wired.</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

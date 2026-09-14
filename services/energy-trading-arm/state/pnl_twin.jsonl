@@ -1,0 +1,6 @@
+{"ts": "2026-09-13T10:55:56.025907+00:00", "day": "2026-09-13", "net": {"operator": -787.2, "operator_own_costs": -787.2, "twin": 0.0, "perfect": 30862.9}}
+{"ts": "2026-09-13T10:57:41.846956+00:00", "day": "2026-09-13", "net": {"operator": null, "operator_own_costs": null, "twin": 0.0, "perfect": 30862.9}}
+{"ts": "2026-09-13T10:58:01.494183+00:00", "day": "2026-09-13", "net": {"operator": null, "operator_own_costs": null, "twin": 0.0, "perfect": 30862.9}}
+{"ts": "2026-09-13T11:01:41.831372+00:00", "day": "2026-09-13", "net": {"operator": null, "operator_own_costs": null, "twin": 16247.3, "perfect": 30862.9}}
+{"ts": "2026-09-13T11:02:16.462918+00:00", "day": "2026-09-12", "net": {"operator": null, "operator_own_costs": null, "twin": 0.0, "perfect": 0.0}}
+{"ts": "2026-09-14T05:06:51.440433+00:00", "day": "2026-09-13", "net": {"operator": null, "operator_own_costs": null, "twin": 0.0, "perfect": 30862.9, "reported": null, "reported_gap": null}}

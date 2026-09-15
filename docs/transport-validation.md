@@ -25,6 +25,10 @@ există `/app/scripts/ronor-develop.mjs` și fișierul cu cheia de arhitect. Amb
 sunt și module importabile, astfel încât contractul lor este verificat de
 `tests/cli/ronor-transport-validation.test.cjs` fără rețea și fără model.
 
+Ambele scripturi sunt copiate în imaginea controlorului de
+`Dockerfile.development-tools`, alături de `ronor-develop.mjs`; o unealtă care
+nu este listată acolo nu ajunge în container, oricât de corect ar fi commit-ul.
+
 ### `scripts/ronor-transport-validation-run.cjs`
 
 Pornește exact o rulare de dezvoltare cu obiectivul fixat.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Admit the operator-assisted test-isolation commit. Strict equality admission is
+# Admit an operator-checked development head. Strict equality admission is
 # preserved; only the expected head changes. No model call, push or history rewrite.
 set -Eeuo pipefail
 [[ "${1:-}" == --approved-admission ]] || exit 2
@@ -62,4 +62,4 @@ phase=verify
 snapshot > "$evidence/after.json"
 printf 'old_expected_head=%s\nnew_expected_head=%s\nledger_sha256_unchanged=%s\nceiling_usd=100\n' \
   "$old" "$head" "$before_ledger" > "$evidence/change.txt"
-echo "isolated_tests_head_admitted; common_evidence_baseline; state_and_ledger_unchanged; six_other_containers_unchanged; evidence=$evidence"
+echo "development_head_admitted; common_evidence_baseline; state_and_ledger_unchanged; six_other_containers_unchanged; evidence=$evidence"

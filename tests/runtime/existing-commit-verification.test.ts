@@ -185,9 +185,12 @@ it('fails closed on non-2xx Codex even when its body claims pass and never auto-
   const result = await terminal(started.body.verification.verification_id);
   expect(result.status).toBe('failed'); expect(result.victoria_accepted).toBe(false);
   expect(calls).not.toContain('victoria-assurance/v1/assure');
-  const count = calls.length;
+  // Health probes are periodic and can land at any moment, so the assertion is
+  // about work calls only: the repeated submission must do nothing at all.
+  const work = () => calls.filter(c => !c.endsWith('/health'));
+  const before = work().length;
   expect((await submit(spec(), key)).body.verification.status).toBe('failed');
-  expect(calls).toHaveLength(count);
+  expect(work()).toHaveLength(before);
   // The refusal is injected on the wire after the verifier already dispatched
   // its model request, so the provider really was paid. The failure is recorded
   // with the cost the proxy settled, not as a free run.

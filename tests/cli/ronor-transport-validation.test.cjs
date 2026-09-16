@@ -24,6 +24,8 @@ test('the run driver refuses everything that is not an explicitly approved, iden
     [[...APPROVED, '--max-cost-usd=nonsense'], 'validation_cost_invalid'],
     [[...APPROVED, '--max-runtime-minutes=16'], 'validation_runtime_invalid'],
     [[...APPROVED, '--max-runtime-minutes=2.5'], 'validation_runtime_invalid'],
+    [[...APPROVED, '--suite=nonexistent'], 'validation_suite_invalid'],
+    [[...APPROVED, '--suite='], 'validation_suite_invalid'],
     [[...APPROVED, '--objective=do something else'], 'validation_argument_unknown'],
     [[...APPROVED, 'start'], 'validation_argument_unknown'],
   ]) {
@@ -34,7 +36,7 @@ test('the run driver refuses everything that is not an explicitly approved, iden
 
 test('an approved mandate is bounded by the declared ceilings and defaults to them', () => {
   assert.deepEqual(run.parseArguments(APPROVED), {
-    approved: true, dryRun: false, id: 'transport-validation-20260915',
+    approved: true, dryRun: false, id: 'transport-validation-20260915', suite: 'transport',
     maxCostUsd: run.DEFAULTS.maxCostUsd, maxRuntimeMinutes: run.DEFAULTS.maxRuntimeMinutes,
   });
   assert.equal(run.CEILINGS.maxCostUsd, 100);
@@ -45,8 +47,8 @@ test('an approved mandate is bounded by the declared ceilings and defaults to th
   assert.equal(lowered.maxRuntimeMinutes, 10);
 });
 
-test('the submitted request names the three suites and forbids authorship, pushing and unrelated repair', () => {
-  const request = run.buildRequest(run.parseArguments(APPROVED));
+test('the submitted request names the selected suites and forbids authorship, pushing and unrelated repair', () => {
+  const request = run.buildRequest(run.parseArguments([...APPROVED, '--suite=all']));
   assert.equal(request.max_cost_usd, 100);
   assert.equal(request.max_runtime_minutes, 15);
   assert.equal(request.max_fix_cycles, 1);
@@ -63,7 +65,7 @@ test('the submitted request names the three suites and forbids authorship, pushi
 });
 
 test('a dry run discloses the request, starts no model and creates no run', async () => {
-  const result = await run.run([...APPROVED, '--dry-run'], {});
+  const result = await run.run([...APPROVED, '--suite=all', '--dry-run'], {});
   assert.equal(result.ok, true);
   assert.equal(result.dry_run, true);
   assert.equal(result.no_model_started, true);
@@ -155,4 +157,54 @@ test('the watch stops on a terminal status and never exceeds its budget', async 
 test('the status watch refuses to read without an architect key file', async () => {
   await assert.rejects(status.watch(IDENTIFIED, {}, { main: async () => ({}) }),
     error => error.code === 'architect_key_file_missing');
+});
+
+test('a validation targets exactly one suite unless every suite is asked for', () => {
+  assert.deepEqual(run.selectFiles('transport'), ['tests/runtime/automation-http-transport.test.ts']);
+  assert.deepEqual(run.selectFiles('controller'), ['tests/runtime/development-controller.test.ts']);
+  assert.deepEqual(run.selectFiles('lease'), ['tests/runtime/automation-run-lease.test.ts']);
+  assert.deepEqual(run.selectFiles('all'), [...run.TEST_FILES]);
+  assert.deepEqual(run.SUITE_KEYS, ['transport', 'controller', 'lease']);
+});
+
+test('the objective names only the selected suite and the command it must run', () => {
+  const single = run.buildRequest(run.parseArguments([...APPROVED, '--suite=lease']));
+  assert.match(single.objective, /npm test -- --runInBand tests\/runtime\/automation-run-lease\.test\.ts\./);
+  assert.ok(!single.objective.includes('automation-http-transport.test.ts'));
+  assert.ok(!single.objective.includes('development-controller.test.ts'));
+  const every = run.buildRequest(run.parseArguments([...APPROVED, '--suite=all']));
+  for (const file of run.TEST_FILES) assert.ok(every.objective.includes(file), `${file} missing`);
+});
+
+test('a dry run declares which suite it would validate and still starts nothing', async () => {
+  const observation = await run.run([...APPROVED, '--suite=controller', '--dry-run'], {});
+  assert.equal(observation.suite, 'controller');
+  assert.deepEqual(observation.test_files, ['tests/runtime/development-controller.test.ts']);
+  assert.equal(observation.no_model_started, true);
+  assert.equal(observation.no_run_created, true);
+});
+
+test('the watch emits one line per state change, not one line per poll', async () => {
+  const states = ['running', 'running', 'running', 'succeeded'];
+  const lines = [];
+  let poll = 0;
+  const result = await status.watch(
+    ['--run=run_7a79cd0bae49a5233b6d', '--mission=msn_mu3h5btm_54171a4b', '--interval-seconds=1'],
+    { RONOR_ARCHITECT_API_KEY_FILE: '/run/secrets/key' },
+    {
+      emit: line => lines.push(JSON.parse(line)),
+      sleep: async () => {},
+      main: async () => ({
+        run: {
+          run_id: 'run_7a79cd0bae49a5233b6d',
+          mission_id: 'msn_mu3h5btm_54171a4b',
+          status: states[poll++],
+        },
+        progress: {},
+      }),
+    },
+  );
+  assert.equal(result.terminal, true);
+  assert.deepEqual(lines.map(line => line.status), ['running', 'succeeded']);
+  for (const line of lines) assert.equal(typeof line.at, 'string');
 });

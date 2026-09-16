@@ -91,8 +91,11 @@ async function watch(argv, env = process.env, deps = {}) {
   let observation = null;
   for (;;) {
     observation = redact(await main(['status', `--run=${options.run}`, `--mission=${options.mission}`], childEnv));
-    const payload = JSON.stringify(observation);
-    if (payload !== last) emit(payload);
+    // The observation timestamp always differs, so compare everything except it.
+    // Without this the watch emitted one identical line per poll.
+    const { at: _at, ...state } = observation;
+    const payload = JSON.stringify(state);
+    if (payload !== last) emit(JSON.stringify(observation));
     last = payload;
     if (isTerminal(observation)) return { ok: true, terminal: true, status: observation.status };
     if (now() >= end) return { ok: true, terminal: false, status: observation.status };

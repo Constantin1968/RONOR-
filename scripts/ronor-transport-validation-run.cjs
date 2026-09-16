@@ -25,11 +25,40 @@ const REQUEST_PATHS = (
   || '/tmp/ronor-transport-request.json:/app/data/ronor-transport-request.json'
 ).split(':').filter(Boolean);
 
-const TEST_FILES = Object.freeze([
-  'tests/runtime/automation-http-transport.test.ts',
-  'tests/runtime/development-controller.test.ts',
-  'tests/runtime/automation-run-lease.test.ts',
-]);
+const SUITES = Object.freeze({
+  transport: Object.freeze({
+    file: 'tests/runtime/automation-http-transport.test.ts',
+    subject: 'the transport regression suite',
+  }),
+  controller: Object.freeze({
+    file: 'tests/runtime/development-controller.test.ts',
+    subject: 'the isolation of the persistent audit database in the controller suite',
+  }),
+  lease: Object.freeze({
+    file: 'tests/runtime/automation-run-lease.test.ts',
+    subject: 'the isolation of the persistent audit database in the run lease suite',
+  }),
+});
+
+const SUITE_KEYS = Object.freeze(Object.keys(SUITES));
+const TEST_FILES = Object.freeze(SUITE_KEYS.map(key => SUITES[key].file));
+
+// One suite per run keeps a validation inside the fifteen minute runtime ceiling.
+// A single run over all three suites exhausted that ceiling on 16 September 2026
+// after one of three assignments, so `all` is available but is not the default.
+function selectFiles(suite) {
+  if (suite === 'all') return [...TEST_FILES];
+  return [SUITES[suite].file];
+}
+
+function subjectText(files) {
+  const parts = files.map(file => {
+    const key = SUITE_KEYS.find(candidate => SUITES[candidate].file === file);
+    return `${SUITES[key].subject} in ${file}`;
+  });
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
 
 const CEILINGS = Object.freeze({ maxCostUsd: 100, maxRuntimeMinutes: 15, maxFixCycles: 1 });
 const DEFAULTS = Object.freeze({ maxCostUsd: 100, maxRuntimeMinutes: 15 });
@@ -37,8 +66,7 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
 
 function objectiveText(files = TEST_FILES) {
   return [
-    `Verify the transport regression suite in ${files[0]} and the isolation of the`,
-    `persistent audit database in ${files[1]} and ${files[2]}.`,
+    `Verify ${subjectText(files)}.`,
     'These were installed by an operator-assisted local commit; do not duplicate them',
     'and do not claim to have authored them. Inspect the actual test files, then run',
     `npm test -- --runInBand ${files.join(' ')}.`,
@@ -64,6 +92,7 @@ function parseArguments(argv) {
     approved: false,
     dryRun: false,
     id: null,
+    suite: 'transport',
     maxCostUsd: DEFAULTS.maxCostUsd,
     maxRuntimeMinutes: DEFAULTS.maxRuntimeMinutes,
   };
@@ -74,6 +103,7 @@ function parseArguments(argv) {
     if (!match) throw refuse('validation_argument_unknown');
     const [, name, value] = match;
     if (name === 'id') { options.id = value; continue; }
+    if (name === 'suite') { options.suite = value; continue; }
     if (name === 'max-cost-usd') { options.maxCostUsd = Number(value); continue; }
     if (name === 'max-runtime-minutes') { options.maxRuntimeMinutes = Number(value); continue; }
     throw refuse('validation_argument_unknown');
@@ -81,6 +111,7 @@ function parseArguments(argv) {
   if (!options.approved) throw refuse('validation_not_approved');
   if (typeof options.id !== 'string' || options.id.length === 0) throw refuse('validation_id_missing');
   if (!ID_PATTERN.test(options.id)) throw refuse('validation_id_invalid');
+  if (options.suite !== 'all' && !SUITE_KEYS.includes(options.suite)) throw refuse('validation_suite_invalid');
   if (!Number.isFinite(options.maxCostUsd) || options.maxCostUsd <= 0
     || options.maxCostUsd > CEILINGS.maxCostUsd) throw refuse('validation_cost_invalid');
   if (!Number.isSafeInteger(options.maxRuntimeMinutes) || options.maxRuntimeMinutes <= 0
@@ -90,7 +121,7 @@ function parseArguments(argv) {
 
 function buildRequest(options) {
   return {
-    objective: objectiveText(),
+    objective: objectiveText(selectFiles(options.suite)),
     max_cost_usd: options.maxCostUsd,
     max_runtime_minutes: options.maxRuntimeMinutes,
     max_fix_cycles: CEILINGS.maxFixCycles,
@@ -113,8 +144,8 @@ async function run(argv, env = process.env) {
   const request = buildRequest(options);
   if (options.dryRun) {
     return {
-      ok: true, dry_run: true, id: options.id, request,
-      test_files: [...TEST_FILES], no_model_started: true, no_run_created: true,
+      ok: true, dry_run: true, id: options.id, suite: options.suite, request,
+      test_files: selectFiles(options.suite), no_model_started: true, no_run_created: true,
     };
   }
   const keyFile = env.RONOR_TRANSPORT_API_KEY_FILE || env.RONOR_ARCHITECT_API_KEY_FILE;
@@ -126,11 +157,23 @@ async function run(argv, env = process.env) {
     RONOR_DEVELOPMENT_URL: DEVELOPMENT_URL,
     RONOR_DEVELOPMENT_API_KEY_FILE: keyFile,
   });
-  return { ok: true, dry_run: false, id: options.id, request_path: requestPath, result };
+  return {
+    ok: true, dry_run: false, id: options.id, suite: options.suite, request_path: requestPath, result,
+  };
 }
 
 module.exports = {
-  CEILINGS, DEFAULTS, TEST_FILES, buildRequest, objectiveText, parseArguments, run, writeRequest,
+  CEILINGS,
+  DEFAULTS,
+  SUITES,
+  SUITE_KEYS,
+  TEST_FILES,
+  buildRequest,
+  objectiveText,
+  parseArguments,
+  run,
+  selectFiles,
+  writeRequest,
 };
 
 if (require.main === module) {

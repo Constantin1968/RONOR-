@@ -37,11 +37,22 @@ Pornește exact o rulare de dezvoltare cu obiectivul fixat.
 | --- | --- | --- | --- |
 | `--approved-validation` | da | — | — |
 | `--id=<identificator>` | da | — | `^[a-z0-9][a-z0-9-]{7,63}$` |
+| `--suite=<suită>` | nu | `transport` | `transport`, `controller`, `lease`, `all` |
 | `--max-cost-usd=<n>` | nu | 100 | 100 dolari SUA |
 | `--max-runtime-minutes=<n>` | nu | 15 | 15 minute |
 | `--dry-run` | nu | absent | — |
 
 Ciclurile de reparație sunt fixate la unul singur și nu pot fi mărite.
+
+O validare acoperă, implicit, o singură suită. Motivul este măsurat, nu teoretic:
+la 16 septembrie 2026, o rulare peste toate trei suitele a epuizat plafonul de 15
+minute după o însărcinare din trei, cu numai 12,38 dolari SUA cheltuiți din 25
+autorizați, deci plafonul care a mușcat a fost cel de timp. Cele trei valori
+`transport`, `controller` și `lease` corespund celor trei fișiere din tabelul de
+mai sus; obiectivul trimis numește atunci doar suita aleasă și doar comanda care
+o rulează. Valoarea `all` păstrează mandatul combinat disponibil, dar nu încape
+în plafonul de durată și nu trebuie folosită fără o ridicare deliberată a
+acestuia. O suită necunoscută este refuzată cu `validation_suite_invalid`.
 
 Refuzurile sunt coduri, nu texte libere: `validation_not_approved`,
 `validation_id_missing`, `validation_id_invalid`, `validation_cost_invalid`,
@@ -72,7 +83,8 @@ docker exec \
   -e RONOR_ARCHITECT_API_KEY_FILE=/run/secrets/development_architect_key \
   ronor-development-controller \
   node /app/scripts/ronor-transport-validation-run.cjs \
-    --approved-validation --id=transport-validation-20260915 --max-cost-usd=25
+    --approved-validation --id=transport-validation-20260916a \
+    --suite=transport --max-cost-usd=25
 ```
 
 Cererea este scrisă cu drepturi numai pentru proprietar (`0600`), în primul loc
@@ -150,6 +162,10 @@ neschimbată și lasă celelalte șase containere neatinse.
   de verificare și de asigurare rămân singura cale de acceptare.
 - Plafonul de 100 de dolari SUA este un plafon de refuz, nu o intenție de
   cheltuială. Coboară-l cu `--max-cost-usd` la valoarea potrivită mandatului.
+- Fiecare rulare plătește din nou inspecția inițială a depozitului, deci trei
+  rulări pe câte o suită costă mai mult, cumulat, decât una singură care ar
+  încăpea în timp. Se preferă totuși, pentru că nu slăbește niciun plafon de
+  siguranță și pentru că izolează suita care cade.
 - Aceste unelte cer o rulare de dezvoltare completă, cu autor. Ele nu se
   confundă cu `verify-existing`, descrisă în `docs/verify-existing-commit.md`,
   care verifică un interval de commit-uri fără autor.

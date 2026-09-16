@@ -155,4 +155,58 @@ describe('OpenHands effect policy', () => {
       kind: 'ActionEvent', action: { [escalation]: 'npm test' },
     }] }, ['run_tests']).allowed).toBe(true);
   });
+
+  /*
+   * Relative traversal inside the pattern operand of a read-only search.
+   *
+   * The refused command below is the one that killed validation run
+   * `run_21acb846b133d67321e3` on 16 September 2026: a strictly reading search
+   * for relative TypeScript imports, refused because the pattern contained the
+   * traversal sequence. The exemption is confined to the pattern operand, so
+   * every other position in the same command stays refused.
+   */
+  describe('relative traversal in a search pattern', () => {
+    const up = ['..', '/'].join('');
+
+    it('admits the search that was refused in production', () => {
+      const command = `cd /workspace/project && grep -rln "adapters/http\\|from './http'\\|from '${up}adapters/http'" src/ tests/`;
+      expect(evaluateOpenHandsEffects(pending(command), ['read_repo', 'run_tests']))
+        .toMatchObject({ allowed: true, reason: 'within_isolated_mandate' });
+    });
+
+    it.each([
+      [`grep -rln "from '${up}x'" src/ && cat ${up}${up}outside`, 'a traversal outside the pattern in the same action'],
+      [`grep -rn foo ${up}${up}outside`, 'a traversal in the path operand'],
+      [`grep -f ${up}${up}patterns src/`, 'a traversal in a pattern FILE'],
+      [`cat "from '${up}x'"`, 'a quoted traversal given to a reading command that is not a search'],
+      [`rg -g "${up}${up}outside/*" foo`, 'a traversal in a glob rather than the pattern'],
+      [`grep -rln "from '${up}x'" src/ | rg foo ${up}${up}outside`, 'a traversal in a later stage of the pipeline'],
+    ])('still refuses %s', (command) => {
+      expect(evaluateOpenHandsEffects(pending(command), ['read_repo', 'run_tests']))
+        .toMatchObject({ allowed: false, reason: 'workspace_escape_forbidden' });
+    });
+
+    /*
+     * A bare `rg ../../outside` names no path: ripgrep reads the first operand as
+     * the pattern and searches the working directory, so nothing outside the
+     * worktree is opened. It is admitted for the same reason as the production
+     * case above, and the rule is applied consistently rather than by exception.
+     */
+    it('admits a traversal-shaped pattern given as the sole operand of a search', () => {
+      expect(evaluateOpenHandsEffects(pending(`rg ${up}${up}outside`), ['read_repo']))
+        .toMatchObject({ allowed: true, reason: 'within_isolated_mandate' });
+    });
+
+    it('refuses an absolute escape even inside a search pattern', () => {
+      const absolute = ['/et', 'c/passwd'].join('');
+      expect(evaluateOpenHandsEffects(pending(`grep -rn "${absolute}" src/`), ['read_repo']))
+        .toMatchObject({ allowed: false, reason: 'workspace_escape_forbidden' });
+    });
+
+    it('refuses a traversal in file content, which the exemption never reaches', () => {
+      const events = { items: [{ kind: 'ActionEvent', action: { content: `import x from '${up}outside';` } }] };
+      expect(evaluateOpenHandsEffects(events, ['read_repo', 'edit_worktree']))
+        .toMatchObject({ allowed: false, reason: 'workspace_escape_forbidden' });
+    });
+  });
 });

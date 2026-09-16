@@ -22,7 +22,8 @@ test('the run driver refuses everything that is not an explicitly approved, iden
     [[...APPROVED, '--max-cost-usd=101'], 'validation_cost_invalid'],
     [[...APPROVED, '--max-cost-usd=0'], 'validation_cost_invalid'],
     [[...APPROVED, '--max-cost-usd=nonsense'], 'validation_cost_invalid'],
-    [[...APPROVED, '--max-runtime-minutes=16'], 'validation_runtime_invalid'],
+    [[...APPROVED, '--max-runtime-minutes=46'], 'validation_runtime_invalid'],
+    [[...APPROVED, '--max-runtime-minutes=0'], 'validation_runtime_invalid'],
     [[...APPROVED, '--max-runtime-minutes=2.5'], 'validation_runtime_invalid'],
     [[...APPROVED, '--suite=nonexistent'], 'validation_suite_invalid'],
     [[...APPROVED, '--suite='], 'validation_suite_invalid'],
@@ -40,11 +41,18 @@ test('an approved mandate is bounded by the declared ceilings and defaults to th
     maxCostUsd: run.DEFAULTS.maxCostUsd, maxRuntimeMinutes: run.DEFAULTS.maxRuntimeMinutes,
   });
   assert.equal(run.CEILINGS.maxCostUsd, 100);
-  assert.equal(run.CEILINGS.maxRuntimeMinutes, 15);
+  // The tool's ceiling is 45 minutes, deliberately stricter than the runtime's own
+  // RONOR_AUTOMATION_MAX_RUNTIME_MINUTES default of 60, to which the mandate issuer
+  // bounds every request. The default stays at 15: a longer run is asked for.
+  assert.equal(run.CEILINGS.maxRuntimeMinutes, 45);
+  assert.equal(run.DEFAULTS.maxRuntimeMinutes, 15);
   assert.equal(run.CEILINGS.maxFixCycles, 1);
   const lowered = run.parseArguments([...APPROVED, '--max-cost-usd=5', '--max-runtime-minutes=10']);
   assert.equal(lowered.maxCostUsd, 5);
   assert.equal(lowered.maxRuntimeMinutes, 10);
+  // The mandate's expiry is issued as now plus max_runtime_minutes, so a longer
+  // ceiling is what makes a longer-lived mandate reachable at all.
+  assert.equal(run.parseArguments([...APPROVED, '--max-runtime-minutes=45']).maxRuntimeMinutes, 45);
 });
 
 test('the submitted request names the selected suites and forbids authorship, pushing and unrelated repair', () => {

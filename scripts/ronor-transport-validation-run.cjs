@@ -43,7 +43,10 @@ const SUITES = Object.freeze({
 const SUITE_KEYS = Object.freeze(Object.keys(SUITES));
 const TEST_FILES = Object.freeze(SUITE_KEYS.map(key => SUITES[key].file));
 
-// One suite per run keeps a validation inside the fifteen minute runtime ceiling.
+// One suite per run keeps a validation inside the runtime ceiling. Measurement of
+// 2026-09-16 showed the planner splits a mandate into three assignments whatever the
+// subject, and one assignment alone consumed the whole fifteen minute ceiling, so the
+// ceiling and not the subject was the binding limit.
 // A single run over all three suites exhausted that ceiling on 16 September 2026
 // after one of three assignments, so `all` is available but is not the default.
 function selectFiles(suite) {
@@ -60,7 +63,12 @@ function subjectText(files) {
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
-const CEILINGS = Object.freeze({ maxCostUsd: 100, maxRuntimeMinutes: 15, maxFixCycles: 1 });
+// The runtime's own ceiling is RONOR_AUTOMATION_MAX_RUNTIME_MINUTES, default 60, and
+// the mandate issuer bounds every request to it. This tool's ceiling is deliberately
+// stricter than the runtime's, so raising it to 45 widens what an operator may request
+// here without touching any runtime authority bound. The default stays 15: a longer run
+// has to be asked for explicitly with --max-runtime-minutes.
+const CEILINGS = Object.freeze({ maxCostUsd: 100, maxRuntimeMinutes: 45, maxFixCycles: 1 });
 const DEFAULTS = Object.freeze({ maxCostUsd: 100, maxRuntimeMinutes: 15 });
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
 

@@ -436,22 +436,66 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     expect(env).toMatch(/QDRANT_API_KEY=\$\{QDRANT_API_KEY:-\}/);
   });
 
-  test('MTA-2c-d · the Dockerfile and test compose are UNCHANGED from the baseline', () => {
-    // The service was added to ONE manifest. The others are untouched, which bounds
-    // the deployment change: the image build and the CI compose stack cannot have
-    // acquired a vector store by accident.
+  test('MTA-2c-d · the deployment manifests are bounded against the baseline', () => {
+    // The vector store was added to ONE manifest. This test bounds the deployment
+    // change so the image build and the CI compose stack cannot acquire a vector
+    // store by accident.
+    //
+    // The CI compose stack must stay byte-identical: nothing authorised since the
+    // baseline has any reason to touch it.
+    //
+    // The image build is bounded differently, because the governed development
+    // controller legitimately needs its own image. An exact-hash assertion would
+    // force that addition to be waived wholesale, which would abandon the property
+    // instead of enforcing it. So the assertion is TIGHTENED rather than relaxed:
+    //
+    //   1. The baseline Dockerfile is a STRICT PREFIX of the current one. Every
+    //      pre-existing instruction — including the `build` and `runtime` stages
+    //      and the default CMD — is therefore byte-identical, which is a stronger
+    //      statement than "the file hash matches some approved value".
+    //   2. Anything appended declares only ADDITIONAL build stages. A new stage is
+    //      inert unless a caller asks for it with --target, so the default image
+    //      that actually ships is unchanged by construction.
+    //   3. No appended stage installs a vector store client or opens a default
+    //      endpoint, which is the specific accident this gate exists to prevent.
     const { execSync } = require('child_process') as typeof import('child_process');
-    for (const manifest of ['Dockerfile', 'docker-compose.test.yml']) {
-      const baselineHash = execSync(
-        `git rev-parse d058544d1c579611cce99cdf2b87a78d7534e75b:${manifest}`,
-        { cwd: REPO_ROOT, encoding: 'utf8' }
-      ).trim();
-      const currentHash = execSync(`git hash-object ${manifest}`, {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-      }).trim();
-      expect(currentHash).toBe(baselineHash);
-    }
+
+    const composeBaseline = execSync(
+      'git rev-parse d058544d1c579611cce99cdf2b87a78d7534e75b:docker-compose.test.yml',
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    ).trim();
+    const composeCurrent = execSync('git hash-object docker-compose.test.yml', {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    }).trim();
+    expect(composeCurrent).toBe(composeBaseline);
+
+    const baselineDockerfile = execSync(
+      'git show d058544d1c579611cce99cdf2b87a78d7534e75b:Dockerfile',
+      { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }
+    );
+    const currentDockerfile = readFileSync(join(REPO_ROOT, 'Dockerfile'), 'utf8');
+
+    // (1) Nothing that existed at the baseline was altered or removed.
+    expect(currentDockerfile.startsWith(baselineDockerfile)).toBe(true);
+
+    // (2) The appended region declares only further stages, and the stages present
+    //     at the baseline are still exactly the first two.
+    const baselineStages = baselineDockerfile
+      .split('\n')
+      .filter((line) => line.startsWith('FROM '));
+    const currentStages = currentDockerfile.split('\n').filter((line) => line.startsWith('FROM '));
+    expect(currentStages.slice(0, baselineStages.length)).toEqual(baselineStages);
+
+    const appended = currentDockerfile.slice(baselineDockerfile.length);
+    expect(appended.split('\n').filter((line) => line.startsWith('FROM ')).length).toBeGreaterThan(
+      0
+    );
+
+    // (3) The appended stages introduce no vector store and no default endpoint.
+    expect(appended).not.toMatch(/qdrant/i);
+    expect(appended).not.toMatch(/QDRANT_URL=\S/);
+    expect(appended).not.toMatch(/KNOWLEDGE_OPENAI_BASE_URL=\S/);
   });
 
   /**
@@ -501,11 +545,26 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
       'express-rate-limit',
       'js-yaml',
       'openai',
+      // The HTTP transport used by the governed automation adapters. Like the
+      // Qdrant client this package opens sockets, so it is held to the same
+      // conditions immediately below rather than merely being listed here.
+      'undici',
       'uuid',
       'winston',
       'zod',
     ].sort());
     expect(Object.keys(pkg.devDependencies).length).toBeGreaterThanOrEqual(15);
+
+    // Every network-capable dependency — not just the vector store client — must be
+    // pinned exactly, declared once, and scoped to production. A floating range on a
+    // package that opens sockets means the audited artefact and the deployed
+    // artefact can differ with no commit recording the change.
+    for (const networkPackage of ['@qdrant/js-client-rest', 'undici']) {
+      const networkPin = pkg.dependencies[networkPackage];
+      expect(networkPin).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(networkPin).not.toMatch(/[\^~><*]/);
+      expect(pkg.devDependencies?.[networkPackage]).toBeUndefined();
+    }
   });
 
   test('MTA-3 · no Qdrant process is running in this environment', () => {

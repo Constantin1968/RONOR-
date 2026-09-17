@@ -62,7 +62,10 @@ test('the submitted request names the selected suites and forbids authorship, pu
   assert.equal(request.max_fix_cycles, 1);
   assert.deepEqual(Object.keys(request).sort(),
     ['max_cost_usd', 'max_fix_cycles', 'max_runtime_minutes', 'objective']);
-  for (const file of run.TEST_FILES) assert.match(request.objective, new RegExp(file.replace(/[.]/g, '\\.')));
+  // A literal substring check, not a constructed pattern: escaping only the dot
+  // left every other regular-expression metacharacter live, so a path could be
+  // matched by something other than itself.
+  for (const file of run.TEST_FILES) assert.ok(request.objective.includes(file), `objective should name: ${file}`);
   for (const phrase of [
     'do not claim to have authored them',
     'Never push, merge, release, deploy, or rewrite history',

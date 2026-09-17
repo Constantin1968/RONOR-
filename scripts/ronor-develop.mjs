@@ -106,6 +106,44 @@ export function failureLine(error) {
   return `Comanda nu a reușit. ${tail}`;
 }
 
+// A file is opened once and then asserted about on its own descriptor. Checking
+// a path and reopening it leaves a window in which the name can be pointed at a
+// different object, so the thing verified is not the thing read. O_NOFOLLOW
+// refuses a symbolic link at the final component outright, and nlink === 1
+// refuses a hard link placed to alias a file the operator did not name.
+function openVerified(file, maxBytes, modeMask) {
+  const descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > maxBytes ||
+        (modeMask !== undefined && (stat.mode & modeMask))) {
+      return { descriptor: undefined, refuse: true };
+    }
+    return { descriptor, refuse: false };
+  } catch (error) {
+    fs.closeSync(descriptor);
+    throw error;
+  }
+}
+
+export function readCredential(file) {
+  let opened;
+  try { opened = openVerified(file, 4096, 0o077); }
+  catch { throw new Error('credential_file_permissions_refused'); }
+  if (opened.refuse) throw new Error("credential_file_permissions_refused");
+  try { return fs.readFileSync(opened.descriptor, 'utf8').trim(); }
+  finally { fs.closeSync(opened.descriptor); }
+}
+
+export function readBoundedFile(file, maxBytes) {
+  let opened;
+  try { opened = openVerified(file, maxBytes, undefined); }
+  catch { throw new Error('request_file_refused'); }
+  if (opened.refuse) throw new Error('request_file_refused');
+  try { return fs.readFileSync(opened.descriptor, 'utf8'); }
+  finally { fs.closeSync(opened.descriptor); }
+}
+
 export function controllerUrl(value = 'http://127.0.0.1:3010') {
   const url = new URL(value);
   if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
@@ -150,20 +188,19 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   const base = controllerUrl(env.RONOR_DEVELOPMENT_URL);
   const file = env.RONOR_DEVELOPMENT_API_KEY_FILE;
   if (!file) throw new Error('credential_file_required');
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 4096) {
-    throw new Error('credential_file_permissions_refused');
-  }
-  const key = fs.readFileSync(file, 'utf8').trim();
+  // The credential is read through one descriptor that is opened first and then
+  // asserted about, never through a path that is checked and reopened. This file
+  // becomes a bearer token on the wire, so a name swapped between a check and a
+  // read would send the contents of a file the operator never authorised. Only
+  // the opened object can be trusted, so every assertion is made on it.
+  const key = readCredential(file);
   if (Buffer.byteLength(key) < 32) throw new Error('credential_too_short');
   const request = (route, method, body, id) => developmentRequest(base, key, route, method, body, id);
   if (command === 'verify-existing') {
     if (Object.keys(options).some(k => !['request', 'id'].includes(k)) ||
         !/^[A-Za-z0-9_-]{8,120}$/.test(options.id || '') || !options.request)
       throw new Error('stable_id_and_request_required');
-    const stat = fs.lstatSync(options.request);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error('request_file_refused');
-    const spec = JSON.parse(fs.readFileSync(options.request, 'utf8'));
+    const spec = JSON.parse(readBoundedFile(options.request, 4096));
     if (!spec || typeof spec !== 'object' || Array.isArray(spec) ||
         Object.keys(spec).some(k => !['base_commit', 'head_commit', 'max_cost_usd', 'max_runtime_minutes'].includes(k)) ||
         !/^[a-f0-9]{40}$/.test(spec.base_commit || '') || !/^[a-f0-9]{40}$/.test(spec.head_commit || '') ||
@@ -205,9 +242,7 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   }
   if (command === 'start') {
     if (!/^[A-Za-z0-9_-]{8,120}$/.test(options.id || '') || !options.request) throw new Error('stable_id_and_request_required');
-    const stat = fs.lstatSync(options.request);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16000) throw new Error('request_file_refused');
-    const spec = JSON.parse(fs.readFileSync(options.request, 'utf8'));
+    const spec = JSON.parse(readBoundedFile(options.request, 16000));
     if (Object.keys(spec).some(key => !['objective', 'max_cost_usd', 'max_runtime_minutes', 'max_fix_cycles'].includes(key)) ||
         typeof spec.objective !== 'string' || spec.objective.length < 1 || spec.objective.length > 8000 ||
         !Number.isFinite(spec.max_cost_usd) || spec.max_cost_usd <= 0 ||

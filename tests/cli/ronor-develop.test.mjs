@@ -220,3 +220,18 @@ test('MOCK controller: verify-existing is a distinct pinned operation without au
     // Leave the clearly labelled offline fixture available for inspection.
   }
 });
+
+test('a credential reached through a second name for the same file is refused', async () => {
+  // The credential is now asserted about on the descriptor that will actually be
+  // read, not on a path checked beforehand. A hard link is the plain case that a
+  // path check cannot see: the name the operator gave and the name an attacker
+  // added are the same object with the same mode, so only the link count
+  // distinguishes a file that is solely the operator's from one that is not.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ronor-develop-link-'));
+  const credential = path.join(root, 'key');
+  fs.writeFileSync(credential, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+  fs.linkSync(credential, path.join(root, 'alias'));
+  await assert.rejects(main(['readiness'], { RONOR_DEVELOPMENT_API_KEY_FILE: credential }),
+    /credential_file_permissions_refused/);
+  fs.rmSync(root, { recursive: true, force: true });
+});

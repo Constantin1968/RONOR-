@@ -66,9 +66,22 @@ function assertSameEntry(filename: string, descriptor: number): void {
 
 function openDirectory(directory: string): number {
   assertDirectoryTree(directory);
-  // These service-owned directories must not admit writes from other users.
-  if ((lstatSync(directory).mode & 0o022) !== 0) throw new Error();
-  return openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    // These service-owned directories must not admit writes from other users.
+    // The mode is read from the open descriptor, not from the path: a check on
+    // the path proves a property of whatever the name resolved to at that
+    // instant, and the entry can be replaced before the open. Only the
+    // descriptor is the object actually used afterwards, so it is the only one
+    // worth asserting about. assertSameEntry pins name to descriptor, but both
+    // sides would see a substituted entry, so it cannot recover this mode.
+    const opened = fstatSync(descriptor);
+    if (!opened.isDirectory() || (opened.mode & 0o022) !== 0) throw new Error();
+    return descriptor;
+  } catch (error) {
+    closeSync(descriptor);
+    throw error;
+  }
 }
 
 function readExisting(descriptor: number, identity: ReceiptIdentity): void {

@@ -258,14 +258,21 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
   // Runs killed with the process never reached their own accounting. Observe
   // them once at start so a restart cannot silently erase what was spent, and
   // give back a workspace that a lost process is provably no longer using.
-  setImmediate(() => {
+  // The sweep is deferred so construction stays synchronous, which means it can
+  // fire after stop(). A stopped controller must touch nothing: it may no longer
+  // own the store, and work escaping its lifetime is indistinguishable from a
+  // leak. Both the timer and the callback are therefore bound to the lifetime.
+  const recovery = setImmediate(() => {
+    if (stopped) return;
     let ids: string[] = [];
     try { ids = store.allIds(); } catch { return; }
     for (const id of ids) {
+      if (stopped) return;
       void reconcile(id).catch(() => { /* Accounting is best effort. */ });
       void attemptQuietRelease(id).catch(() => { /* The barrier stays. */ });
     }
   });
+  recovery.unref?.();
   async function attestAuthority(baseUrl: string, token: string, service: string, protocol: string, capability: string, signal: AbortSignal) {
     const response = await fetcher(new URL('/health', baseUrl), {
       method: 'GET', redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
@@ -485,6 +492,7 @@ export function createExistingCommitVerification(source: NodeJS.ProcessEnv, opti
     },
     stop() {
       stopped = true;
+      clearImmediate(recovery);
       for (const [id, control] of running) {
         try {
           const row = store.read(id)!;

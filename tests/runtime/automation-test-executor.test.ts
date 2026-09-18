@@ -28,6 +28,22 @@ describe('authoritative allowlisted test executor', () => {
     expect(options.env).toEqual({ PATH: 'safe-path', CI: 'true', NODE_ENV: 'test', RONOR_AUTOMATION_TEST: 'true' });
   });
 
+  it('forwards a resolvable home directory and npm cache without widening the allowlist', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'ronor-test-home-')); const workspace = path.join(root, 'workspace'); const artifactRoot = path.join(root, 'artifacts'); mkdirSync(workspace); mkdirSync(artifactRoot);
+    const spawn = jest.fn(() => outcome(0, 'PASS'));
+    const executor = createAllowlistedTestExecutor({
+      commands: [{ id: 'jest', executable: 'npm', args: ['test'], timeout_ms: 1000 }],
+      artifacts: createWorkspaceArtifactCollector(artifactRoot), approvedRoot: root, spawn,
+      baseEnv: { PATH: 'safe-path', HOME: '/tmp', npm_config_cache: '/tmp/.npm', npm_config_update_notifier: 'false' },
+    });
+    expect(executor.run(workspace, 'run-1', 'task-1').passed).toBe(true);
+    const [, , options] = spawn.mock.calls[0] as unknown as [string, string[], Record<string, unknown>];
+    expect(options.env).toEqual({
+      PATH: 'safe-path', HOME: '/tmp', npm_config_cache: '/tmp/.npm', npm_config_update_notifier: 'false',
+      CI: 'true', NODE_ENV: 'test', RONOR_AUTOMATION_TEST: 'true',
+    });
+  });
+
   it('stops on non-zero/timeout and emits a failed report', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'ronor-test-fail-')); const workspace = path.join(root, 'workspace'); const artifactRoot = path.join(root, 'artifacts'); mkdirSync(workspace); mkdirSync(artifactRoot);
     const spawn = jest.fn(() => outcome(null, '', 'timeout', new Error('ETIMEDOUT')));

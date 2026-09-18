@@ -1,0 +1,14 @@
+# Apply last, after every installed overlay, including transport, artifact,
+# evidence-home and planner-fix. Replaces exactly one service image: the
+# development controller, which is the only service carrying the corrected
+# Codex failure diagnostics. The LangGraph planner, the OpenHands bridge and
+# agent, the model egress proxy, the Codex verifier, the assurance service,
+# the evidence runner, and every budget, ledger, mandate and secret remain
+# exactly as installed.
+services:
+  controller:
+    build:
+      context: ${RONOR_DIAGNOSTICS_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_DIAGNOSTICS_TAG:?reviewed revision}

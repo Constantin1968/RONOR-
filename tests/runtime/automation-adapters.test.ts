@@ -4,7 +4,8 @@ import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 import { attestAutomationAdapters, clearAutomationAttestations } from '../../src/runtime/automation/attestation';
 
 const response = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
-const mandate = { mandate_id: 'm1', mission_id: 'mission1' } as ExecutionMandate;
+const mandate = { mandate_id: 'm1', mission_id: 'mission1', objective_hash: 'a'.repeat(64),
+  expires_at: new Date(Date.now() + 120_000).toISOString() } as ExecutionMandate;
 
 describe('live automation adapter boundary', () => {
   beforeEach(() => clearAutomationAttestations());
@@ -158,6 +159,20 @@ describe('live automation adapter boundary', () => {
     await expect(adapter.execute({ id: 'a', instruction: 'x', actions: [] }, mandate)).rejects.toBeInstanceOf(AutomationAdapterError);
   });
 
+  it('preserves unknown accounting as null rather than coercing it to zero', async () => {
+    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'token', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: false, summary: 'openhands_cost_unknown', evidence: [], cost_usd: null })) });
+    await expect(adapter.execute({ id: 'a', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .resolves.toMatchObject({ ok: false, cost_usd: null });
+  });
+
+  it('retains validated costs and safe reason codes from non-success HTTP responses', async () => {
+    const adapter = createOpenHandsAdapter({ baseUrl: 'https://hands.invalid', token: 'token', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: false, summary: 'failed', error: 'openhands_poll_limit_paused', evidence: [], cost_usd: 0.08 }, 422)) });
+    await expect(adapter.execute({ id: 'a', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .rejects.toMatchObject({ message: 'openhands_poll_limit_paused', cost_usd: 0.08 });
+  });
+
   it('refuses secret-like adapter output before it reaches Mission Fabric', async () => {
     const adapter = createOpenHandsAdapter({
       baseUrl: 'https://hands.invalid', token: 'session-token', capabilityKey: 'k'.repeat(32),
@@ -181,5 +196,22 @@ describe('live automation adapter boundary', () => {
       ] })),
     });
     await expect(invalid.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_artifacts_invalid');
+  });
+  it('accepts the path-only event log reference and still refuses query-bearing references', async () => {
+    const accepted = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'event_log', sha256: 'b'.repeat(64), reference: 'api/conversations/47ca6d5d-b1f5-4d31-a4e7-5edd5e0effb1/events/search', bytes: 7 },
+      ] })),
+    });
+    await expect(accepted.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate))
+      .resolves.toMatchObject({ artifacts: [{ kind: 'event_log', bytes: 7 }] });
+    const queryBearing = createOpenHandsAdapter({
+      baseUrl: 'http://127.0.0.1:3000', capabilityKey: 'k'.repeat(32),
+      fetcher: jest.fn(() => response({ ok: true, summary: 'done', evidence: [], cost_usd: 0, artifacts: [
+        { kind: 'event_log', sha256: 'b'.repeat(64), reference: 'api/conversations/c1/events/search?limit=100&sort_order=TIMESTAMP_DESC', bytes: 7 },
+      ] })),
+    });
+    await expect(queryBearing.execute({ id: 'a1', instruction: 'x', actions: ['read_repo'] }, mandate)).rejects.toThrow('adapter_artifacts_invalid');
   });
 });

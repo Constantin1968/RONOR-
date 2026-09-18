@@ -330,7 +330,14 @@ describe('G5 · Isolation from the governance and audit spine', () => {
       // verification and export are untouched.
       'src/audit/hash-chain.ts': '3c2b9e848684c1e6953516a6c8f4f0f794ffc50f',
       // Approved repair for D-1: pure evaluation plus post-execution accounting.
-      'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
+      // Updated 2026-09-18 for the deny-by-default repair in gate 2. Gate 2
+      // previously resolved an unlisted domain to tier 'limited', which is not
+      // a co-sign tier -- so an action in a domain nobody had classified was
+      // allowed autonomously, and authority was granted by omission. It now
+      // resolves the tier from the most specific classified ancestor and
+      // refuses a domain with no classified ancestor at all, and every gate-2
+      // finding records the rule it matched.
+      'src/governance/mi9-gate.ts': 'c110eba94c8c7c6e6255d4a8c89f5a49735fb5a0',
     };
 
     for (const [path, expectedHash] of Object.entries(expectedHashes)) {

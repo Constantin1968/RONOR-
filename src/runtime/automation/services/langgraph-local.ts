@@ -26,6 +26,20 @@ function classify(state: typeof PlanState.State): Partial<typeof PlanState.State
   return { domains, readOnly };
 }
 
+/**
+ * The commit assignment must never re-derive its own test scope. The runtime
+ * already runs the declared allow-listed commands for the preceding
+ * assignments and records their reports; an agent that reruns the whole suite
+ * meets pre-existing failures outside the approved objective and spends the
+ * mandate repairing them instead of committing.
+ */
+export const COMMIT_INSTRUCTION = [
+  'Create exactly one local commit for the changes already present in the worktree.',
+  'Do not run the test suite and do not invoke any test command: the declared allow-listed tests were already executed by the runtime for the preceding assignments, and their reports are the recorded evidence for this run.',
+  'Do not investigate, repair or modify anything outside the changes already present in the worktree, including pre-existing test failures.',
+  'If the worktree has no changes, make no commit and report that instead.',
+].join(' ');
+
 function createPlan(state: typeof PlanState.State): Partial<typeof PlanState.State> {
   const actions = state.readOnly
     ? ['read_repo', 'run_tests'] as AutomationAction[]
@@ -35,7 +49,7 @@ function createPlan(state: typeof PlanState.State): Partial<typeof PlanState.Sta
     instruction: `Address the ${domain} portion of the approved objective. Stay inside the declared actions and produce bounded evidence: ${state.objective}`,
     actions,
   }));
-  if (!state.readOnly) assignments.push({ id: 'langgraph-local-commit', instruction: 'Create a clear local commit after all declared tests pass.', actions: ['commit_local'] });
+  if (!state.readOnly) assignments.push({ id: 'langgraph-local-commit', instruction: COMMIT_INSTRUCTION, actions: ['commit_local'] });
   return { assignments };
 }
 

@@ -35,6 +35,35 @@ export function mandateFingerprint(mandate: ExecutionMandate): string {
   return crypto.createHash('sha256').update(JSON.stringify(authority)).digest('hex');
 }
 
+function effectiveMandate(runId: string, original: ExecutionMandate, key: string): ExecutionMandate {
+  const row = getDb().prepare('SELECT * FROM runtime_automation_reauthorizations WHERE run_id=?').get(runId) as
+    {original_fingerprint:string;mandate_json:string;proof_json:string} | undefined;
+  if (!row) return original;
+  const renewed = JSON.parse(row.mandate_json) as ExecutionMandate;
+  const originalFingerprint = mandateFingerprint(original);
+  if (!verifyMandateAuthority(renewed,key) || !renewed.recovery ||
+      row.original_fingerprint !== originalFingerprint || renewed.recovery.original_fingerprint !== originalFingerprint ||
+      mandateFingerprint({...renewed,issued_at:original.issued_at,expires_at:original.expires_at}) !== originalFingerprint ||
+      renewed.recovery.evidence_sha256 !== crypto.createHash('sha256').update(row.proof_json).digest('hex') ||
+      !/^[a-f0-9]{64}$/.test(renewed.recovery.workspace_digest) ||
+      !Number.isFinite(Date.parse(renewed.issued_at)) || !Number.isFinite(Date.parse(renewed.expires_at)) ||
+      Date.parse(renewed.issued_at) <= Date.parse(original.expires_at) ||
+      Date.parse(renewed.expires_at)-Date.parse(renewed.issued_at) !== original.max_runtime_minutes*60000)
+    throw new Error('reauthorization_integrity_failed');
+  return renewed;
+}
+
+export function getEffectiveAutomationMandate(runId: string, key: string): ExecutionMandate | null {
+  ensureRuntimeLedgerSchema();
+  const row = getDb().prepare('SELECT mandate_json,mandate_fingerprint FROM runtime_automation_runs WHERE run_id=?').get(runId) as
+    {mandate_json:string;mandate_fingerprint:string} | undefined;
+  if (!row) return null;
+  const original = JSON.parse(row.mandate_json) as ExecutionMandate;
+  if (!verifyMandateAuthority(original,key) || mandateFingerprint(original)!==row.mandate_fingerprint)
+    throw new Error('reauthorization_integrity_failed');
+  return effectiveMandate(runId,original,key);
+}
+
 export class AutomationRunLease {
   private timer?: NodeJS.Timeout;
 
@@ -149,9 +178,10 @@ export function interruptedAutomationRuns(authorityKey: string, now = new Date()
   const recoverable: InterruptedAutomationRun[] = [];
   for (const row of rows) {
     try {
-      const mandate = JSON.parse(row.mandate_json) as ExecutionMandate;
-      if (!verifyMandateAuthority(mandate, authorityKey)) continue;
-      if (mandateFingerprint(mandate) !== row.mandate_fingerprint) continue;
+      const original = JSON.parse(row.mandate_json) as ExecutionMandate;
+      if (!verifyMandateAuthority(original, authorityKey)) continue;
+      if (mandateFingerprint(original) !== row.mandate_fingerprint) continue;
+      const mandate = effectiveMandate(row.run_id,original,authorityKey);
       if (mandate.mission_id !== row.mission_id) continue;
       if (!Number.isFinite(Date.parse(mandate.expires_at)) || Date.parse(mandate.expires_at) <= now.getTime()) continue;
       if (row.attempt_count >= mandate.max_fix_cycles + 1) continue;
@@ -197,6 +227,7 @@ export function claimAutomationRun(params: {
       storedMandate = JSON.parse(row.mandate_json) as ExecutionMandate;
       if (mandateFingerprint(storedMandate) !== row.mandate_fingerprint ||
           !verifyMandateAuthority(storedMandate, params.authorityKey)) return { outcome: 'authority_invalid' };
+      storedMandate = effectiveMandate(params.runId,storedMandate,params.authorityKey);
     } catch { return { outcome: 'conflict' }; }
     if (row.status === 'complete') return { outcome: 'completed', mandate: storedMandate };
     if (row.status === 'cancelled') return { outcome: 'cancelled', mandate: storedMandate };

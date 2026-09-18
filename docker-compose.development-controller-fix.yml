@@ -1,0 +1,8 @@
+# Apply after both installed compose files. Do not replace the existing overlays.
+services:
+  controller:
+    build:
+      context: ${RONOR_CONTROLLER_FIX_SOURCE:?reviewed absolute release directory}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_CONTROLLER_FIX_TAG:?reviewed full commit}

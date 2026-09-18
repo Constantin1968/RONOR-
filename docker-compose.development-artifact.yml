@@ -1,0 +1,19 @@
+# Apply last, after every installed overlay, including transport, egress and context.
+# Replaces exactly two services: the controller and the OpenHands bridge.
+# Both run the corrected event-log artifact reference on top of the context,
+# pagination and receipt code. The model egress proxy, the OpenHands agent, the
+# verifier, the assurance service, the evidence runner, the LangGraph service,
+# and every budget, ledger, mandate and secret remain exactly as installed.
+services:
+  controller:
+    build:
+      context: ${RONOR_ARTIFACT_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_ARTIFACT_TAG:?reviewed revision}
+  openhands-bridge:
+    build:
+      context: ${RONOR_ARTIFACT_SOURCE}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-artifact-runtime:${RONOR_ARTIFACT_TAG}

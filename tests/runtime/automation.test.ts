@@ -3,11 +3,13 @@ import {
   createMission,
   getMissionFabric,
   MissionFabricIntegrityError,
+  verifyMissionFabric,
 } from '../../src/runtime/mission/store';
 import { getDb } from '../../src/audit/hash-chain';
 import { actionPermitted, ALWAYS_DENIED_ACTIONS, objectiveHash, validateMandate } from '../../src/runtime/automation/policy';
 import { runExecutiveMission as executeMission } from '../../src/runtime/automation/runner';
 import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
+import { AutomationAdapterError } from '../../src/runtime/automation/adapters/http';
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
@@ -190,15 +192,156 @@ describe('Executive Mission Runner · governed execution', () => {
     let calls = 0;
     first.openhands.execute = async () => {
       calls += 1;
-      if (calls === 2) throw new Error('transient');
+      if (calls === 2) throw new AutomationAdapterError('adapter_http_503', 0);
       return { ok: true, summary: 'done', evidence: ['first:done'], cost_usd: 0 };
     };
-    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first, testExecutor })).reason).toBe('openhands_failed');
+    expect((await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first, testExecutor })).reason).toBe('adapter_http_503');
     const resumed = adapters([{ id: 'different-plan', instruction: 'must not be used', actions: ['read_repo'] }]);
     const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed, testExecutor });
     expect(result.status).toBe('complete');
     expect(result.completed_assignments).toBe(2);
     expect(resumed.executeCount()).toBe(1);
+  });
+
+  it('blocks retries after unaccounted author failure without spending again', async () => {
+    const mission = createMission({ title: 'Unknown accounting', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const first = adapters([{ id: 'unknown-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => { throw new Error('transport lost'); };
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed).toMatchObject({ status: 'failed', cost_usd: null, reason: 'openhands_failed' });
+    const resumed = adapters([{ id: 'must-not-run', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    expect(await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed }))
+      .toMatchObject({ status: 'blocked', cost_usd: null, reason: 'cost_accounting_unknown' });
+    expect(resumed.executeCount()).toBe(0);
+  });
+
+  it('persists in-flight accounting as unknown before a worker can consume tokens', async () => {
+    const mission = createMission({ title: 'Crash-safe accounting', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const a = adapters([{ id: 'pending-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    a.openhands.execute = async () => {
+      const runs = Object.values(getMissionFabric(mission.mission_id)!.runs);
+      expect(runs).toHaveLength(1);
+      expect(runs[0].cost_usd).toBeNull();
+      return { ok: true, cost_usd: 0.2, summary: 'done', evidence: [] };
+    };
+    expect(await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: a }))
+      .toMatchObject({ status: 'complete', cost_usd: 0.30000000000000004 });
+  });
+
+  it('carries billable failed-attempt cost into a later successful attempt', async () => {
+    const mission = createMission({ title: 'Accounted retry', objective, operatorId: 'merlin' });
+    const m = mandate(mission.mission_id);
+    const first = adapters([{ id: 'billable-1', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    first.openhands.execute = async () => { throw new AutomationAdapterError('adapter_http_422', 0.11); };
+    const failed = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: first });
+    expect(failed.cost_usd).toBe(0.11);
+    const resumed = adapters([{ id: 'unused', instruction: 'Ignored stored plan', actions: ['edit_worktree'] }]);
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: m, adapters: resumed });
+    expect(result.status).toBe('complete');
+    expect(result.cost_usd).toBeCloseTo(0.41);
+  });
+
+  it.each([0, 0.637326, null])('preserves the exact failed conversation trace without acceptance or cost changes (%s)', async cost => {
+    const mission = createMission({ title: 'Failed conversation trace', objective, operatorId: 'merlin' });
+    const conversationId = 'e643afab-734d-4c24-8e2b-93a1792f2325';
+    const reference = `conversation:${conversationId}`;
+    const assignmentId = 'trace-task';
+    const a = adapters([{ id: assignmentId, instruction: 'Implement', actions: ['edit_worktree'] }]);
+    a.openhands.execute = async () => ({
+      ok: false, summary: 'openhands_budget_context_too_large', cost_usd: cost,
+      evidence: [reference, 'unaccepted-worker-claim', reference],
+      artifacts: [{ kind: 'event_log', reference: 'unaccepted/event-log.json', sha256: 'e'.repeat(64), bytes: 99 }],
+    });
+    const verify = jest.fn(a.codex.verify); a.codex.verify = verify;
+    const accept = jest.fn(a.assurance.accept); a.assurance.accept = accept;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result).toMatchObject({
+      status: cost === null ? 'blocked' : 'failed', cost_usd: cost, completed_assignments: 0, total_assignments: 1,
+      reason: cost === null ? 'cost_accounting_unknown' : 'openhands_budget_context_too_large',
+    });
+    const fabric = getMissionFabric(mission.mission_id)!;
+    const traces = fabric.checkpoints.filter(event => event.payload.kind === 'openhands_conversation');
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      actor: { kind: 'openhands', id: 'openhands' }, type: 'checkpoint.created',
+      payload: {
+        id: `${result.run_id}-conversation-${conversationId}`, run_id: result.run_id,
+        assignment_id: assignmentId, kind: 'openhands_conversation', reference,
+      },
+    });
+    const terminalSequence = cost === null ? fabric.version : fabric.failures[0].sequence;
+    expect(traces[0].sequence).toBeLessThan(terminalSequence);
+    expect(fabric.runs[result.run_id]).toMatchObject({ cost_usd: cost, completed_assignments: 0 });
+    expect(fabric.tasks[assignmentId].status).not.toBe('complete');
+    expect(fabric.tasks[assignmentId].evidence).toBeUndefined();
+    expect(fabric.tasks[assignmentId].artifacts).toBeUndefined();
+    expect(fabric.evidence).toEqual({});
+    expect(JSON.stringify(fabric)).not.toContain('unaccepted-worker-claim');
+    expect(JSON.stringify(fabric)).not.toContain('unaccepted/event-log.json');
+    expect(verify).not.toHaveBeenCalled();
+    expect(accept).not.toHaveBeenCalled();
+    expect(verifyMissionFabric(mission.mission_id)?.valid).toBe(true);
+  });
+
+  it('never persists malformed or non-conversation claims from a failed worker', async () => {
+    const mission = createMission({ title: 'Untrusted conversation evidence', objective, operatorId: 'merlin' });
+    const reference = 'conversation:e643afab-734d-4c24-8e2b-93a1792f2325';
+    const invalid: unknown[] = [
+      `${reference}/events`, `${reference}?token=untrusted`, `${reference}\n`, ` ${reference}`,
+      `prefix-${reference}`, reference.replace('conversation:', 'CONVERSATION:'),
+      'conversation:../../private', 'conversation:------------------------------------',
+      `conversation:${'a'.repeat(36)}`, 'tests:pass', 'Bearer private-worker-credential',
+      null, { reference }, 42,
+    ];
+    const a = adapters([{ id: 'untrusted-trace-task', instruction: 'Implement', actions: ['edit_worktree'] }]);
+    a.openhands.execute = async () => ({
+      ok: false, summary: 'openhands_failed', cost_usd: 0.2, evidence: invalid as string[],
+    });
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result).toMatchObject({ status: 'failed', cost_usd: 0.2, completed_assignments: 0 });
+    const fabric = getMissionFabric(mission.mission_id)!;
+    expect(fabric.checkpoints.filter(event => event.payload.kind === 'openhands_conversation')).toEqual([]);
+    expect(fabric.evidence).toEqual({});
+    for (const claim of invalid.filter((item): item is string => typeof item === 'string')) {
+      expect(JSON.stringify(fabric)).not.toContain(JSON.stringify(claim).slice(1, -1));
+    }
+  });
+
+  it('does not accept conversation claims from an unauthorized assignment', async () => {
+    const mission = createMission({ title: 'Unauthorized conversation claim', objective, operatorId: 'merlin' });
+    const a = adapters([{ id: 'unauthorized-trace', instruction: 'Push', actions: ['push'] }]);
+    const execute = jest.fn(async () => ({
+      ok: false, summary: 'openhands_failed', cost_usd: 0,
+      evidence: ['conversation:e643afab-734d-4c24-8e2b-93a1792f2325'],
+    }));
+    a.openhands.execute = execute;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result).toMatchObject({ status: 'blocked', cost_usd: 0, completed_assignments: 0 });
+    expect(execute).not.toHaveBeenCalled();
+    expect(getMissionFabric(mission.mission_id)!.checkpoints.filter(event => event.payload.kind === 'openhands_conversation')).toEqual([]);
+  });
+
+  it('keeps successful conversation traces separate while retaining normal verification evidence', async () => {
+    const mission = createMission({ title: 'Successful conversation trace', objective, operatorId: 'merlin' });
+    const reference = 'conversation:e643afab-734d-4c24-8e2b-93a1792f2325';
+    // Maximum-length admitted assignments must not produce oversized checkpoint IDs.
+    const assignmentId = 't'.repeat(120);
+    const a = adapters([{ id: assignmentId, instruction: 'Implement', actions: ['edit_worktree'] }]);
+    const artifacts = [{ kind: 'git_diff' as const, reference: 'run/diff.patch', sha256: 'd'.repeat(64), bytes: 12 }];
+    a.openhands.execute = async () => ({ ok: true, summary: 'done', cost_usd: 0.2, evidence: [reference, 'tests:pass'], artifacts });
+    const verify = jest.fn(a.codex.verify); a.codex.verify = verify;
+    const result = await runExecutiveMission({ objective, workspaceRoot: workspace, branch, mandate: mandate(mission.mission_id), adapters: a });
+    expect(result.status).toBe('complete');
+    expect(result.cost_usd).toBeCloseTo(0.3);
+    expect(result.completed_assignments).toBe(1);
+    expect(verify.mock.calls[0][1]).toEqual({ claims: [reference, 'tests:pass'], artifacts });
+    const fabric = getMissionFabric(mission.mission_id)!;
+    expect(fabric.checkpoints.filter(event => event.payload.kind === 'openhands_conversation')).toHaveLength(1);
+    expect(fabric.tasks[assignmentId]).toMatchObject({ status: 'complete', evidence: [reference, 'tests:pass'], artifacts });
+    expect(Object.values(fabric.evidence)).toEqual([expect.objectContaining({ kind: 'git_diff', reference: 'run/diff.patch' })]);
+    expect(verifyMissionFabric(mission.mission_id)?.valid).toBe(true);
   });
 
   it('stops when Codex fails and never asks Victoria to approve', async () => {

@@ -178,6 +178,11 @@ export function ensureRuntimeLedgerSchema(): void {
 
     CREATE INDEX IF NOT EXISTS idx_rt_automation_mission ON runtime_automation_runs(mission_id);
     CREATE INDEX IF NOT EXISTS idx_rt_automation_status ON runtime_automation_runs(status);
+    CREATE TABLE IF NOT EXISTS runtime_automation_reauthorizations (
+      run_id TEXT PRIMARY KEY, original_fingerprint TEXT NOT NULL,
+      mandate_json TEXT NOT NULL, proof_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
   const automationColumns = db.prepare(`PRAGMA table_info(runtime_automation_runs)`).all() as Array<{ name: string }>;
   if (!automationColumns.some((column) => column.name === 'cancel_requested_at')) {

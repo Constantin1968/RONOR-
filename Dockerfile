@@ -60,3 +60,20 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "dist/index.js"]
+
+# Opt-in development control process. Does not replace the main runtime.
+FROM runtime AS development-controller
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && chown -R 10001:10001 /app/data
+USER 10001:10001
+ENV RONOR_DEVELOPMENT_HOST=0.0.0.0
+ENV RONOR_DEVELOPMENT_PORT=3010
+EXPOSE 3010
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD node -e "require('http').get('http://127.0.0.1:3010/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+CMD ["node", "dist/runtime/automation/services/development-controller-server.js"]
+
+# Preserve the original default image for callers that do not specify --target.
+FROM runtime AS default-runtime

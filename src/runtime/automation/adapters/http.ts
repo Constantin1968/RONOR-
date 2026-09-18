@@ -1,13 +1,81 @@
 import crypto from 'crypto';
+import { request } from 'undici';
 import { isAutomationAction, type AdapterResult, type EvidenceArtifact, type ExecutionMandate, type OpenHandsExecutionEnvelope, type PlannedAssignment, type VerificationEvidence, type VerificationReceipt, type VerificationVerdict } from '../contracts';
 import { signExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
+import { signModelBudget, type ModelBudgetContext } from '../model-budget';
+import { readVerificationFailureDiagnostic, verificationFailureCategory, type VerificationFailureDiagnostic } from '../verification-diagnostics';
+import { readResultEffectDiagnostics } from '../effect-diagnostics';
 
 type Fetcher = typeof fetch;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_ASSIGNMENTS = 25;
 
-export class AutomationAdapterError extends Error {}
+export class AutomationAdapterError extends Error {
+  constructor(message: string, readonly cost_usd: number | null = null, readonly diagnostic?: VerificationFailureDiagnostic) { super(message); }
+}
+
+/** Persist only known codes and validated diagnostics, never arbitrary Error text. */
+export function describeCodexFailure(error: unknown): VerificationFailureDiagnostic {
+  try {
+    if (error instanceof AutomationAdapterError) {
+      const diagnostic = readVerificationFailureDiagnostic(error.diagnostic);
+      if (diagnostic) return diagnostic;
+      const code = error.message;
+      const category = verificationFailureCategory(code);
+      if (category) return { category, code };
+    }
+  } catch { /* Untrusted custom-adapter diagnostics must not interrupt failure recording. */ }
+  return { category: 'unknown', code: 'codex_adapter_failed' };
+}
+
+function codexHttpFailure(body: Record<string, unknown>, status: number, token?: string): AutomationAdapterError {
+  const fallback = (code: string, cost: number | null = null) => new AutomationAdapterError(code, cost, {
+    category: verificationFailureCategory(code)!, code, http_status: status,
+  });
+  // Scan before discarding fields. Do not persist raw responses or known credentials.
+  try {
+    assertAutomationOutputSafe(body);
+    if (token && JSON.stringify(body).includes(token)) throw new Error('credential_echo');
+  } catch { return fallback('adapter_sensitive_output_refused'); }
+  let result: AdapterResult;
+  try { result = parseAdapterResult(body); }
+  catch {
+    return fallback(status === 400 && body.failure_code === 'codex_request_invalid'
+      ? 'codex_request_invalid' : `adapter_http_${status}`);
+  }
+  if (body.ok !== false || body.verdict !== 'fail' || typeof body.summary !== 'string' ||
+      body.summary.length > 4000 || !Array.isArray(body.evidence) || body.evidence.length > 50 ||
+      !body.evidence.every(item => typeof item === 'string' && item.length <= 2000)) {
+    return fallback('codex_failure_response_invalid', result.cost_usd);
+  }
+  // A gateway's 5xx is not a policy rejection, even if its body resembles one.
+  let code = `adapter_http_${status}`;
+  if (status === 422 || status === 400) {
+    if (verificationFailureCategory(body.failure_code) && typeof body.failure_code === 'string' &&
+        /^(?:codex_)/.test(body.failure_code)) {
+      code = body.failure_code;
+    } else {
+      // Compatibility with installed authorities: classify only exact known signals.
+      const legacyCodes: Record<string, string> = {
+        'required-evidence:missing': 'codex_evidence_missing',
+        'test-evidence:invalid': 'codex_test_evidence_invalid',
+        'verification:failed-closed': 'codex_verification_failed_closed',
+      };
+      const receipt = parseVerificationReceipt(body.receipt);
+      code = body.evidence.length === 1 && Object.prototype.hasOwnProperty.call(legacyCodes, body.evidence[0])
+        ? legacyCodes[body.evidence[0]]
+        : receipt?.verdict === 'fail' ? 'codex_verdict_rejected' : 'codex_failure_unclassified';
+    }
+  }
+  const diagnostic = readVerificationFailureDiagnostic({
+    category: verificationFailureCategory(code), code, http_status: status,
+    verdict: 'fail', summary: body.summary, evidence: body.evidence,
+  });
+  return diagnostic
+    ? new AutomationAdapterError(code, result.cost_usd, diagnostic)
+    : fallback('codex_failure_response_invalid', result.cost_usd);
+}
 
 function safeBaseUrl(value: string, plaintextServiceHosts: readonly string[] = []): URL {
   const url = new URL(value);
@@ -25,7 +93,42 @@ function cleanStrings(value: unknown, maximum = 50): string[] {
   return value.filter((item): item is string => typeof item === 'string').slice(0, maximum).map((item) => item.slice(0, 2000));
 }
 
-async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher: Fetcher; timeoutMs: number; signal?: AbortSignal; plaintextServiceHosts?: readonly string[] }): Promise<Record<string, unknown>> {
+// OpenHands /execute returns its headers only when the assignment finishes.
+// Node fetch's implicit headers timeout must not pre-empt the signed deadline.
+// Use request-scoped, finite limits, never a global dispatcher or unlimited wait.
+async function deadlinePost(url: URL, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const result = await request(url, {
+    method: 'POST', headers: init.headers as Record<string, string>,
+    body: init.body as string, signal: init.signal,
+    headersTimeout: Math.ceil(timeoutMs), bodyTimeout: Math.ceil(timeoutMs),
+    maxRedirections: 0,
+  });
+  try {
+    if (result.statusCode >= 300 && result.statusCode < 400) throw new AutomationAdapterError('adapter_redirect_refused');
+    if (Number(result.headers['content-length'] ?? 0) > DEFAULT_MAX_RESPONSE_BYTES) {
+      throw new AutomationAdapterError('adapter_response_too_large');
+    }
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    for await (const chunk of result.body) {
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += data.length;
+      if (bytes > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
+      chunks.push(data);
+    }
+    return new Response(Buffer.concat(chunks).toString('utf8'), { status: result.statusCode });
+  } finally {
+    // Also release oversized, redirected and interrupted response streams.
+    if (!result.body.destroyed) {
+      // A refused response may not have an iterator/error listener yet.
+      // Consume only the cleanup error; the original refusal is still thrown.
+      result.body.on('error', () => {});
+      result.body.destroy();
+    }
+  }
+}
+
+async function postJson(params: { baseUrl: string; path: string; token?: string; capability?: string; body: unknown; fetcher?: Fetcher; timeoutMs: number; signal?: AbortSignal; plaintextServiceHosts?: readonly string[]; codexDiagnostics?: boolean }): Promise<Record<string, unknown>> {
   const base = safeBaseUrl(params.baseUrl, params.plaintextServiceHosts);
   const loopback = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
   if (!loopback && !params.token) throw new AutomationAdapterError('adapter_auth_required');
@@ -34,14 +137,18 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, params.timeoutMs);
   const cancel = () => controller.abort();
   params.signal?.addEventListener('abort', cancel, { once: true });
+  if (params.signal?.aborted) cancel();
   try {
     const prefix = base.pathname === '/' ? '' : base.pathname.replace(/\/$/, '');
-    const response = await params.fetcher(new URL(`${prefix}${params.path}`, base.origin), {
+    const init: RequestInit = {
       method: 'POST', signal: controller.signal, redirect: 'error',
       headers: { 'content-type': 'application/json', ...(params.token ? { authorization: `Bearer ${params.token}` } : {}), ...(params.capability ? { 'x-ronor-capability': params.capability } : {}) },
       body: JSON.stringify(params.body),
-    });
-    if (!response.ok) throw new AutomationAdapterError(`adapter_http_${response.status}`);
+    };
+    const url = new URL(`${prefix}${params.path}`, base.origin);
+    const response = params.fetcher
+      ? await params.fetcher(url, init)
+      : await deadlinePost(url, init, params.timeoutMs);
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > DEFAULT_MAX_RESPONSE_BYTES) throw new AutomationAdapterError('adapter_response_too_large');
     const raw = await response.text();
@@ -49,11 +156,23 @@ async function postJson(params: { baseUrl: string; path: string; token?: string;
     let value: unknown;
     try { value = JSON.parse(raw); } catch { throw new AutomationAdapterError('adapter_invalid_json'); }
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AutomationAdapterError('adapter_invalid_json');
+    if (!response.ok) {
+      // A bounded, validated failure response still carries billable usage.
+      const body = value as Record<string, unknown>;
+      if (params.codexDiagnostics) throw codexHttpFailure(body, response.status, params.token);
+      let cost: number | null = null;
+      try { cost = parseAdapterResult(body).cost_usd; } catch { /* unknown, not zero */ }
+      const safeCode = typeof body.error === 'string' && /^(?:openhands|adapter|capability|nonce)_[a-z0-9_]{1,80}$/.test(body.error)
+        ? body.error : `adapter_http_${response.status}`;
+      throw new AutomationAdapterError(safeCode, cost);
+    }
     return value as Record<string, unknown>;
   } catch (error) {
     if (error instanceof AutomationAdapterError) throw error;
-    const aborted = Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
-    throw new AutomationAdapterError(aborted ? (timedOut ? 'adapter_timeout' : 'adapter_cancelled') : 'adapter_unreachable');
+    const aborted = controller.signal.aborted || Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
+    const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+    const transportTimeout = code === 'UND_ERR_HEADERS_TIMEOUT' || code === 'UND_ERR_BODY_TIMEOUT';
+    throw new AutomationAdapterError(transportTimeout || timedOut ? 'adapter_timeout' : aborted ? 'adapter_cancelled' : 'adapter_unreachable');
   } finally { clearTimeout(timer); params.signal?.removeEventListener('abort', cancel); }
 }
 
@@ -76,22 +195,32 @@ export function createLangGraphAdapter(config: { baseUrl: string; token?: string
 }
 
 export function createOpenHandsAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
-  return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> {
+  return { async execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal, budget?: ModelBudgetContext): Promise<AdapterResult> {
     if (!config.capabilityKey) throw new AutomationAdapterError('capability_key_required');
+    const resume=mandate.recovery?.openhands_assignment_id===assignment.id ? {
+      conversation_id:mandate.recovery.openhands_conversation_id,
+      accounted_cost_usd:mandate.recovery.accounted_cost_usd,
+    } : undefined;
     const capability = signExecutionCapability({
       audience: 'openhands-bridge', mandate_id: mandate.mandate_id, mission_id: mandate.mission_id,
       assignment_id: assignment.id, objective_hash: mandate.objective_hash,
       allowed_actions: assignment.actions, expires_at: mandate.expires_at, nonce: crypto.randomUUID(),
+      ...(resume?{resume}:{}),
     }, config.capabilityKey);
     const envelope: OpenHandsExecutionEnvelope = {
       assignment_id: assignment.id, instruction: assignment.instruction, allowed_actions: assignment.actions,
       objective_hash: mandate.objective_hash, deadline: mandate.expires_at,
+      ...(budget ? {budget_token: signModelBudget(mandate, budget, 'author', config.capabilityKey)} : {}),
+      ...(resume?{resume}:{}),
     };
     try {
-      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
+      // Transport grace only: the native client must stop work at the signed deadline.
+      const remainingMs = Date.parse(envelope.deadline) - Date.now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) throw new AutomationAdapterError('openhands_deadline_expired', 0);
+      const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/execute', token: config.token, capability, body: { envelope }, fetcher: config.fetcher, timeoutMs: Math.min(config.timeoutMs ?? Infinity, remainingMs + 10_000), signal, plaintextServiceHosts: config.plaintextServiceHosts });
       return parseAdapterResult(body);
     } catch (error) {
-      if (error instanceof AutomationAdapterError && error.message === 'adapter_cancelled') {
+      if (error instanceof AutomationAdapterError && ['adapter_cancelled', 'adapter_timeout', 'adapter_unreachable'].includes(error.message)) {
         try {
           await postJson({
             baseUrl: config.baseUrl, path: '/v1/cancel', token: config.token, capability,
@@ -104,13 +233,15 @@ export function createOpenHandsAdapter(config: { baseUrl: string; token?: string
   }};
 }
 
-export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
-  return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> {
-    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts });
+export function createCodexVerifierAdapter(config: { baseUrl: string; token?: string; capabilityKey?: string; fetcher?: Fetcher; timeoutMs?: number; plaintextServiceHosts?: readonly string[] }) {
+  return { async verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal, authorization?: {mandate: ExecutionMandate; budget: ModelBudgetContext}): Promise<VerificationVerdict> {
+    if (authorization && (!config.capabilityKey || authorization.mandate.mission_id !== missionId)) throw new AutomationAdapterError('budget_authority_required', 0);
+    const budget_token = authorization ? signModelBudget(authorization.mandate, authorization.budget, 'verifier', config.capabilityKey!) : undefined;
+    const body = await postJson({ baseUrl: config.baseUrl, path: '/v1/verify', token: config.token, body: { mission_id: missionId, evidence, budget_token }, fetcher: config.fetcher ?? fetch, timeoutMs: config.timeoutMs ?? 120_000, signal, plaintextServiceHosts: config.plaintextServiceHosts, codexDiagnostics: true });
     const result = parseAdapterResult(body);
-    if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid');
+    if (body.verdict !== 'pass' && body.verdict !== 'fail') throw new AutomationAdapterError('codex_verdict_invalid', result.cost_usd);
     const receipt = parseVerificationReceipt(body.receipt);
-    if (!receipt) throw new AutomationAdapterError('codex_receipt_invalid');
+    if (!receipt) throw new AutomationAdapterError('codex_receipt_invalid', result.cost_usd);
     return { ...result, verdict: body.verdict, receipt };
   }};
 }
@@ -143,7 +274,8 @@ function parseVerificationReceipt(value: unknown): VerificationReceipt | null {
 function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
   try { assertAutomationOutputSafe(body); }
   catch { throw new AutomationAdapterError('adapter_sensitive_output_refused'); }
-  if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' || typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0) {
+  if (typeof body.ok !== 'boolean' || typeof body.summary !== 'string' ||
+      (body.cost_usd !== null && (typeof body.cost_usd !== 'number' || !Number.isFinite(body.cost_usd) || body.cost_usd < 0))) {
     throw new AutomationAdapterError('adapter_result_invalid');
   }
   const artifacts: EvidenceArtifact[] = [];
@@ -161,5 +293,9 @@ function parseAdapterResult(body: Record<string, unknown>): AdapterResult {
       artifacts.push({ kind: item.kind as EvidenceArtifact['kind'], sha256: item.sha256, reference: item.reference, bytes: item.bytes });
     }
   }
-  return { ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), artifacts, cost_usd: body.cost_usd };
+  const effectDiagnostics = readResultEffectDiagnostics(body);
+  return {
+    ok: body.ok, summary: body.summary.slice(0, 4000), evidence: cleanStrings(body.evidence), artifacts, cost_usd: body.cost_usd,
+    ...(effectDiagnostics ? { effect_diagnostics: effectDiagnostics } : {}),
+  };
 }

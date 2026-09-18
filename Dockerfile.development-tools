@@ -1,0 +1,64 @@
+# Build-time dependencies are never installed by an autonomous worker.
+ARG RONOR_OPENHANDS_AGENT_IMAGE=ghcr.io/openhands/agent-server:1.42.1-python
+FROM node:20-bookworm-slim AS node-runtime
+
+FROM node-runtime AS dependencies
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3 git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY tsconfig.json ./
+COPY src ./src
+COPY web ./web
+COPY scripts ./scripts
+RUN npm run build
+
+FROM ${RONOR_OPENHANDS_AGENT_IMAGE} AS author
+USER root
+# Pin the author's Node ABI to the verifier and its prebuilt SQLite dependency.
+COPY --from=node-runtime /usr/local/bin/node /opt/ronor-node/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules/npm /opt/ronor-node/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /opt/ronor-node/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /opt/ronor-node/bin/npx
+ENV PATH="/opt/ronor-node/bin:${PATH}"
+COPY --chmod=0555 scripts/openhands-secret-entrypoint.sh /usr/local/bin/ronor-openhands-entrypoint
+ENTRYPOINT ["/usr/local/bin/ronor-openhands-entrypoint"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]
+
+FROM node-runtime AS evidence
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/dist ./dist
+ENV NODE_ENV=production
+USER 10001:10001
+CMD ["node", "dist/runtime/automation/services/evidence-runner-server.js"]
+
+FROM node-runtime AS runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=dependencies /app/package.json /app/package-lock.json ./
+COPY --from=dependencies /app/node_modules ./node_modules
+RUN npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+COPY --from=dependencies /app/dist ./dist
+COPY src/governance/policies.yaml ./src/governance/policies.yaml
+RUN mkdir -p /app/data && chown 10001:10001 /app/data
+ENV NODE_ENV=production
+ENV AUDIT_DB_PATH=/app/data/audit.db
+ENV MI9_POLICY_PATH=/app/src/governance/policies.yaml
+USER 10001:10001
+
+FROM runtime AS development-controller
+COPY scripts/ronor-develop.mjs ./scripts/ronor-develop.mjs
+COPY scripts/resume-development-legacy.cjs ./scripts/resume-development-legacy.cjs
+COPY scripts/ronor-transport-validation-run.cjs ./scripts/ronor-transport-validation-run.cjs
+COPY scripts/ronor-transport-validation-status.cjs ./scripts/ronor-transport-validation-status.cjs
+ENV RONOR_DEVELOPMENT_HOST=0.0.0.0
+ENV RONOR_DEVELOPMENT_PORT=3010
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD node -e "require('http').get('http://127.0.0.1:3010/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+CMD ["node", "dist/runtime/automation/services/development-controller-server.js"]

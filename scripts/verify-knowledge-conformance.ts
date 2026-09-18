@@ -107,6 +107,10 @@ function main(): number {
   // express-rate-limit is the ingress limiter for every HTTP surface. It is
   // production, not development, because a limiter absent at runtime is a
   // limiter that does not exist.
+  //
+  // undici is the egress HTTP transport used by the governed automation adapters.
+  // It is authorised here by name and, because it opens sockets, additionally held
+  // to the exact-pin condition asserted below alongside the vector store client.
   const EXPECTED_PRODUCTION_DEPENDENCIES = [
     '@langchain/core',
     '@langchain/langgraph',
@@ -118,6 +122,7 @@ function main(): number {
     'express-rate-limit',
     'js-yaml',
     'openai',
+    'undici',
     'uuid',
     'winston',
     'zod',
@@ -129,16 +134,33 @@ function main(): number {
   const missingDependencies = EXPECTED_PRODUCTION_DEPENDENCIES.filter(
     (d) => !actualProduction.includes(d)
   );
+  // Authorising a network-capable package by name is not sufficient on its own. A
+  // floating range on a package that opens sockets means the audited artefact and
+  // the deployed artefact can differ with no commit recording the change, so each
+  // one must also be pinned exactly, declared once, and scoped to production.
+  const NETWORK_CAPABLE_DEPENDENCIES = ['@qdrant/js-client-rest', 'undici'];
+  const unpinnedNetworkDependencies = NETWORK_CAPABLE_DEPENDENCIES.filter((name) => {
+    const pin = pkg.dependencies[name];
+    return (
+      typeof pin !== 'string' ||
+      !/^\d+\.\d+\.\d+$/.test(pin) ||
+      pkg.devDependencies?.[name] !== undefined
+    );
+  });
   record(
     'CONF-2',
-    `Dependency surface: ${EXPECTED_PRODUCTION_DEPENDENCIES.length} authorised production packages by name, development at or above baseline`,
+    `Dependency surface: ${EXPECTED_PRODUCTION_DEPENDENCIES.length} authorised production packages by name, network-capable ones pinned exactly, development at or above baseline`,
     true,
-    unexpectedDependencies.length === 0 && missingDependencies.length === 0 && devCount >= 16,
+    unexpectedDependencies.length === 0 &&
+      missingDependencies.length === 0 &&
+      unpinnedNetworkDependencies.length === 0 &&
+      devCount >= 16,
     {
       production: depCount,
       development: devCount,
       unexpected: unexpectedDependencies,
       missing: missingDependencies,
+      unpinnedNetworkCapable: unpinnedNetworkDependencies,
     }
   );
 

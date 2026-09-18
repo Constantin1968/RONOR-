@@ -126,6 +126,12 @@ interface Policy {
       domain_tiers: Record<string, 'minimal' | 'limited' | 'high' | 'unacceptable'>;
       cosign_required_at_tier: string[];
       escalation_required_at_tier: string[];
+      /**
+       * Tier applied to a domain absent from domain_tiers. Deny-by-default:
+       * when omitted from the policy file this falls back to 'unacceptable',
+       * so an unclassified domain is blocked rather than silently allowed.
+       */
+      unknown_domain_tier?: 'minimal' | 'limited' | 'high' | 'unacceptable';
     };
     reversibility: {
       irreversible_action_verdict: Verdict;
@@ -293,15 +299,50 @@ function gateSovereignty(ctx: DecisionContext, p: Policy): GateFinding {
   };
 }
 
+/**
+ * Resolve a domain to its risk tier by most-specific classified prefix.
+ *
+ * Domains are dotted paths (`<family>.<subject>.<action>`). Some are fixed
+ * literals; others are built at runtime from a task classifier, so the leaf
+ * set cannot be enumerated in advance. Exact-match-only would therefore refuse
+ * legitimate traffic, and leaf-level omission would silently grant authority.
+ *
+ * The rule is inheritance with a floor: a leaf inherits the tier of its
+ * nearest classified ancestor, and a domain with no classified ancestor at all
+ * is unclassified and refused. Authority is always traceable to an explicit
+ * written rule at some level of the hierarchy — never to an omission.
+ *
+ * `matched` is the classification the verdict rests on, so an audit record can
+ * name the rule that was applied rather than only the tier it produced.
+ */
+export function resolveDomainTier(
+  domain: string,
+  tiers: Record<string, 'minimal' | 'limited' | 'high' | 'unacceptable'>,
+): { tier: 'minimal' | 'limited' | 'high' | 'unacceptable' | null; matched: string | null } {
+  const parts = domain.split('.');
+  for (let length = parts.length; length > 0; length -= 1) {
+    const candidate = parts.slice(0, length).join('.');
+    if (Object.prototype.hasOwnProperty.call(tiers, candidate)) {
+      return { tier: tiers[candidate], matched: candidate };
+    }
+  }
+  return { tier: null, matched: null };
+}
+
 function gateRiskTier(ctx: DecisionContext, p: Policy): GateFinding {
-  const tier = p.gates.risk_tier.domain_tiers[ctx.domain] || 'limited';
+  const resolved = resolveDomainTier(ctx.domain, p.gates.risk_tier.domain_tiers);
+  const classified = resolved.tier !== null;
+  const matched = resolved.matched;
+  const tier = resolved.tier ?? (p.gates.risk_tier.unknown_domain_tier ?? 'unacceptable');
   if (tier === 'unacceptable') {
     return {
       gateNumber: 2,
       gateName: 'risk-tier',
       verdict: 'block',
-      reason: `Domain '${ctx.domain}' classified as unacceptable-risk under EU AI Act.`,
-      detail: { tier },
+      reason: classified
+        ? `Domain '${ctx.domain}' classified as unacceptable-risk under EU AI Act via rule '${matched}'.`
+        : `Domain '${ctx.domain}' has no classified ancestor in policy; deny-by-default applies.`,
+      detail: { tier, classified, matched },
     };
   }
   if (p.gates.risk_tier.escalation_required_at_tier.includes(tier)) {
@@ -310,7 +351,7 @@ function gateRiskTier(ctx: DecisionContext, p: Policy): GateFinding {
       gateName: 'risk-tier',
       verdict: 'escalate',
       reason: `Domain '${ctx.domain}' at tier '${tier}' requires human escalation.`,
-      detail: { tier },
+      detail: { tier, classified, matched },
     };
   }
   if (p.gates.risk_tier.cosign_required_at_tier.includes(tier)) {
@@ -319,7 +360,7 @@ function gateRiskTier(ctx: DecisionContext, p: Policy): GateFinding {
       gateName: 'risk-tier',
       verdict: 'allow-with-cosign',
       reason: `Domain '${ctx.domain}' at tier '${tier}' requires human co-sign.`,
-      detail: { tier },
+      detail: { tier, classified, matched },
     };
   }
   return {
@@ -327,7 +368,7 @@ function gateRiskTier(ctx: DecisionContext, p: Policy): GateFinding {
     gateName: 'risk-tier',
     verdict: 'allow',
     reason: `Domain '${ctx.domain}' at tier '${tier}' autonomously actionable.`,
-    detail: { tier },
+    detail: { tier, classified, matched },
   };
 }
 

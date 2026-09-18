@@ -17,6 +17,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const DEVELOP_CLI = process.env.RONOR_DEVELOP_CLI || '/app/scripts/ronor-develop.mjs';
 const DEVELOPMENT_URL = process.env.RONOR_TRANSPORT_DEVELOPMENT_URL || 'http://127.0.0.1:3010';
@@ -89,6 +90,40 @@ function objectiveText(files = TEST_FILES) {
   ].join(' ');
 }
 
+// The worktree the author will actually test, mounted read-only in this container.
+// The objective names test files by path; if a named file is absent from that
+// worktree the author cannot inspect or run it, and the measured consequence is
+// worse than a skipped suite: on 17 September 2026 a run whose objective named
+// tests/runtime/automation-http-transport.test.ts, absent from the worktree at
+// 129b069 though present in the image built from 9c3fdeb, silently substituted a
+// broad pattern, exercised nineteen unrelated suites and was reported complete
+// through the assurance gate. An acceptance function that reports success without
+// having touched its subject is not an acceptance function, so this refuses before
+// a mandate is issued: no model starts, no run is created and no budget is spent.
+function worktreeRoot(env = process.env) {
+  return env.RONOR_TRANSPORT_WORKTREE || env.RONOR_AUTOMATION_WORKTREE || process.cwd();
+}
+
+function absentTestFiles(files, env = process.env) {
+  const root = worktreeRoot(env);
+  return files.filter(file => {
+    try {
+      return !fs.statSync(path.join(root, file)).isFile();
+    } catch {
+      return true;
+    }
+  });
+}
+
+function assertTestFilesPresent(files, env = process.env) {
+  const absent = absentTestFiles(files, env);
+  if (absent.length === 0) return;
+  const error = refuse('validation_test_file_absent');
+  error.absentFiles = [...absent];
+  error.worktree = worktreeRoot(env);
+  throw error;
+}
+
 function refuse(code) {
   const error = new Error(code);
   error.code = code;
@@ -149,11 +184,14 @@ function writeRequest(request, paths = REQUEST_PATHS) {
 
 async function run(argv, env = process.env) {
   const options = parseArguments(argv);
+  const files = selectFiles(options.suite);
+  assertTestFilesPresent(files, env);
   const request = buildRequest(options);
   if (options.dryRun) {
     return {
       ok: true, dry_run: true, id: options.id, suite: options.suite, request,
-      test_files: selectFiles(options.suite), no_model_started: true, no_run_created: true,
+      test_files: files, test_files_present: true,
+      worktree: worktreeRoot(env), no_model_started: true, no_run_created: true,
     };
   }
   const keyFile = env.RONOR_TRANSPORT_API_KEY_FILE || env.RONOR_ARCHITECT_API_KEY_FILE;
@@ -176,6 +214,9 @@ module.exports = {
   SUITES,
   SUITE_KEYS,
   TEST_FILES,
+  absentTestFiles,
+  assertTestFilesPresent,
+  worktreeRoot,
   buildRequest,
   objectiveText,
   parseArguments,
@@ -193,6 +234,8 @@ if (require.main === module) {
         : (/^[a-z_0-9]{3,60}$/.test(String(error?.message)) ? String(error.message) : 'start_failed');
       console.error(JSON.stringify({
         ok: false, error: code, detail: String(error && error.message).slice(0, 200),
+        ...(Array.isArray(error?.absentFiles) ? { absent_test_files: error.absentFiles } : {}),
+        ...(typeof error?.worktree === 'string' ? { worktree: error.worktree } : {}),
       }));
       process.exitCode = 1;
     });

@@ -1,4 +1,4 @@
-import {createNativeOpenHandsClient} from '../../src/runtime/automation/adapters/openhands-native';
+import {createNativeOpenHandsClient,CONTEXT_BOUNDS} from '../../src/runtime/automation/adapters/openhands-native';
 import {reserveModelRequest,MODEL_RATE_CARD} from '../../src/runtime/automation/model-budget';
 import type {OpenHandsExecutionEnvelope} from '../../src/runtime/automation/contracts';
 const id='11111111-1111-4111-8111-111111111111';
@@ -17,8 +17,8 @@ describe('bounded context and pre-inference trace barrier',()=>{
     expect(payload.agent.condenser.llm).toEqual({...payload.agent.llm,usage_id:'condenser'});
     expect(payload.agent.llm.extra_headers['x-ronor-budget']).toBe('test-budget');
     expect(payload.agent.llm.max_output_tokens).toBe(4096);
-    expect(payload.agent.condenser.max_size).toBe(24);
-    expect(payload.agent.condenser.max_tokens).toBe(16000);
+    expect(payload.agent.condenser.max_size).toBe(CONTEXT_BOUNDS.condenserMaxSize);
+    expect(payload.agent.condenser.max_tokens).toBe(CONTEXT_BOUNDS.condenserMaxTokens);
     expect(payload.autotitle).toBe(false);
     // A smaller configured condensation threshold is not permission to bypass
     // the unchanged hard guard. A huge request must still be refused.

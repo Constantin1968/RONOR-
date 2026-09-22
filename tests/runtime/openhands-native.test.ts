@@ -1,4 +1,4 @@
-import { createNativeOpenHandsClient, nativeOpenHandsCost, nativeOpenHandsCatalogCost } from '../../src/runtime/automation/adapters/openhands-native';
+import { createNativeOpenHandsClient, nativeOpenHandsCost, nativeOpenHandsCatalogCost, CONTEXT_BOUNDS } from '../../src/runtime/automation/adapters/openhands-native';
 
 describe('native catalog accounting', () => {
   it('computes the conservative catalog subtotal from measured tokens without double-counting cache hits', () => {
@@ -22,9 +22,9 @@ const envelope: OpenHandsExecutionEnvelope = {
 };
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status }));
 const boundedLlm = {model:'openai/qwen3.8-max',base_url:'http://model-egress-proxy:3004/v1',
-  max_input_tokens:20000,max_message_chars:6000,max_output_tokens:4096,num_retries:0,
+  max_input_tokens:CONTEXT_BOUNDS.maxInputTokens,max_message_chars:CONTEXT_BOUNDS.maxMessageChars,max_output_tokens:4096,num_retries:0,
   extra_headers:{'x-ronor-budget':'test-budget'}};
-const boundedAgent = {llm:boundedLlm,condenser:{kind:'LLMSummarizingCondenser',max_size:24,max_tokens:16000,keep_first:2,
+const boundedAgent = {llm:boundedLlm,condenser:{kind:'LLMSummarizingCondenser',max_size:CONTEXT_BOUNDS.condenserMaxSize,max_tokens:CONTEXT_BOUNDS.condenserMaxTokens,keep_first:2,
   llm:{...boundedLlm,usage_id:'condenser'}}};
 
 describe('native OpenHands Agent Server client', () => {
@@ -154,8 +154,8 @@ describe('native OpenHands Agent Server client', () => {
       confirmation_policy: { kind: 'AlwaysConfirm' }, max_iterations: 100, autotitle:false,
       agent: { kind: 'Agent', llm: {
         model: 'openai/qwen3-coder:30b', api_key: 'model-client-key', base_url: 'http://model-egress-proxy:3004/v1', api_mode: 'chat',
-        max_message_chars:6000, max_input_tokens:20000,num_retries:0,
-      }, condenser:{kind:'LLMSummarizingCondenser',max_size:24,max_tokens:16000,keep_first:2},
+        max_message_chars:CONTEXT_BOUNDS.maxMessageChars, max_input_tokens:CONTEXT_BOUNDS.maxInputTokens,num_retries:0,
+      }, condenser:{kind:'LLMSummarizingCondenser',max_size:CONTEXT_BOUNDS.condenserMaxSize,max_tokens:CONTEXT_BOUNDS.condenserMaxTokens,keep_first:2},
       tools:[{name:'terminal'},{name:'file_editor'},{name:'task_tracker'}], tool_concurrency_limit:1 },
     });
     expect(createdBody.agent.condenser.llm).toEqual({...createdBody.agent.llm,usage_id:'condenser'});

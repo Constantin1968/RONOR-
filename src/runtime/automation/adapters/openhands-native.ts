@@ -7,6 +7,25 @@ import { readEffectDiagnostics, type EffectDiagnostics } from '../effect-diagnos
 import { MODEL_RATE_CARD } from '../model-budget';
 
 type Fetcher = typeof fetch;
+/**
+ * Context bounds applied to the agent, asserted when verifying a resumed
+ * conversation, and applied to the condenser. One source of truth: the previous
+ * hand-written duplicates could drift apart and a mismatch reads as
+ * 'openhands_resume_context_unverified' with no hint at which number moved.
+ *
+ * The earlier 20000/6000/16000 set was too tight for a real objective. An
+ * instruction naming three test files exhausted the condenser in 15 events
+ * ('Condenser token limit exceeded: total_tokens=18029 max_tokens=16000'), which
+ * presented as a duration failure. These values keep headroom while staying far
+ * below the provider's nominal context, so the condenser still condenses.
+ */
+export const CONTEXT_BOUNDS = Object.freeze({
+  maxInputTokens: 96_000,
+  maxMessageChars: 24_000,
+  condenserMaxSize: 24,
+  condenserMaxTokens: 80_000,
+});
+
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
 const EVENTS_PATH = '/events/search';
@@ -75,6 +94,10 @@ export function createNativeOpenHandsClient(config: {
   sessionApiKey: string;
   fetcher?: Fetcher;
   pollIntervalMs?: number;
+  /** How many times to re-read conversation state after POST /pause. */
+  pauseConfirmAttempts?: number;
+  /** Gap between those re-reads, in milliseconds. */
+  pauseConfirmIntervalMs?: number;
   maxPolls?: number;
   startupPolls?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -169,7 +192,11 @@ export function createNativeOpenHandsClient(config: {
         model:config.llm.model,api_key:config.llm.apiKey,base_url:config.llm.baseUrl,api_mode:config.llm.apiMode??'chat',
         // Condense before the application byte-based cap, not the provider's
         // much larger nominal context. The egress cap remains unchanged.
-        max_message_chars:6000, max_input_tokens:20000, num_retries:0,
+        //
+        // The bounds live in CONTEXT_BOUNDS because the same numbers are also
+        // asserted when verifying a resumed conversation and when creating the
+        // condenser. Duplicating literals let them drift apart silently.
+        max_message_chars:CONTEXT_BOUNDS.maxMessageChars, max_input_tokens:CONTEXT_BOUNDS.maxInputTokens, num_retries:0,
         ...(envelope.budget_token?{extra_headers:{'x-ronor-budget':envelope.budget_token},max_output_tokens:4096}:{}),
         ...(config.llm.inputCostPerToken!==undefined?{input_cost_per_token:config.llm.inputCostPerToken,
           output_cost_per_token:config.llm.outputCostPerToken}:{}),
@@ -180,13 +207,30 @@ export function createNativeOpenHandsClient(config: {
         evidence: conversationId ? [`conversation:${conversationId}`] : [], cost_usd: cost,
         ...(!ok && refusalDiagnostics ? { effect_diagnostics: refusalDiagnostics } : {}),
       });
+      // Pausing is asynchronous: the POST is accepted while the agent is still
+      // executing an approved action, so the status does not settle within the
+      // same tick. Reading it once, microseconds later, reported a SUCCESSFUL
+      // pause as failed and then replaced the real stop reason with
+      // 'openhands_pause_unconfirmed', sending the operator after the wrong
+      // cause. Re-poll for a bounded window instead of demanding instant proof.
+      const SETTLED = ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
       const pauseAndAccount = async (): Promise<boolean> => {
         if (!conversationId) return false;
+        const attempts = Math.max(1, config.pauseConfirmAttempts ?? 8);
+        const gapMs = Math.max(0, config.pauseConfirmIntervalMs ?? 500);
         try {
           await call(`/api/conversations/${conversationId}/pause`, 'POST', {}, AbortSignal.timeout(4_000));
-          const final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
-          cost = executionCost(final);
-          return ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'].includes(String(final.execution_status).toLowerCase());
+          let final: Record<string, unknown> | undefined;
+          for (let attempt = 0; attempt < attempts; attempt += 1) {
+            if (attempt > 0) await sleep(gapMs);
+            final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
+            cost = executionCost(final);
+            if (SETTLED.includes(String(final.execution_status).toLowerCase())) return true;
+          }
+          // Window exhausted: keep whatever cost the last read produced so the
+          // caller can still account an unsettled conversation honestly.
+          if (final) cost = executionCost(final);
+          return false;
         } catch { cost = null; return false; }
       };
       const waitForNextPoll = async () => {
@@ -234,11 +278,11 @@ export function createNativeOpenHandsClient(config: {
           const boundedLlm=(value:unknown)=>{
             if(!value || typeof value!=='object')return false;
             const v=value as Record<string,unknown>;
-            return v.model===llm.model && v.base_url===llm.base_url && v.max_input_tokens===20000 &&
-              v.max_message_chars===6000 && v.max_output_tokens===4096 && v.num_retries===0 &&
+            return v.model===llm.model && v.base_url===llm.base_url && v.max_input_tokens===CONTEXT_BOUNDS.maxInputTokens &&
+              v.max_message_chars===CONTEXT_BOUNDS.maxMessageChars && v.max_output_tokens===4096 && v.num_retries===0 &&
               (v.extra_headers as Record<string,unknown>|undefined)?.['x-ronor-budget']===envelope.budget_token;
           };
-          if(condenser?.kind!=='LLMSummarizingCondenser'||condenser.max_size!==24||condenser.max_tokens!==16000||
+          if(condenser?.kind!=='LLMSummarizingCondenser'||condenser.max_size!==CONTEXT_BOUNDS.condenserMaxSize||condenser.max_tokens!==CONTEXT_BOUNDS.condenserMaxTokens||
               condenser.keep_first!==2||!boundedLlm(resumedAgent.llm)||!boundedLlm(condenser.llm))
             return finish(false,'openhands_resume_context_unverified');
           await call(`/api/conversations/${conversationId}/run`,'POST',{},executionSignal);
@@ -252,7 +296,8 @@ export function createNativeOpenHandsClient(config: {
             tools: [{name:'terminal'},{name:'file_editor'},{name:'task_tracker'}],
             tool_concurrency_limit:1,
             condenser: {kind:'LLMSummarizingCondenser',llm:{...llm,usage_id:'condenser'},
-              max_size:24,max_tokens:16000,keep_first:2,hard_context_reset_max_retries:1},
+              max_size:CONTEXT_BOUNDS.condenserMaxSize,max_tokens:CONTEXT_BOUNDS.condenserMaxTokens,
+              keep_first:2,hard_context_reset_max_retries:1},
           } } : {}),
         }, executionSignal);
         conversationId = typeof created.conversation_id === 'string' ? created.conversation_id : typeof created.id === 'string' ? created.id : null;

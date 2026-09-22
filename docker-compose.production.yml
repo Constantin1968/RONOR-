@@ -341,7 +341,9 @@ services:
   # last 90 days; a renewal that runs only on deploy is a certificate that
   # expires during the first quiet month.
   certbot:
-    image: certbot/certbot:latest
+    # Fixat pe o versiune anume: `latest` face ca o reconstrucție de azi și una de
+    # peste șase luni să producă sisteme diferite din aceleași rețete.
+    image: certbot/certbot:v5.8.0
     container_name: ronor-certbot
     profiles: ["edge"]
     volumes:

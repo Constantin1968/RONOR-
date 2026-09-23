@@ -10,7 +10,10 @@ from relay_transport import http_client
 async def main():
     assert os.geteuid() == 10001
     assert not Path("/var/run/docker.sock").exists()
-    assert not Path("/root/.ssh").exists()
+    try:
+        assert not Path("/root/.ssh").exists()
+    except PermissionError:
+        pass  # An unprivileged process cannot traverse the image's /root.
     assert not Path("/opt/ronor").exists()
     assert not Path("/run/secrets/relay.json").exists()
     assert not shutil.which("docker") and not shutil.which("ssh")

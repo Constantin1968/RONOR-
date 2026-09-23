@@ -1,8 +1,10 @@
 # RONOR: registrul remedierilor auditului din 23 septembrie 2026
 
-Stadiu: candidat local, nepublicat și neinstalat. Bază: `a857989`, ramura
+Stadiu: lotul de replicare Hetzner–Contabo este instalat și verificat; restul
+candidatului rămâne local, nepublicat și neinstalat. Bază: `a857989`, ramura
 integrată citită din GitHub în această sesiune. Solicitarea de reparare integrală
-nu este încă îndeplinită. Nicio constatare nu este declarată închisă în producție.
+nu este încă îndeplinită. Constatarea F17 are controale remediate, dar nu este
+închisă integral.
 
 ## Lucrări efectuate
 
@@ -47,7 +49,8 @@ nu este încă îndeplinită. Nicio constatare nu este declarată închisă în 
 | Scanare Gitleaks a istoricului local accesibil, 242 commit-uri | Fără semnalări neexceptate |
 | Verificare sintactică Python și Bash | Trecută |
 | Inspecție de citire pe trei gazde; comparație Hetzner–Contabo | Executate; 22 fișiere plus arhiva separată identice |
-| Restaurare reală, instalare, integrare continuă la distanță | Neexecutate |
+| Instalare și replicare Hetzner–Contabo | Executate după aprobare; cod zero, 23 fișiere identice, permisiuni verificate |
+| Restaurare reală, instalare runtime/bot, integrare continuă la distanță | Neexecutate |
 
 Cele două eșecuri sunt în `tests/knowledge/equivalence.test.ts` și
 `tests/knowledge/stage-def.test.ts`: amprentele aprobate ale orchestratorului
@@ -74,8 +77,8 @@ nu ca revocare retroactivă a unei cereri acceptate de alt serviciu.
 Instrumentul de integritate este testat separat. Scriptul de backup din Git
 diferă de cel instalat, deci nu trebuie copiat peste producție; se va aplica o
 corecție minimă după citirea versiunii curente. Nu a fost modificată replicarea
-off-site în producție și nu a fost instituită retenția independentă. O corecție
-locală separată a replicării este pregătită după inspecția gazdelor.
+off-site decât în limitele lotului aprobat și documentat mai jos. Retenția
+independentă nu a fost instituită. Scriptul de backup al sursei rămâne neschimbat.
 
 ## Registrul tuturor constatărilor
 
@@ -97,7 +100,7 @@ locală separată a replicării este pregătită după inspecția gazdelor.
 | F14 Abatere la reconstrucție | Neînchis; nu s-a rescris referința pentru a ascunde abaterea |
 | F15 Reconstrucție incompletă | Botul și modulele noi sunt versionate local; manifestul exact al producției și restaurarea rămân de făcut |
 | F16 Repornire și probe | Neaplicat pe gazde; rolurile permanente trebuie verificate înaintea schimbării politicilor |
-| F17 Backup și alarme | Fotografia și arhiva separată identice între gazde; procedură corectată local; instalare, retenție independentă, restaurare și alarmă sintetică încă necesare |
+| F17 Backup și alarme | Procedura off-site instalată și verificată; identitate a 23 de fișiere, destinație privată, latest corect, erori neascunse; retenție independentă, restaurare și alarmă sintetică încă necesare |
 | F18 Calitatea informației | Neînchis; necesită eșantion de proveniență și verificare semantică |
 | F19 Plan de control nou | Amânat până după închiderea porților de autoritate și reconstrucție |
 | F20 Cost și misiuni | Neînchis; nicio modificare financiară sau reconciliere în producție |
@@ -120,11 +123,13 @@ din jurnalul gazdei sursă nu substituie citirea destinației și restaurarea.
 
 ## Următoarea poartă
 
-Citirea aprobată este încheiată. Urmează aprobarea explicită a lotului de
-replicare descris în `ops/hetzner/OFFSITE-DEPLOYMENT.md`, apoi instalarea și
-verificarea lui. Restul intervențiilor, rotațiile și instalarea runtime-ului au
-criterii distincte de acceptare și revenire. Nu se dezactivează controalele ca
-să treacă un test și nu se schimbă versiunea acceptată doar fiindcă există cod nou.
+Citirea și lotul de replicare aprobat sunt încheiate. Urmează pregătirea
+restricționării sursei fără întreruperea cititorului DigitalOcean, izolarea
+botului și migrarea accesului, cu revocarea cheilor expuse și restaurare izolată.
+Aceste intervenții și instalarea runtime-ului au criterii distincte de acceptare
+și revenire; nu au fost autorizate prin aprobarea limitată a lotului off-site.
+Nu se dezactivează controalele ca să treacă un test și nu se schimbă versiunea
+acceptată doar fiindcă există cod nou.
 
 ## Verificarea autorizată a gazdelor, 23 septembrie, 20:02–20:07 UTC
 
@@ -171,4 +176,57 @@ Suita Python este acum 21/21; integrarea continuă selectează toate testele ops
 
 Procedura rămâne un mirror întărit: poate suprascrie fișiere cu același nume și
 folosește încă root. Nu se declară retenție imuabilă, restaurare sau F17 închis.
-Nicio instalare nu a avut loc. Cele două porți TypeScript nu au fost schimbate.
+La încheierea citirii, nicio instalare nu avusese loc. Cele două porți TypeScript
+nu au fost schimbate. Aprobarea și instalarea ulterioară sunt consemnate separat.
+
+## Lot instalat după aprobare, 23 septembrie, 20:25–20:27 UTC
+
+Utilizatorul a aprobat explicit numai lotul de replicare descris, nu instalarea
+restului candidatului. Au fost instalate două fișiere din revizia `6092289`,
+după verificarea amprentei scriptului anterior și sub blocajul comun de replicare.
+Programarea existentă, `30 4 * * *`, nu a fost modificată.
+
+| Obiect | SHA-256 și stare |
+|---|---|
+| Scriptul Hetzner `/usr/local/sbin/ronor-offsite.sh` | `9ccb672eadee22b7d80ef33f5cceac6969094e19a5d6a4e473a43e04c75a23c6`; root:root, 700 |
+| Verificatorul `/usr/local/lib/ronor/offsite_verify.py` | `7a536c9ad50b934f84b8113332edd9a88b6e69059ff821e7b334c181e06f7a3b`; root:root, 600 |
+| Scriptul anterior conservat pe Hetzner | `637b49698470e6411d9ed80b9dd3361ce51ca97c937fd9785ccc43a4eeddae6c`; copie 600 în director 700 |
+
+Copie de revenire: `/root/ronor-offsite-repair-20260923-2025/ronor-offsite.before.sh`.
+Nu se reactivează automat scriptul anterior: acesta ar putea reaplica drepturile
+permisive și propagarea ștergerilor la următoarea rulare.
+
+### Acceptarea lotului
+
+- **Rulare unică:** început la `2026-09-23T20:26:03Z`; procesul și procedura au
+  raportat cod 0. Nu s-a executat încă o a doua replicare sau o restaurare.
+- **Conținut:** toate cele 22 de fișiere ale fotografiei `20260923-023001`, plus
+  arhiva separată de secrete, au dimensiuni și amprente SHA-256 identice.
+- **Descoperire:** `latest` de pe Contabo este acum legătura relativă
+  `20260923-023001`, rezolvabilă în interiorul destinației.
+- **Permisiuni:** rădăcina și directoarele fotografiei sunt 700, iar arhiva de
+  cod și cea de secrete sunt 600, root:root. Inspecția celor 1.337.331 de obiecte
+  nesimbolice din destinație a găsit zero obiecte cu proprietar diferit de root
+  și zero cu drepturi pentru grup sau ceilalți. Aceasta este verificare de
+  metadate, nu comparare de conținut pentru întregul istoric.
+- **Probă negativă:** utilizatorul `nobody` nu poate citi arhiva off-site.
+  Proba este `test -r`, nu citire sau copiere a datelor.
+- **Dependență păstrată:** utilizatorul `ronor` de pe Hetzner poate încă citi
+  `latest/postgres/cida.dump`. Nu s-au schimbat permisiunile sursei; aceasta nu
+  este o execuție completă a copiei secundare DigitalOcean.
+- **Domeniu respectat:** codul botului are aceeași amprentă ca înainte. Nu s-au
+  modificat autentificarea, cheile, firewallul, containerele sau politicile de
+  guvernanță. Nu s-a făcut push sau merge în GitHub.
+
+### Limite care rămân deschise
+
+Retenția destinației nu mai urmărește ștergerile sursei, dar destinația rămâne
+modificabilă prin root și fișierele cu același nume pot fi suprascrise. Nu există
+încă probă de restaurare, imutabilitate, alarmă livrată sau acceptare a întregului
+runtime. Controalele de drift pot semnala justificat schimbările; referința lor
+nu a fost rescrisă pentru a masca intervenția.
+
+Arhivele sursă de pe Hetzner rămân cu permisiunile observate anterior. Migrarea
+lor trebuie să păstreze accesul explicit al copiei DigitalOcean, iar scriptul
+de export are încă ramuri care pot declara succes după export parțial. Aceste
+limite nu sunt închise prin fidelitatea transferului.

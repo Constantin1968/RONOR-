@@ -1,7 +1,9 @@
 # Replicarea Hetzner–Contabo: lotul de corecție propus
 
-Stare: pregătit și testat local; neinstalat. Este necesară aprobarea explicită
-a modificărilor de mai jos, distinctă de aprobarea citirii gazdelor.
+Stare: aprobat explicit și instalat la 23 septembrie 2026, 20:25–20:27 UTC.
+Rularea unică de validare a trecut: 23 de fișiere identice, permisiuni private,
+legătură relativă validă. Descrierea de mai jos consemnează domeniul lotului;
+nu autorizează o nouă instalare sau o nouă rulare.
 
 ## Destinații și modificări
 
@@ -52,8 +54,9 @@ acoperă fotografia datată curentă și arhiva separată, nu întregul istoric.
 
 ## Revenire
 
-La eșec se păstrează jurnalul și nu se șterge nicio copie. Se restaurează numai
-scriptul anterior și legătura `latest` dacă intervenția a schimbat-o. Permisiunile
-private ale copiilor nu se redeschid automat; o revenire care reexpune datele
-necesită decizie explicită. Codul vechi are limite cunoscute și restaurarea lui
-nu înseamnă remediere.
+La eșec se păstrează jurnalul și nu se șterge nicio copie. Scriptul anterior și
+starea vechii legături sunt conservate ca probe, dar nu se reactivează automat:
+scriptul vechi poate redeschide permisiunile la următoarea replicare. Orice
+revenire care reexpune datele necesită decizie explicită. Codul vechi are limite
+cunoscute și restaurarea lui nu înseamnă remediere. În rularea aprobată nu a
+fost necesară revenirea.

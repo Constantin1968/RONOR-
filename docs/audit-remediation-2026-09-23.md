@@ -124,3 +124,50 @@ execuție, fără afișarea valorilor secrete. Pe această bază se pregătesc s
 intervențiile reversibile, rotațiile, publicarea și instalările, fiecare cu
 criterii de acceptare și revenire. Nu se dezactivează controalele ca să treacă
 un test și nu se schimbă versiunea acceptată doar fiindcă există cod nou.
+
+## Verificarea autorizată a gazdelor, 23 septembrie, 20:02–20:07 UTC
+
+Etapa de citire a fost executată pe cele trei gazde. Nu s-au modificat configurații,
+servicii, chei sau copii de siguranță. Conexiunile au folosit verificarea strictă a
+cheilor de gazdă deja salvate; Contabo a fost accesat prin Hetzner, fără copierea
+cheii private. Aceasta probează continuitatea față de cheile salvate, nu o nouă
+atestare independentă a identității furnizorului.
+
+- Cele 22 de fișiere din fotografia `20260923-023001` au aceleași dimensiuni și
+  amprente SHA-256 pe Hetzner și Contabo. Arhiva separată de secrete, 100.715
+  octeți, a fost comparată separat și este identică, cu modul 600 pe ambele gazde.
+  Aceste probe nu sunt restaurare și nu dovedesc completitudinea datelor exportate.
+- Lanțul de directoare al fotografiei este 755; 21 din cele 22 de fișiere sunt
+  citibile de grup sau de ceilalți utilizatori pe ambele gazde. Nu s-a demonstrat
+  acces public prin internet și nici exfiltrare.
+- `latest` pe Contabo este o legătură absolută către calea Hetzner, inexistentă pe
+  Contabo. Datele datate există; defectul este al legăturii de descoperire.
+- Conexiunea root Hetzner–Contabo permite comenzi generale. Niciuna dintre cele
+  trei chei root autorizate pe Contabo nu are opțiune de comandă impusă.
+- DigitalOcean are încă o copie secundară trasă prin utilizatorul `ronor` de pe
+  Hetzner, cu comparare de amprente pentru fișierele selectate. Prin urmare,
+  afirmația că există o singură destinație off-site nu este justificată.
+  Scriptul DigitalOcean nu copiază volumele din secțiunea 3b și exclude explicit
+  arhivele separate de secrete. Citirea codului nu probează ultima sa execuție.
+- Restrângerea tuturor permisiunilor Hetzner la root ar întrerupe acest cititor.
+  Este necesară mai întâi migrarea sau păstrarea unui acces explicit de citire.
+- Scriptul off-site poate masca eșecul rsync prin succesul comenzii SSH de la final;
+  scriptul backup poate înregistra eșecuri fără ieșire nenulă. `--delete` propagă
+  ștergerile și nu asigură retenție independentă.
+- Botul are aceeași amprentă ca la audit; montările Docker și SSH administrative
+  sunt încă prezente. Politicile din runtime-urile generale sunt încă versiunea
+  `build-week-2026.07.20`; controllerul de dezvoltare folosește `2026.09.18`.
+  `PERSISTENCE_REQUIRED=false` este încă setat în cele două runtime-uri generale.
+- Configurația generală SSH permite parole pe toate trei gazdele. Pentru root,
+  Hetzner și Contabo raportează `without-password`, iar DigitalOcean `yes`.
+  Nu s-au testat parole, conturi cu parolă utilizabilă sau toate regulile Match.
+
+Au fost adăugate `offsite_sync.sh`, `offsite_verify.py` și opt regresii locale.
+Noua procedură refuză cheile de gazdă necunoscute, conservă codurile de eșec,
+nu propagă ștergeri, restrânge permisiunile destinației și verifică fotografia
+datată plus arhiva separată înainte de publicarea unei legături relative `latest`.
+Suita Python este acum 21/21; integrarea continuă selectează toate testele ops.
+
+Procedura rămâne un mirror întărit: poate suprascrie fișiere cu același nume și
+folosește încă root. Nu se declară retenție imuabilă, restaurare sau F17 închis.
+Nicio instalare nu a avut loc. Cele două porți TypeScript nu au fost schimbate.

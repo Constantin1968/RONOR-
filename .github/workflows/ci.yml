@@ -82,7 +82,7 @@ jobs:
           "$scan_dir/gitleaks" git . --log-opts="--all" --redact --no-banner
           "$scan_dir/gitleaks" dir . --redact --no-banner
       - name: Offline operational safety regressions
-        run: python3 -m unittest discover -s tests/ops -p 'test_audit_remediation.py' -v
+        run: python3 -m unittest discover -s tests/ops -p 'test_*.py' -v
 
   automation-preflight:
     name: Automation Activation Preflight Contract

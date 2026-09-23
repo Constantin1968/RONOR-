@@ -1,10 +1,90 @@
 # RONOR: registrul remedierilor auditului din 23 septembrie 2026
 
-Stadiu: lotul de replicare Hetzner–Contabo este instalat și verificat; restul
+Stadiu v4: lotul de replicare Hetzner–Contabo și izolarea botului conversațional
+pe Hetzner sunt instalate și verificate în limitele descrise mai jos. Restul
 candidatului rămâne local, nepublicat și neinstalat. Bază: `a857989`, ramura
 integrată citită din GitHub în această sesiune. Solicitarea de reparare integrală
 nu este încă îndeplinită. Constatarea F17 are controale remediate, dar nu este
-închisă integral.
+închisă integral. Nici izolarea botului nu echivalează cu închiderea F01 sau cu
+acceptarea întregului sistem pentru operare autonomă nesupravegheată.
+
+## Actualizare instalată: izolarea botului
+
+Transferul a avut loc la 23 septembrie 2026, 22:32 British Summer Time (BST,
+ora Londrei), respectiv 21:32 Coordinated Universal Time (UTC) și 24 septembrie,
+00:32 Eastern European Summer Time (EEST). Verificarea finală este datată
+`2026-09-23T21:33:11Z`. Aprobarea explicită a acoperit citirile, conservarea și
+recrearea numai a botului, releul auxiliar și verificări fără mesaje de test
+sau inferențe plătite. Nu a autorizat rotația cheilor ori schimbarea altor servicii.
+
+- **Bot instalat:** `ronor-orchestrator` rulează cu utilizatorul `10001:10001`,
+  rețea `none`, sistem de fișiere principal numai pentru citire, capabilități
+  Linux eliminate și `no-new-privileges`. Singura interfață este `lo`.
+  Nu are socketul sau binarul Docker, directoarele SSH ori montarea `/opt/ronor`.
+- **Releu separat:** `ronor-bot-egress`, utilizator `10002:10001`, fără porturi
+  publicate, deservește un socket Unix privat. Permite numai operațiile definite
+  pentru Telegram, Qwen, memorie și CIDA, fără redirecționări arbitrare. Botul
+  primește aliasuri, nu cheile reale. Acreditările existente sunt într-un fișier
+  montat exclusiv în releu, modul 400, fără afișarea valorilor.
+- **Conservare:** vechiul container există oprit ca
+  `ronor-orchestrator-pre-isolation-20260924`, cu repornire automată dezactivată.
+  Configurația și sursa inițiale sunt păstrate privat pe gazdă. Nu există revenire
+  automată la varianta privilegiată. Intrarea declarativă veche a fost înlocuită
+  cu configurația izolată pentru a nu recrea accidental vechile privilegii.
+- **Recepție și stare:** SQLite persistă recepția înaintea confirmării Telegram.
+  Sarcinile incerte sunt `interrupted`, fără reluare automată. La transfer au
+  fost găsite zero mesaje neconfirmate. Această observație nu dovedește retroactiv
+  că vechiul bot nu a pierdut mesaje înaintea intervenției. Memoria externă nu
+  a fost ștearsă sau migrată; istoricul volatil al vechiului proces nu a fost exportat.
+- **Verificare:** botul și releul au starea Docker `healthy`; recepția Telegram
+  produce heartbeat. Probele sigure Telegram și `/health` pentru memorie/CIDA
+  întorc 200. Accesul la Docker, administrarea CIDA și destinații arbitrare este
+  refuzat cu 403; conexiunile TCP directe sunt refuzate. Scrierea în `/app` este
+  refuzată cu `EROFS`. Cele șapte regresii de izolare trec în imaginea instalată.
+- **Servicii păstrate:** identificatorii și momentele pornirii pentru `cida-api`
+  și `ronor-r-memory` sunt neschimbate. Nu au fost repornite și nu s-au modificat
+  cheile, firewallul, runtime-urile generale sau pragurile de acceptare.
+
+### Defect CIDA constatat, nu ascuns
+
+Botul vechi folosea `/query`, dar serviciul instalat expune `/search`.
+Candidatul folosește acum căutarea lexicală `/search`, cu limită explicită.
+Proba autorizată a returnat 401: cheia root existentă în configurația CIDA are
+în registrul serviciului `enabled=false`. Nu a fost reactivată și nu a fost
+copiată în releu. În lipsa unei chei autorizate numai pentru citire, releul refuză
+local căutarea cu 403. Disponibilitatea `/health` nu este căutare funcțională.
+
+### Identitatea codului instalat
+
+Codul imaginii provine din revizia locală `6b3426617f1e5b46e4be0fc978412809f0b753f2`.
+Configurația Compose corectată și scripturile de transfer sunt în `a9e40cd`.
+Imaginea instalată este fixată prin
+`sha256:d969a6442df9205c71815c0f49a24762d95c0e01093ea5a9d584c9badc36d9c0`.
+Imaginea de bază Python și versiunile pachetelor sunt fixate; descărcările pip
+nu au încă un fișier de blocare cu amprentele fiecărui pachet.
+
+| Obiect instalat | SHA-256 |
+|---|---|
+| `main.py` | `14daca2484928dd3f994b8f74e2b369f6f08c1fb9457fcf8229e4f1e7a0c5db5` |
+| `isolation_proxy.py` | `a8ea9747af496860f9a829e23fb50d8e2f5551ce53fb502f7cbc561a6bd6e307` |
+| `relay_transport.py` | `8c344fbf755523b92cdb1ea6ab8e2a564586551ae18147977b7cdd012153a71b` |
+| `task_inbox.py` | `4614cca9bc83b3f8936710e9cd7988db0173817eaecd2402825525aee9cdafb6` |
+| Compose instalat, inclusiv intrarea declarativă veche | `a8fb45ce62e204acf5f6e65b5b235499ccfabb6faafdf0cf604f6de8c62d93a6` |
+
+### Limitele acceptării acestui lot
+
+Nu s-a trimis mesaj de test, nu s-a făcut inferență plătită și nu s-a scris o
+amintire sintetică în producție. Prin urmare, nu se pretinde acceptare integrală
+a unui traseu conversație–model–memorie–răspuns. STOP și căderea procesului sunt
+probate cu dubluri de servicii, inclusiv în imaginea exactă; nu anulează cereri
+deja acceptate în afara botului. Nu s-a repornit gazda.
+
+Cheile istorice nu sunt revocate. Releul deține încă acreditări externe și este
+o componentă sensibilă; nu are un plafon financiar agregat. Rutinele istorice
+neexpuse rămân în sursă, fără acces la resursele administrative ale gazdei.
+Directorul nou `/opt/ronor-bot-isolated`, inclusiv SQLite și fișierul de secrete,
+necesită integrare explicită în backupul de producție și probă de restaurare.
+Arhivarea codului în proiect nu substituie backupul stării operaționale.
 
 ## Lucrări efectuate
 
@@ -44,13 +124,15 @@ nu este încă îndeplinită. Constatarea F17 are controale remediate, dar nu es
 | Compilare TypeScript fără emitere | Trecută |
 | Suita TypeScript completă | 1.243 trecute; 2 eșuate; 1.245 total |
 | Regresii noi de guvernanță și execuție, incluse în total | 13/13 trecute |
-| Regresii Python de bot, STOP, memorie, monitorizare, surse, backup și replicare | 21/21 trecute după completarea off-site |
+| Regresii Python de bot, STOP, memorie, monitorizare, surse, backup, replicare și izolare | 28/28 trecute |
+| Regresii de izolare în imaginea instalată | 7/7 trecute, fără apeluri externe ale dublurilor de test |
 | Scanare Gitleaks a arborelui curent | Fără semnalări neexceptate |
-| Scanare Gitleaks a istoricului local accesibil, 242 commit-uri | Fără semnalări neexceptate |
+| Scanare Gitleaks a istoricului local accesibil, 249 commit-uri scanate înainte de documentarea finală | Fără semnalări neexceptate |
 | Verificare sintactică Python și Bash | Trecută |
 | Inspecție de citire pe trei gazde; comparație Hetzner–Contabo | Executate; 22 fișiere plus arhiva separată identice |
 | Instalare și replicare Hetzner–Contabo | Executate după aprobare; cod zero, 23 fișiere identice, permisiuni verificate |
-| Restaurare reală, instalare runtime/bot, integrare continuă la distanță | Neexecutate |
+| Instalare bot izolat | Executată și verificată în limitele lotului; fără probă plătită integrală |
+| Restaurare reală, instalare runtime general, integrare continuă la distanță | Neexecutate |
 
 Cele două eșecuri sunt în `tests/knowledge/equivalence.test.ts` și
 `tests/knowledge/stage-def.test.ts`: amprentele aprobate ale orchestratorului
@@ -69,9 +151,9 @@ operațională. În absența lui, refuză inferența. Aceasta este o restricțio
 intenționată, nu funcționalitate completă; candidatul nu se instalează ca
 înlocuitor transparent al producției.
 
-Botul nu are încă eliminarea montărilor privilegiate aplicată pe gazdă, o
-politică externă de rețea sau cheia nouă injectată. Funcțiile istorice nefolosite
-nu sunt un executor autorizat. STOP este probat local pe așteptări asincrone,
+Botul are eliminarea montărilor privilegiate și izolarea prin socket aplicate
+pe gazdă. Rotația cheilor nu este executată. Funcțiile istorice nefolosite nu
+sunt un executor autorizat. STOP este probat cu așteptări asincrone simulate,
 nu ca revocare retroactivă a unei cereri acceptate de alt serviciu.
 
 Instrumentul de integritate este testat separat. Scriptul de backup din Git
@@ -84,22 +166,22 @@ independentă nu a fost instituită. Scriptul de backup al sursei rămâne nesch
 
 | Constatare | Stadiu și probă lipsă |
 |---|---|
-| F01 Autoritate directă | Restricționare locală; executor extern cu mandat, montări și acceptare pe gazdă încă necesare |
+| F01 Autoritate directă | Izolare instalată: fără rețea directă, Docker, SSH sau chei în procesul conversațional; executorul extern cu mandat și acceptarea integrală rămân necesare |
 | F02 Guvernanță după inferență | Refuz anterior inferenței testat; autoritate operațională și rută atestată de conectat |
-| F03 Continuitate și STOP | Corecție locală testată; probă pe botul instalat și cădere controlată încă necesare |
-| F04 Memorie ca instrucțiune | Rol și proveniență corectate local; revocare semantică și contradicții încă de probat |
+| F03 Continuitate și STOP | Coada persistentă instalată; recepție verificată; STOP și shutdown testate cu dubluri în imaginea exactă, nu prin efecte externe reale |
+| F04 Memorie ca instrucțiune | Rol și proveniență corectate în botul instalat; revocare semantică și contradicții încă de probat |
 | F05 Acces gazde | Configurația citită pe trei gazde; nicio schimbare aplicată; recuperarea și migrarea accesului trebuie aprobate |
-| F06 Credenciale | Valori eliminate din candidatul botului; revocarea la furnizori și protejarea copiilor încă neefectuate |
+| F06 Credenciale | Valori eliminate din procesul conversațional și separate în releu; revocarea la furnizori și protejarea tuturor copiilor încă neefectuate |
 | F07 Execuție fictivă | Refuz testat în absența executorului; executarea autorizată reală încă de integrat |
-| F08 Cod de ieșire pierdut | Rezultat structurat testat; instalare neefectuată |
-| F09 Citire care ascunde scrierea | Separare testată; confirmarea per înregistrare și reluarea idempotentă necesită contractul serviciului |
+| F08 Cod de ieșire pierdut | Rezultat structurat testat în ajutorul istoric; comenzile administrative sunt blocate în bot, nu acceptate ca executor operațional |
+| F09 Citire care ascunde scrierea | Separare instalată și testată cu dubluri; confirmarea per înregistrare și reluarea idempotentă necesită contractul serviciului |
 | F10 Politici și registre divergente | Reviziile active și căile auditului recitite; divergența persistă; corelarea unui traseu real lipsește |
 | F11 Integrare și scanare | Scanare blocantă pregătită; două porți locale rămân blocate; analiza alertelor și revizia umană încă necesare |
 | F12 Confirmarea pauzei | Neînchis; remedierea ramurii de dezvoltare nu este inclusă în acest candidat pornit din main |
 | F13 Raportare de maturitate | Acest registru distinge codul local de producție; corectarea tuturor înregistrărilor istorice rămâne de făcut |
 | F14 Abatere la reconstrucție | Neînchis; nu s-a rescris referința pentru a ascunde abaterea |
-| F15 Reconstrucție incompletă | Botul și modulele noi sunt versionate local; manifestul exact al producției și restaurarea rămân de făcut |
-| F16 Repornire și probe | Neaplicat pe gazde; rolurile permanente trebuie verificate înaintea schimbării politicilor |
+| F15 Reconstrucție incompletă | Botul este versionat și instalat cu amprente; backupul noii stări, manifestul integral al producției și restaurarea rămân de făcut |
+| F16 Repornire și probe | Bot și releu au probe și politici explicite; supraviețuirea la repornirea gazdei și restul serviciilor rămân de verificat |
 | F17 Backup și alarme | Procedura off-site instalată și verificată; identitate a 23 de fișiere, destinație privată, latest corect, erori neascunse; retenție independentă, restaurare și alarmă sintetică încă necesare |
 | F18 Calitatea informației | Neînchis; necesită eșantion de proveniență și verificare semantică |
 | F19 Plan de control nou | Amânat până după închiderea porților de autoritate și reconstrucție |
@@ -123,15 +205,16 @@ din jurnalul gazdei sursă nu substituie citirea destinației și restaurarea.
 
 ## Următoarea poartă
 
-Citirea și lotul de replicare aprobat sunt încheiate. Urmează pregătirea
-restricționării sursei fără întreruperea cititorului DigitalOcean, izolarea
-botului și migrarea accesului, cu revocarea cheilor expuse și restaurare izolată.
+Citirea, lotul de replicare și izolarea botului aprobate sunt încheiate.
+Următoarele dependențe sunt accesul CIDA numai pentru citire, backupul noii stări
+a botului, restricționarea sursei fără întreruperea cititorului DigitalOcean,
+migrarea accesului, revocarea cheilor expuse și restaurarea izolată.
 Aceste intervenții și instalarea runtime-ului au criterii distincte de acceptare
-și revenire; nu au fost autorizate prin aprobarea limitată a lotului off-site.
+și revenire; nu sunt autorizate implicit prin loturile deja executate.
 Nu se dezactivează controalele ca să treacă un test și nu se schimbă versiunea
 acceptată doar fiindcă există cod nou.
 
-## Verificarea autorizată a gazdelor, 23 septembrie, 20:02–20:07 UTC
+## Evidență istorică: verificarea gazdelor, 23 septembrie, 20:02–20:07 UTC
 
 Etapa de citire a fost executată pe cele trei gazde. Nu s-au modificat configurații,
 servicii, chei sau copii de siguranță. Conexiunile au folosit verificarea strictă a
@@ -179,7 +262,7 @@ folosește încă root. Nu se declară retenție imuabilă, restaurare sau F17 �
 La încheierea citirii, nicio instalare nu avusese loc. Cele două porți TypeScript
 nu au fost schimbate. Aprobarea și instalarea ulterioară sunt consemnate separat.
 
-## Lot instalat după aprobare, 23 septembrie, 20:25–20:27 UTC
+## Evidență istorică: lot off-site instalat, 23 septembrie, 20:25–20:27 UTC
 
 Utilizatorul a aprobat explicit numai lotul de replicare descris, nu instalarea
 restului candidatului. Au fost instalate două fișiere din revizia `6092289`,

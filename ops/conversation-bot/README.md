@@ -1,7 +1,8 @@
-# Candidat de remediere al botului conversațional
+# Pachetul de izolare al botului conversațional
 
 Cod derivat din exportul redactat al botului verificat la 23 septembrie 2026.
-Nu reprezintă o instalare și nu include valori de credențiale.
+Nu include valori de credențiale. Instalarea controlată pe Hetzner este
+consemnată în `docs/audit-remediation-2026-09-23.md`, cu amprente și limite.
 
 ## Schimbări de siguranță
 

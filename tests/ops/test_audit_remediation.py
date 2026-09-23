@@ -40,6 +40,7 @@ def bot_namespace():
               TELEGRAM_CHAT_ID="owner", SAFE_TOOLS=frozenset({"query_cida", "reply_to_merlin"}),
               MEMORY_FAULT={"detail": None, "since": None},
               MEMORY_FAULTS={k: {"detail": None, "since": None} for k in ("store", "search")})
+    ns["bot_http_client"] = lambda **kwargs: ns["httpx"].AsyncClient(**kwargs)
     names = {"_sync_memory_fault", "_record_memory_fault", "_clear_memory_fault",
              "memory_store", "memory_search", "execute_shell_result", "execute_shell",
              "execute_tool", "validate_args", "agent_loop"}

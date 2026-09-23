@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!requirements.txt
+!main.py
+!task_inbox.py
+!relay_transport.py
+!isolation_proxy.py
+!healthcheck.py

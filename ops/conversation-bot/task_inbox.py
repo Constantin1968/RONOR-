@@ -82,10 +82,11 @@ class TaskWorker:
             try:
                 await self.active
             except asyncio.CancelledError:
-                self.inbox.set_state(task_id, "cancelled", "STOP acknowledged; remote effects not undone")
                 # Cancellation of the worker itself is shutdown, not another job.
                 if asyncio.current_task().cancelling():
+                    self.inbox.set_state(task_id, "interrupted", "shutdown; remote effects unknown")
                     raise
+                self.inbox.set_state(task_id, "cancelled", "STOP acknowledged; remote effects not undone")
             except Exception as exc:
                 self.inbox.set_state(task_id, "failed", type(exc).__name__)
             else:

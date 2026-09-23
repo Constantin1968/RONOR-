@@ -1,0 +1,55 @@
+name: ronor-bot-isolated
+x-security: &security
+  image: ${RONOR_BOT_IMAGE:?immutable local image required}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  pids_limit: 64
+  mem_limit: 256m
+  cpus: 1
+  tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: "3"}
+services:
+  egress:
+    <<: *security
+    container_name: ronor-bot-egress
+    user: "10002:10001"
+    command: [python, -u, /app/isolation_proxy.py]
+    networks: [expansion]
+    volumes:
+      - /opt/ronor-bot-isolated/socket:/run/egress
+      - /opt/ronor-bot-isolated/private/relay.json:/run/secrets/relay.json:ro
+    healthcheck:
+      test: [CMD, python, -c, "import socket;s=socket.socket(socket.AF_UNIX);s.settimeout(2);s.connect('/run/egress/egress.sock');s.close()"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+  bot:
+    <<: *security
+    container_name: ronor-orchestrator
+    user: "10001:10001"
+    network_mode: none
+    env_file: [/opt/ronor-bot-isolated/private/bot.env]
+    environment:
+      CIDA_URL: http://cida-api:8300
+      RMEMORY_URL: http://ronor-r-memory:8101
+      RONOR_EGRESS_SOCKET: /run/egress/egress.sock
+    volumes:
+      - /opt/ronor-bot-isolated/socket:/run/egress:ro
+      - /opt/ronor-bot-isolated/state:/var/lib/ronor-bot
+    depends_on:
+      egress: {condition: service_healthy}
+    stop_grace_period: 20s
+    healthcheck:
+      test: [CMD, python, /app/healthcheck.py]
+      start_period: 45s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+networks:
+  expansion:
+    external: true
+    name: ronor-expansion

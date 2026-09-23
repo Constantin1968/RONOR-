@@ -1,0 +1,27 @@
+title = "RONOR: default rules with narrowly scoped synthetic test fixtures"
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented dummy credentials used only to test rejection/redaction"
+condition = "AND"
+paths = [
+  '''^tests/runtime/api\.test\.ts$''',
+  '''^tests/runtime/automation-effect-diagnostics\.test\.ts$''',
+  '''^tests/runtime/automation-codex-diagnostics\.test\.ts$''',
+  '''^tests/security/f01-f14-auth\.test\.ts$''',
+  '''^tests/runtime/openhands-bridge\.test\.ts$''',
+  '''^tests/knowledge/qdrant-adapter\.test\.ts$'''
+]
+regexTarget = "secret"
+regexes = [
+  '''^test-admin-secret-key-9876543210abc$''',
+  '''^test-operator-secret-key-0123456789$''',
+  '''^fixture-effect-capability-key-0123456789abcdef$''',
+  '''^fixture-capability-key-0123456789abcdef$''',
+  '''^f14-revoke-preserve-secret-0123456789abcdef$''',
+  '''^a-secret-of-sufficient-length-1234$''',
+  '''^revocation-test-secret-1234567890$''',
+  '''^abcdefghijklmnop123456$''',
+  '''^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U$'''
+]

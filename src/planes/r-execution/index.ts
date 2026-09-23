@@ -34,13 +34,12 @@ export class RExecutionPlane {
     const executionLog: string[] = [];
     let toolsInvoked = 0;
 
-    // Process any tool calls from agent steps
+    // No authorised executor is wired to this plane. A plan is NOT evidence
+    // of execution. Fail closed rather than inventing a successful receipt.
     for (const step of input.agentSteps) {
       if (step.toolCall) {
-        toolsInvoked++;
-        executionLog.push(
-          `[${new Date().toISOString()}] Tool: ${step.toolCall.name} — executed`
-        );
+        this.errorsTotal++;
+        throw new Error('EXECUTOR_UNAVAILABLE: tool call refused before execution');
       }
     }
 
@@ -54,7 +53,7 @@ export class RExecutionPlane {
   async health(): Promise<PlaneHealth> {
     return {
       planeId: 'r-execution',
-      status: 'healthy',
+      status: 'degraded',
       latencyMs: 1,
       requestsTotal: this.requestsTotal,
       errorsTotal: this.errorsTotal,

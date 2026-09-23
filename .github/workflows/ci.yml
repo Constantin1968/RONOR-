@@ -70,12 +70,19 @@ jobs:
       - name: Dependency audit
         run: npm audit --audit-level=critical
       - name: Secrets scan
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          npx --yes @trufflesecurity/trufflehog@latest git \
-            file://. \
-            --only-verified \
-            --fail
-        continue-on-error: true
+          set -euo pipefail
+          scan_dir="$(mktemp -d)"
+          gh release download v8.28.0 --repo gitleaks/gitleaks \
+            --pattern gitleaks_8.28.0_linux_x64.tar.gz --dir "$scan_dir"
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  $scan_dir/gitleaks_8.28.0_linux_x64.tar.gz" | sha256sum -c -
+          tar -xzf "$scan_dir/gitleaks_8.28.0_linux_x64.tar.gz" -C "$scan_dir" gitleaks
+          "$scan_dir/gitleaks" git . --log-opts="--all" --redact --no-banner
+          "$scan_dir/gitleaks" dir . --redact --no-banner
+      - name: Offline operational safety regressions
+        run: python3 -m unittest discover -s tests/ops -p 'test_audit_remediation.py' -v
 
   automation-preflight:
     name: Automation Activation Preflight Contract

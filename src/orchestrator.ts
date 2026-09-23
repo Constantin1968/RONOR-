@@ -9,6 +9,7 @@ import * as mi9 from './governance/mi9-gate';
 import * as auditChain from './audit/hash-chain';
 import * as cosign from './governance/cosign-store';
 import type { DecisionContext } from './governance/mi9-gate';
+import { validateAdmission, AdmissionResolver } from './governance/inference-admission';
 import type {
   RONORRequest,
   RONORResponse,
@@ -38,7 +39,7 @@ export class RONOROrchestrator {
   private readonly logger = createLogger('RONOR:Orchestrator');
   private readonly planes: OrchestratorPlanes;
 
-  constructor(planes: OrchestratorPlanes) {
+  constructor(planes: OrchestratorPlanes, private readonly resolveAdmission?: AdmissionResolver) {
     this.planes = planes;
   }
 
@@ -57,6 +58,31 @@ export class RONOROrchestrator {
       const gatewayResult = await this.runPlane('r-gateway', async () =>
         this.planes.gateway.process(request)
       , traces);
+
+      // Admission is external to model output and request metadata. Even
+      // MI9_ENFORCE=off cannot bypass this pre-effect safety boundary.
+      const admission = this.resolveAdmission
+        ? await this.resolveAdmission(request.id, request.sessionId) : null;
+      validateAdmission(admission, request.id, request.sessionId,
+        this.planes.modelFabric.getRouteIdentity());
+      const preflightContext: DecisionContext = {
+        ...admission.context, action: 'inference.start',
+      };
+      const preflight = mi9.evaluate(preflightContext);
+      auditChain.append({
+        decisionId: request.id,
+        decisionType: 'planes.inference.admission',
+        timestamp: new Date().toISOString(),
+        context: preflightContext,
+        mi9Result: preflight,
+        aiProposal: { model: admission.route.model,
+          rationale: 'pre-inference admission; no model call made',
+          tokensUsed: 0, latencyMs: 0 },
+        outcome: { action: preflight.verdict === 'allow' ? 'admitted' : 'blocked' },
+      });
+      if (preflight.verdict !== 'allow') {
+        throw new Error(`INFERENCE_REFUSED: ${preflight.verdict}`);
+      }
 
       // Plane 2: R-Context — context enrichment & compression
       const contextResult = await this.runPlane('r-context', async () =>
@@ -146,7 +172,7 @@ export class RONOROrchestrator {
             typeof assuranceResult.qualityScore === 'number' ? assuranceResult.qualityScore : 0,
           reversible: true,
           impactMagnitude: { unit: 'EUR', value: costUsd },
-          sovereignty: { dataResidency: 'eu', subjectJurisdiction: 'RO' },
+          sovereignty: { ...admission.context.sovereignty },
           evidence: {
             // evidenta-onesta: numaram doar sursele independente. Iesirea
             // modelului si calculul propriu nu sunt surse — altfel runtime-ul
@@ -241,6 +267,8 @@ export class RONOROrchestrator {
           `Poarta MI9 sau depunerea in lantul de audit a esuat: ${(e as Error).message}`,
         );
         response.auditError = (e as Error).message;
+        // Never release a generated answer after governance/audit failure.
+        throw e;
       }
 
 

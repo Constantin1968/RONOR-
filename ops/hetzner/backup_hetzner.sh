@@ -12,6 +12,7 @@
 # Secretele NU se includ in arhiva principala — separat, cu permisiuni stricte.
 
 set -uo pipefail
+umask 077
 
 TS=$(date +%Y%m%d-%H%M%S)
 DEST=/opt/ronor-backups/hetzner-local

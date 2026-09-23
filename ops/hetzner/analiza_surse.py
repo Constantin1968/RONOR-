@@ -11,8 +11,10 @@ Distinctii de acuratete aplicate:
 import json
 import os
 import subprocess
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from source_quality import coverage, quality_summary
 
 
 def sh(cmd, timeout=30):
@@ -24,13 +26,23 @@ def sh(cmd, timeout=30):
         return ""
 
 
-CK = sh('docker inspect cida-api --format "{{range .Config.Env}}{{println .}}{{end}}" | grep "^CIDA_ROOT_API_KEY=" | cut -d= -f2')
-
-out = sh(f'curl -s -m 25 -H "X-API-Key: {CK}" "http://127.0.0.1:8300/sources"', 40)
 try:
-    d = json.loads(out)
+    # No shell interpolation or credential in process arguments.
+    config = json.loads(subprocess.run(
+        ["docker", "inspect", "cida-api"], check=True, capture_output=True,
+        text=True, timeout=20).stdout)
+    env = dict(value.split("=", 1) for value in config[0]["Config"]["Env"] if "=" in value)
+    key = env.get("CIDA_ROOT_API_KEY")
+    if not key:
+        raise ValueError("CIDA credential missing")
+    request = urllib.request.Request(
+        "http://127.0.0.1:8300/sources", headers={"X-API-Key": key})
+    with urllib.request.urlopen(request, timeout=25) as response:
+        d = json.load(response)
+    if not isinstance(d.get("sources"), list):
+        raise ValueError("Invalid source registry response")
 except Exception as e:
-    print(f"eroare: {e}\n{out[:300]}")
+    print(f"Citirea registrului a eșuat: {type(e).__name__}; nicio acoperire nu este declarată.")
     raise SystemExit(1)
 
 surse = d.get("sources", [])
@@ -72,6 +84,12 @@ print(f"\n  Surse care au adus cel puțin un document : {len(productive)}")
 print(f"  Surse cu ZERO documente                  : {len(sterile)}")
 print(f"  Surse dezactivate                        : {len(dezactivate)}")
 print(f"\n  Total elemente colectate: {sum((s.get('items_total') or 0) for s in surse)}")
+calitate = quality_summary(surse)
+print("  ATENȚIE: contoare cumulative brute, NU documente unice sau acoperire recentă.")
+print(f"  Surse de test separate: {calitate['test_sources']}, "
+      f"{calitate['test_raw_items']} elemente brute.")
+print("  Stare ok fără elemente (de verificat): " + ", ".join(calitate["ok_without_items"]))
+print("  Fiabilitate în afara scalei literale: " + ", ".join(calitate["non_letter_reliability"]))
 
 print(f"\n  Pe stare la ultima rulare:")
 for k, v in st.most_common():
@@ -120,17 +138,20 @@ DOMENII = {
                                               "openweather", "dwd", "anm"],
 }
 
-print(f"  {'DOMENIU':40} {'ACOPERIT':10} {'DOVADĂ'}")
+print(f"  {'DOMENIU':40} ÎNREGISTRATE / PRODUCTIVE ISTORIC / ACOPERIRE RECENTĂ")
 lipsa = []
+acoperire = {}
 for dom, chei in DOMENII.items():
-    gasite = [c for c in chei if c in toate_uri]
-    if gasite:
-        print(f"  {dom[:40]:40} {'DA':10} {', '.join(gasite[:3])}")
-    else:
-        print(f"  {dom[:40]:40} {'NU':10} —")
+    rezultat = coverage(surse, chei)
+    acoperire[dom] = rezultat
+    print(f"  {dom[:40]:40} {rezultat['registered']} / "
+          f"{rezultat['historically_productive']} / {rezultat['recent_coverage']}")
+    if rezultat["recent_coverage"] != "verified":
         lipsa.append(dom)
 
-print(f"\n  DOMENII NEACOPERITE: {len(lipsa)}")
+print(f"\n  DOMENII CU ACOPERIRE RECENTĂ NEDEMONSTRATĂ: {len(lipsa)}")
+print("  Cuvintele-cheie clasifică sursele, nu dovedesc acoperirea. "
+      "Lipsa datelor unice recente înseamnă necunoscut, nu zero colectări.")
 for l in lipsa:
     print(f"    - {l}")
 
@@ -140,5 +161,6 @@ with open("/opt/ronor/analiza_surse.json", "w") as f:
                "pe_disciplina": {k: len(v) for k, v in pe_disc.items()},
                "stari": dict(st), "tipuri": dict(kind),
                "domenii_lipsa": lipsa,
+               "acoperire_masurata": acoperire, "calitate": calitate,
                "surse": surse}, f, indent=2, ensure_ascii=False, default=str)
 print("\n[salvat] /opt/ronor/analiza_surse.json")

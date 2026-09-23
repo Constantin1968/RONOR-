@@ -332,7 +332,7 @@ def _cunoscuta(adresa, retele):
 
 
 def _porturi_publice(asteptate, procese=()):
-    """Socketuri care ascultă pe altceva decât bucla locală."""
+    """Porturi TCP distincte pe adrese globale sau wildcard, nu acces demonstrat."""
     sursa = "ss -lntpH"
     ok, out = sh("ss -lntpH")
     if not ok:
@@ -345,13 +345,17 @@ def _porturi_publice(asteptate, procese=()):
         local = camp[3]
         adr, _, port = local.rpartition(":")
         adr = adr.strip("[]")
-        if adr in ("127.0.0.1", "::1") or adr.startswith("127."):
+        try:
+            address = ipaddress.ip_address(adr.split("%")[0])
+        except ValueError:
+            address = None
+        if adr != "*" and (address is None or not (address.is_global or address.is_unspecified)):
             continue
         proc = ""
         mp = re.search(r'"([^"]+)"', line)
         if mp:
             proc = mp.group(1)
-        intrare = "%s/%s" % (port, proc or "?")
+        intrare = "%s/tcp" % port
         if intrare not in publice:
             publice.append(intrare)
         if proc in procese:
@@ -362,7 +366,7 @@ def _porturi_publice(asteptate, procese=()):
         except ValueError:
             neasteptate.append(intrare)
     return (m(sorted(publice), sursa, VERIFICAT,
-              "ascultă pe interfata publica, nu doar pe bucla locala"),
+              "porturi distincte globale/wildcard; accesibilitatea prin firewall nu este probata"),
             sorted(set(neasteptate)))
 
 
@@ -733,7 +737,7 @@ def verdict(cens, inv):
     if c["fara_politica_repornire"]["valoare"]:
         coduri.append({"cod": "FARA-REPORNIRE",
                        "text": "nu supravietuiesc repornirii: %s"
-                               % ", ".join(c["fara_politica_repornire"]["valoare"][:6]),
+                               % ", ".join(c["fara_politica_repornire"]["valoare"]),
                        "greutate": "atentie"})
 
     for nume, s in cens["servicii"].items():

@@ -45,7 +45,7 @@ export interface AuditPayload {
     latencyMs?: number;
   };
   outcome: {
-    action: 'executed' | 'held-for-cosign' | 'escalated' | 'blocked';
+    action: 'admitted' | 'executed' | 'held-for-cosign' | 'escalated' | 'blocked';
     baselineValue?: number;
     proposedValue?: number;
     incrementalGain?: number;

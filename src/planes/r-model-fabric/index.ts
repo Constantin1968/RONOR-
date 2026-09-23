@@ -151,6 +151,7 @@ export interface ModelFabricResult extends RONORRequest {
 export class RModelFabricPlane {
   private readonly openai: OpenAI;
   private readonly gatewayModel: string;
+  private readonly gatewayBaseURL: string;
 
   private static parseGatewayHeaders(): Record<string, string> {
     try {
@@ -163,13 +164,18 @@ export class RModelFabricPlane {
   private errorsTotal = 0;
 
   constructor() {
+    this.gatewayBaseURL = process.env.RONOR_GATEWAY_BASE_URL ||
+      process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      baseURL:
-        process.env.RONOR_GATEWAY_BASE_URL || process.env.OPENAI_API_BASE || undefined,
+      baseURL: this.gatewayBaseURL,
       defaultHeaders: RModelFabricPlane.parseGatewayHeaders(),
     });
     this.gatewayModel = process.env.RONOR_FABRIC_MODEL || 'qwen-max';
+  }
+
+  getRouteIdentity(): { baseURL: string; model: string } {
+    return { baseURL: this.gatewayBaseURL, model: this.gatewayModel };
   }
 
   async init(): Promise<void> {

@@ -42,11 +42,12 @@ nu este încă îndeplinită. Nicio constatare nu este declarată închisă în 
 | Compilare TypeScript fără emitere | Trecută |
 | Suita TypeScript completă | 1.243 trecute; 2 eșuate; 1.245 total |
 | Regresii noi de guvernanță și execuție, incluse în total | 13/13 trecute |
-| Regresii Python de bot, STOP, memorie, monitorizare, surse și backup | 13/13 trecute |
+| Regresii Python de bot, STOP, memorie, monitorizare, surse, backup și replicare | 21/21 trecute după completarea off-site |
 | Scanare Gitleaks a arborelui curent | Fără semnalări neexceptate |
 | Scanare Gitleaks a istoricului local accesibil, 242 commit-uri | Fără semnalări neexceptate |
 | Verificare sintactică Python și Bash | Trecută |
-| Restaurare reală, probe pe gazde, integrare continuă la distanță | Neexecutate |
+| Inspecție de citire pe trei gazde; comparație Hetzner–Contabo | Executate; 22 fișiere plus arhiva separată identice |
+| Restaurare reală, instalare, integrare continuă la distanță | Neexecutate |
 
 Cele două eșecuri sunt în `tests/knowledge/equivalence.test.ts` și
 `tests/knowledge/stage-def.test.ts`: amprentele aprobate ale orchestratorului
@@ -73,7 +74,8 @@ nu ca revocare retroactivă a unei cereri acceptate de alt serviciu.
 Instrumentul de integritate este testat separat. Scriptul de backup din Git
 diferă de cel instalat, deci nu trebuie copiat peste producție; se va aplica o
 corecție minimă după citirea versiunii curente. Nu a fost modificată replicarea
-off-site și nu a fost instituită retenția independentă.
+off-site în producție și nu a fost instituită retenția independentă. O corecție
+locală separată a replicării este pregătită după inspecția gazdelor.
 
 ## Registrul tuturor constatărilor
 
@@ -83,19 +85,19 @@ off-site și nu a fost instituită retenția independentă.
 | F02 Guvernanță după inferență | Refuz anterior inferenței testat; autoritate operațională și rută atestată de conectat |
 | F03 Continuitate și STOP | Corecție locală testată; probă pe botul instalat și cădere controlată încă necesare |
 | F04 Memorie ca instrucțiune | Rol și proveniență corectate local; revocare semantică și contradicții încă de probat |
-| F05 Acces gazde | Neaplicat; sunt necesare citirea configurației efective, calea de recuperare și aprobarea schimbărilor |
+| F05 Acces gazde | Configurația citită pe trei gazde; nicio schimbare aplicată; recuperarea și migrarea accesului trebuie aprobate |
 | F06 Credenciale | Valori eliminate din candidatul botului; revocarea la furnizori și protejarea copiilor încă neefectuate |
 | F07 Execuție fictivă | Refuz testat în absența executorului; executarea autorizată reală încă de integrat |
 | F08 Cod de ieșire pierdut | Rezultat structurat testat; instalare neefectuată |
 | F09 Citire care ascunde scrierea | Separare testată; confirmarea per înregistrare și reluarea idempotentă necesită contractul serviciului |
-| F10 Politici și registre divergente | Neînchis; necesită inventarierea reviziilor active și corelarea unui traseu real |
+| F10 Politici și registre divergente | Reviziile active și căile auditului recitite; divergența persistă; corelarea unui traseu real lipsește |
 | F11 Integrare și scanare | Scanare blocantă pregătită; două porți locale rămân blocate; analiza alertelor și revizia umană încă necesare |
 | F12 Confirmarea pauzei | Neînchis; remedierea ramurii de dezvoltare nu este inclusă în acest candidat pornit din main |
 | F13 Raportare de maturitate | Acest registru distinge codul local de producție; corectarea tuturor înregistrărilor istorice rămâne de făcut |
 | F14 Abatere la reconstrucție | Neînchis; nu s-a rescris referința pentru a ascunde abaterea |
 | F15 Reconstrucție incompletă | Botul și modulele noi sunt versionate local; manifestul exact al producției și restaurarea rămân de făcut |
 | F16 Repornire și probe | Neaplicat pe gazde; rolurile permanente trebuie verificate înaintea schimbării politicilor |
-| F17 Backup și alarme | Integritate testată separat; retenție independentă, restaurare și alarmă sintetică încă necesare |
+| F17 Backup și alarme | Fotografia și arhiva separată identice între gazde; procedură corectată local; instalare, retenție independentă, restaurare și alarmă sintetică încă necesare |
 | F18 Calitatea informației | Neînchis; necesită eșantion de proveniență și verificare semantică |
 | F19 Plan de control nou | Amânat până după închiderea porților de autoritate și reconstrucție |
 | F20 Cost și misiuni | Neînchis; nicio modificare financiară sau reconciliere în producție |
@@ -118,12 +120,11 @@ din jurnalul gazdei sursă nu substituie citirea destinației și restaurarea.
 
 ## Următoarea poartă
 
-Citire autorizată și comparare pe Hetzner, DigitalOcean și Contabo a reviziilor,
-montărilor, configurației efective de acces, backupurilor și politicilor de
-execuție, fără afișarea valorilor secrete. Pe această bază se pregătesc separat
-intervențiile reversibile, rotațiile, publicarea și instalările, fiecare cu
-criterii de acceptare și revenire. Nu se dezactivează controalele ca să treacă
-un test și nu se schimbă versiunea acceptată doar fiindcă există cod nou.
+Citirea aprobată este încheiată. Urmează aprobarea explicită a lotului de
+replicare descris în `ops/hetzner/OFFSITE-DEPLOYMENT.md`, apoi instalarea și
+verificarea lui. Restul intervențiilor, rotațiile și instalarea runtime-ului au
+criterii distincte de acceptare și revenire. Nu se dezactivează controalele ca
+să treacă un test și nu se schimbă versiunea acceptată doar fiindcă există cod nou.
 
 ## Verificarea autorizată a gazdelor, 23 septembrie, 20:02–20:07 UTC
 

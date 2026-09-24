@@ -7,6 +7,7 @@ import {
   loadPolicy,
   resetRateLimits,
   recordExecution,
+  resolveDomainTier,
   type DecisionContext,
 } from '../../src/governance/mi9-gate';
 
@@ -247,5 +248,146 @@ describe('Gate 6 — evidence enforcement restored', () => {
     );
     const gate6 = r.findings.find((f) => f.gateNumber === 6)!;
     expect(gate6.verdict).not.toBe('allow');
+  });
+});
+
+/**
+ * Deny-by-default on unclassified domains, and the development plane.
+ *
+ * Before this suite, an unlisted domain fell back to tier 'limited', which is
+ * not in cosign_required_at_tier — so an unclassified action was allowed
+ * autonomously. Authority was granted by omission. These tests hold the gate
+ * to the opposite rule: authority comes from an explicit written classification.
+ */
+describe('Gate 2 — deny-by-default on unclassified domains', () => {
+  test('an unclassified domain is blocked, not allowed', () => {
+    const r = evaluate(ctx({ domain: 'unknown.plane.action' }));
+    expect(r.verdict).toBe('block');
+  });
+
+  test('the block names omission, not an EU AI Act classification', () => {
+    const r = evaluate(ctx({ domain: 'still.not.classified' }));
+    const finding = r.findings.find((f) => f.gateName === 'risk-tier');
+    expect(finding?.reason).toMatch(/no classified ancestor/i);
+    expect(finding?.detail).toMatchObject({ classified: false, matched: null });
+  });
+
+  test('a classified domain is still judged on its own tier', () => {
+    const r = evaluate(ctx({ domain: 'energy.observability.query', confidence: 0.99 }));
+    const finding = r.findings.find((f) => f.gateName === 'risk-tier');
+    expect(finding?.verdict).toBe('allow');
+    expect(finding?.detail).toMatchObject({ classified: true, tier: 'minimal' });
+  });
+});
+
+describe('Development plane is governed by the same policy', () => {
+  test('reading the repository is autonomously actionable', () => {
+    const r = evaluate(ctx({ domain: 'development.repo.read', confidence: 0.99 }));
+    const finding = r.findings.find((f) => f.gateName === 'risk-tier');
+    expect(finding?.verdict).toBe('allow');
+    // The tier must come from an explicit classification, not from the
+    // former fall-back that allowed anything unlisted.
+    expect(finding?.detail).toMatchObject({ classified: true, tier: 'minimal' });
+  });
+
+  test('editing the worktree and running tests do not require co-sign on their tier', () => {
+    for (const domain of ['development.worktree.edit', 'development.tests.run', 'development.commit.local']) {
+      const finding = evaluate(ctx({ domain, confidence: 0.99 })).findings
+        .find((f) => f.gateName === 'risk-tier');
+      expect(finding?.verdict).toBe('allow');
+      expect(finding?.detail).toMatchObject({ classified: true, tier: 'limited' });
+    }
+  });
+
+  test('pushing to a working branch requires human co-sign', () => {
+    const finding = evaluate(ctx({ domain: 'development.push.working_branch' })).findings
+      .find((f) => f.gateName === 'risk-tier');
+    expect(finding?.verdict).toBe('allow-with-cosign');
+  });
+
+  test('merge, release and deploy are blocked outright — they are the owner\u2019s decisions', () => {
+    for (const domain of [
+      'development.merge.main',
+      'development.release.publish',
+      'development.deploy.production',
+    ]) {
+      const r = evaluate(ctx({ domain, confidence: 0.99, reversible: true }));
+      expect(r.verdict).toBe('block');
+    }
+  });
+
+  test('reading secrets and external egress are blocked outright', () => {
+    for (const domain of ['development.secrets.read', 'development.egress.external']) {
+      expect(evaluate(ctx({ domain, confidence: 0.99 })).verdict).toBe('block');
+    }
+  });
+
+  test('amending the canon and configuring a host require co-sign, not autonomy', () => {
+    for (const domain of ['development.canon.amend', 'development.host.configure']) {
+      const finding = evaluate(ctx({ domain, confidence: 0.99 })).findings
+        .find((f) => f.gateName === 'risk-tier');
+      expect(finding?.verdict).toBe('allow-with-cosign');
+    }
+  });
+});
+
+describe('Policy version is no longer the hackathon artefact', () => {
+  test('the loaded policy declares a 2026.09 version or later', () => {
+    const version = loadPolicy().version;
+    expect(version).not.toBe('build-week-2026.07.20');
+    expect(version).toMatch(/^20\d\d\.\d\d(\.\d\d)?$/);
+  });
+});
+
+describe('Gate 2 — tier inheritance by most-specific classified prefix', () => {
+  const tiers = {
+    'runtime.query': 'limited',
+    'runtime.worker': 'high',
+    'development.repo.read': 'minimal',
+  } as const;
+
+  test('an exact classification wins', () => {
+    expect(resolveDomainTier('runtime.query', { ...tiers })).toEqual({
+      tier: 'limited', matched: 'runtime.query',
+    });
+  });
+
+  test('a runtime-built leaf inherits its surface classification', () => {
+    expect(resolveDomainTier('runtime.query.arithmetic', { ...tiers })).toEqual({
+      tier: 'limited', matched: 'runtime.query',
+    });
+  });
+
+  test('the most specific ancestor wins over a shorter one', () => {
+    const withFamily = { ...tiers, runtime: 'minimal' } as Record<string, 'minimal' | 'limited' | 'high' | 'unacceptable'>;
+    expect(resolveDomainTier('runtime.worker.rebuild', withFamily)).toEqual({
+      tier: 'high', matched: 'runtime.worker',
+    });
+  });
+
+  test('a domain with no classified ancestor resolves to nothing', () => {
+    expect(resolveDomainTier('quantum.teleport.now', { ...tiers })).toEqual({
+      tier: null, matched: null,
+    });
+  });
+
+  test('a leaf cannot inherit a laxer tier than an unclassified sibling family', () => {
+    // 'other.surface' shares no prefix with any rule, so inheritance must not
+    // leak across families just because the first segment differs.
+    expect(resolveDomainTier('runtimex.query.thing', { ...tiers }).tier).toBeNull();
+  });
+
+  test('a real runtime query is allowed through an inherited classification', () => {
+    const finding = evaluate(ctx({ domain: 'runtime.query.arithmetic', confidence: 0.99 })).findings
+      .find((f) => f.gateName === 'risk-tier');
+    expect(finding?.verdict).toBe('allow');
+    expect(finding?.detail).toMatchObject({ classified: true, matched: 'runtime.query' });
+  });
+
+  test('a worker surface inherits the co-sign tier', () => {
+    const finding = evaluate(ctx({ domain: 'runtime.worker.rebuild', confidence: 0.99 })).findings
+      .find((f) => f.gateName === 'risk-tier');
+    expect(finding?.verdict).toBe('allow-with-cosign');
+    expect(finding?.detail).toMatchObject({ matched: 'runtime.worker' });
   });
 });

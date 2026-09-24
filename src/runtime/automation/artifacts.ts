@@ -1,8 +1,9 @@
 import crypto from 'crypto';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import type { EvidenceArtifact } from './contracts';
+import { inspectExistingCommit, type CommitPins } from './existing-commit-workspace';
 
 const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
@@ -12,6 +13,7 @@ export interface WorkspaceArtifactCollector {
   verify(artifacts: EvidenceArtifact[]): EvidenceArtifact[];
   read(artifacts: EvidenceArtifact[]): Array<{ artifact: EvidenceArtifact; content: string }>;
   recordTestReport(runId: string, assignmentId: string, report: unknown): EvidenceArtifact;
+  collectCommitRange?(workspaceRoot: string, runId: string, assignmentId: string, pins: CommitPins): EvidenceArtifact[];
 }
 
 function digest(content: Buffer): string {
@@ -41,7 +43,8 @@ function assertNoSecretMaterial(content: Buffer): void {
   if (patterns.some((pattern) => pattern.test(text))) throw new Error('artifact_secret_material_refused');
 }
 
-export function createWorkspaceArtifactCollector(artifactRoot: string): WorkspaceArtifactCollector {
+export function createWorkspaceArtifactCollector(artifactRoot: string, options: { baseCommit?: string } = {}): WorkspaceArtifactCollector {
+  if (options.baseCommit && !/^[a-f0-9]{40}$/.test(options.baseCommit)) throw new Error('artifact_base_commit_invalid');
   const requestedRoot = path.resolve(artifactRoot);
   if (lstatSync(requestedRoot).isSymbolicLink()) throw new Error('artifact_root_link_refused');
   const canonicalRoot = realpathSync.native(requestedRoot);
@@ -83,12 +86,40 @@ export function createWorkspaceArtifactCollector(artifactRoot: string): Workspac
   };
 
   return {
+    collectCommitRange(workspaceRoot, runId, assignmentId, pins) {
+      const range = inspectExistingCommit(workspaceRoot, pins);
+      return [
+        persist(runId, assignmentId, 'git.diff', 'git_diff', range.diff),
+        persist(runId, assignmentId, 'git.status', 'git_status', range.status),
+      ];
+    },
     collect(workspaceRoot, runId, assignmentId) {
       const workspace = realpathSync.native(path.resolve(workspaceRoot));
       const top = realpathSync.native(execFileSync('git', ['-C', workspace, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', windowsHide: true }).trim());
       if (workspace !== top) throw new Error('artifact_workspace_not_git_root');
-      const diff = git(workspace, ['diff', '--binary', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/']);
+      const base = options.baseCommit || 'HEAD';
+      if (options.baseCommit) git(workspace, ['merge-base', '--is-ancestor', base, 'HEAD']);
+      const parts = [git(workspace, ['diff', '--binary', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', base, '--'])];
+      let bytes = parts[0].length;
+      const untracked = git(workspace, ['ls-files', '--others', '--exclude-standard', '-z']).toString('utf8').split('\0').filter(Boolean);
+      if (untracked.length > 200) throw new Error('artifact_untracked_limit_exceeded');
+      for (const relative of untracked) {
+        const target = path.resolve(workspace, relative);
+        const inside = path.relative(workspace, target);
+        if (inside.startsWith('..') || path.isAbsolute(inside) || lstatSync(target).isSymbolicLink() ||
+            !lstatSync(target).isFile() || realpathSync.native(target) !== target) throw new Error('artifact_untracked_path_refused');
+        const addition = spawnSync('git', ['-C', workspace, 'diff', '--no-index', '--binary', '--no-ext-diff', '--no-textconv', '--', '/dev/null', relative], {
+          encoding: 'buffer', windowsHide: true, maxBuffer: MAX_ARTIFACT_BYTES,
+        });
+        // Git uses exit 1 for a successfully produced no-index difference.
+        if (addition.error || (addition.status !== 0 && addition.status !== 1)) throw new Error('artifact_untracked_diff_failed');
+        bytes += addition.stdout.length;
+        if (bytes > MAX_ARTIFACT_BYTES) throw new Error('artifact_too_large');
+        parts.push(addition.stdout);
+      }
+      const diff = Buffer.concat(parts);
       const status = git(workspace, ['status', '--porcelain=v1', '--untracked-files=all']);
+      assertNoSecretMaterial(diff); assertNoSecretMaterial(status);
       return [
         persist(runId, assignmentId, 'git.diff', 'git_diff', diff),
         persist(runId, assignmentId, 'git.status', 'git_status', status),

@@ -1,0 +1,12 @@
+# Apply LAST. Builds the independent Codex verifier from the same reviewed release
+# as the controller, bridge and evidence runner, so that a bounded change to the
+# verification deadline (src/runtime/automation/codex-timeout.ts) reaches the
+# service that owns the model call. Only codex-verifier is redefined; its rate
+# card, secrets, networks and limits stay as set by the earlier overlays.
+services:
+  codex-verifier:
+    build:
+      context: ${RONOR_EXISTING_VERIFY_SOURCE:?reviewed absolute release directory}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-development-codex:${RONOR_EXISTING_VERIFY_TAG:?reviewed full commit}

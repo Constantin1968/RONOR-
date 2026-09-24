@@ -313,25 +313,17 @@ describe('G5 · Isolation from the governance and audit spine', () => {
   test('the orchestrator, audit chain and repaired MI9 gate match approved hashes', () => {
     // The strongest available form of this assertion: compare the blob hashes
     // against the canonical tree rather than grepping for a keyword.
-    const expectedHashes: Record<string, string> = {
-      // Approved orchestrator state. Previously pinned to the blob at commit
-      // d058544d, which froze the file forever and broke on any later
-      // governance work unrelated to knowledge. The semantic guard above --
-      // the orchestrator contains no reference to knowledge -- is what this
-      // suite actually protects; this hash records the approved bytes and is
-      // updated deliberately when governance work lands.
-      // Updated for the gateway/MI9 convergence: the MI9 gate is evaluated on
-      // every request and the act is deposited in the audit chain.
-      'src/orchestrator.ts': '2630262353157928b165facbfdf63c44fb7a9c00',
-      // Approved audit-mirror hook: a single fire-and-forget call inside
-      // append(), placed after the local insert and before the return, so the
-      // local chain remains authoritative and the sovereign relational register
-      // receives a copy it can be reconciled against. Hashing, ordering,
-      // verification and export are untouched.
-      'src/audit/hash-chain.ts': '3c2b9e848684c1e6953516a6c8f4f0f794ffc50f',
-      // Approved repair for D-1: pure evaluation plus post-execution accounting.
-      'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
-    };
+    // Read from the single pin file shared with ISO-1 and CONF-1.
+    const pinFile = JSON.parse(readFileSync(join(REPO_ROOT, 'governance', 'approved-spine-hashes.json'), 'utf8')) as
+      { schema: string; files: Record<string, { git_blob_sha1: string; approved_change: string }> };
+    expect(pinFile.schema).toBe('ronor-approved-spine/v1');
+    expect(Object.keys(pinFile.files).sort()).toEqual(['src/audit/hash-chain.ts', 'src/governance/mi9-gate.ts', 'src/orchestrator.ts']);
+    for (const entry of Object.values(pinFile.files)) {
+      expect(entry.git_blob_sha1).toMatch(/^[0-9a-f]{40}$/);
+      expect(entry.approved_change.length).toBeGreaterThan(40);
+    }
+    const expectedHashes: Record<string, string> = Object.fromEntries(
+      Object.entries(pinFile.files).map(([path, entry]) => [path, entry.git_blob_sha1]));
 
     for (const [path, expectedHash] of Object.entries(expectedHashes)) {
       const currentHash = execFileSync('git', ['hash-object', path], {

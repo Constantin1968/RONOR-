@@ -1,0 +1,32 @@
+# Apply LAST, after all installed isolation/controller/verification/accounting overlays.
+services:
+  controller:
+    build:
+      context: ${RONOR_BUDGET_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_BUDGET_TAG:?reviewed full revision}
+  openhands-bridge:
+    build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
+    image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
+    environment:
+      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
+  codex-verifier:
+    build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
+    image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
+    environment:
+      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
+      RONOR_CODEX_INPUT_USD_PER_MTOK: "2"
+      RONOR_CODEX_OUTPUT_USD_PER_MTOK: "6"
+  model-egress-proxy:
+    build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
+    image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
+    environment:
+      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
+      RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
+      RONOR_MODEL_BUDGET_DB: /model-budget/ledger.db
+    secrets: [automation_capability_key]
+    volumes:
+      - type: bind
+        source: /srv/ronor/development-automation/model-budget
+        target: /model-budget

@@ -1,0 +1,11 @@
+# Apply after all installed overlays, including the transport overlay.
+# Only the budget egress proxy image changes. The controller, the bridge,
+# the OpenHands agent, the verifier, the assurance service and every budget,
+# ledger, mandate and secret remain exactly as installed.
+services:
+  model-egress-proxy:
+    build:
+      context: ${RONOR_EGRESS_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-egress-runtime:${RONOR_EGRESS_TAG:?reviewed revision}

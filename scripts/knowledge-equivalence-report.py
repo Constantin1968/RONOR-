@@ -18,18 +18,12 @@ import sys
 
 OUT = pathlib.Path("evidence/knowledge")
 BASELINE = "d058544d1c579611cce99cdf2b87a78d7534e75b"
+# Approved spine hashes live in one file shared with CONF-1 and the Jest suite,
+# so an approval cannot be recorded in one place and forgotten in another.
+_SPINE_PIN_FILE = pathlib.Path(__file__).resolve().parent.parent / "governance" / "approved-spine-hashes.json"
 APPROVED_SPINE_HASHES = {
-    # Approved gateway/MI9 convergence: the MI9 gate is evaluated on every
-    # inference request and the resulting act is deposited in the audit chain,
-    # so reported sovereignty is derived from gate 1 instead of asserted.
-    "src/orchestrator.ts": "2630262353157928b165facbfdf63c44fb7a9c00",
-    # Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
-    "src/governance/mi9-gate.ts": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
-    # Approved audit-mirror hook: a single fire-and-forget call inside append(),
-    # placed after the local insert and before the return. The local chain stays
-    # authoritative — hashing, ordering, verification and export are untouched —
-    # and the mirror can neither block nor throw into this path.
-    "src/audit/hash-chain.ts": "3c2b9e848684c1e6953516a6c8f4f0f794ffc50f",
+    path: entry["git_blob_sha1"]
+    for path, entry in json.loads(_SPINE_PIN_FILE.read_text())["files"].items()
 }
 
 # The baseline plane roster, in order. Recorded as a literal so that a reordering
@@ -200,7 +194,8 @@ def main():
             capture_output=True,
             text=True,
         ).stdout.strip()
-        expected_hash = APPROVED_SPINE_HASHES.get(path, baseline_hash)
+        # No fall-back to the baseline: an unlisted spine file is itself a failure.
+        expected_hash = APPROVED_SPINE_HASHES.get(path, "unpinned")
         current_hash = subprocess.run(
             ["git", "hash-object", path], capture_output=True, text=True
         ).stdout.strip()

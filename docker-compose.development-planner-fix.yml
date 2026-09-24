@@ -1,0 +1,14 @@
+# Apply last, after every installed overlay, including artifact and evidence-home,
+# and only once the one-probe runtime-window overlay has been withdrawn.
+# Replaces exactly one service: the LangGraph planner, which is the only service
+# that carries the corrected commit-assignment instruction. The controller, the
+# OpenHands bridge and the agent, the model egress proxy, the verifier, the
+# assurance service, the evidence runner, and every budget, ledger, mandate and
+# secret remain exactly as installed.
+services:
+  langgraph:
+    build:
+      context: ${RONOR_PLANNER_FIX_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-development-planner:${RONOR_PLANNER_FIX_TAG:?reviewed revision}

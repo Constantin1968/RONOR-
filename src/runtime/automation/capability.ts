@@ -9,6 +9,7 @@ export interface ExecutionCapabilityClaims {
   allowed_actions: string[];
   expires_at: string;
   nonce: string;
+  resume?: {conversation_id:string;accounted_cost_usd:number};
 }
 
 function encode(value: unknown): string {

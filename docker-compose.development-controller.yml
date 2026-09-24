@@ -1,0 +1,93 @@
+name: ronor-development
+
+# Opt-in only. Never use as an override for the business runtime.
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development-controller
+    image: ronor-development-controller:${RONOR_DEVELOPMENT_IMAGE_TAG:?pin reviewed revision}
+    container_name: ronor-development-controller
+    user: "10001:10001"
+    read_only: true
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 768m
+    cpus: 1.0
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=128m"]
+    ports: ["127.0.0.1:3010:3010"]
+    networks: [automation-control]
+    environment:
+      AUDIT_DB_PATH: /app/data/development.db
+      RONOR_AUTOMATION_ENABLED: "true"
+      RONOR_AUTOMATION_RECOVERY_ENABLED: "false"
+      RONOR_ARCHITECT_API_KEY_FILE: /run/secrets/development_architect_key
+      RONOR_AUTOMATION_MANDATE_SIGNING_KEY_FILE: /run/secrets/development_mandate_key
+      RONOR_LANGGRAPH_URL: http://langgraph:2024
+      RONOR_LANGGRAPH_TOKEN_FILE: /run/secrets/langgraph_token
+      RONOR_OPENHANDS_URL: http://openhands-bridge:3001
+      RONOR_OPENHANDS_TOKEN_FILE: /run/secrets/openhands_bridge_token
+      RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
+      RONOR_CODEX_VERIFIER_URL: http://codex-verifier:3002
+      RONOR_CODEX_VERIFIER_TOKEN_FILE: /run/secrets/codex_verifier_token
+      RONOR_ASSURANCE_URL: http://victoria-assurance:3003
+      RONOR_ASSURANCE_TOKEN_FILE: /run/secrets/assurance_token
+      RONOR_EVIDENCE_RUNNER_URL: http://automation-evidence-runner:3005
+      RONOR_EVIDENCE_RUNNER_TOKEN_FILE: /run/secrets/evidence_runner_token
+      RONOR_AUTOMATION_WORKSPACE_ROOT: /automation-worktrees
+      RONOR_AUTOMATION_WORKTREE: /automation-worktrees/project
+      RONOR_AUTOMATION_ARTIFACT_ROOT: /automation-artifacts
+      RONOR_AUTOMATION_BRANCH: ${RONOR_AUTOMATION_BRANCH:?exact approved branch}
+      RONOR_AUTOMATION_EXPECTED_ORIGIN: https://github.com/Constantin1968/RONOR-.git
+      RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_AUTOMATION_EXPECTED_HEAD:?exact approved base commit}
+      RONOR_AUTOMATION_MAX_COST_USD: ${RONOR_AUTOMATION_MAX_COST_USD:?explicit cost ceiling}
+      RONOR_AUTOMATION_MAX_RUNTIME_MINUTES: ${RONOR_AUTOMATION_MAX_RUNTIME_MINUTES:?explicit execution bound}
+      RONOR_AUTOMATION_MAX_FIX_CYCLES: ${RONOR_AUTOMATION_MAX_FIX_CYCLES:?explicit retry bound}
+    volumes:
+      - type: bind
+        source: ${RONOR_DEVELOPMENT_DATA_DIR:?dedicated pre-created directory uid 10001}
+        target: /app/data
+      - type: bind
+        source: ${RONOR_AUTOMATION_WORKTREE:?same worktree mounted in the author and evidence runner}
+        target: /automation-worktrees/project
+        read_only: true
+      - type: bind
+        source: ${RONOR_AUTOMATION_ARTIFACT_ROOT:?same authoritative evidence directory}
+        target: /automation-artifacts
+        read_only: true
+    secrets:
+      - development_architect_key
+      - development_mandate_key
+      - langgraph_token
+      - openhands_bridge_token
+      - automation_capability_key
+      - codex_verifier_token
+      - assurance_token
+      - evidence_runner_token
+
+networks:
+  automation-control:
+    name: ronor-automation-control
+    external: true
+
+secrets:
+  development_architect_key:
+    file: ${RONOR_DEVELOPMENT_SECRET_DIR:?dedicated controller secrets}/development_architect_key
+  development_mandate_key:
+    file: ${RONOR_DEVELOPMENT_SECRET_DIR}/development_mandate_key
+  langgraph_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?existing service secrets}/langgraph_token
+  openhands_bridge_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/openhands_bridge_token
+  automation_capability_key:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/automation_capability_key
+  codex_verifier_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/codex_verifier_token
+  assurance_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/assurance_token
+  evidence_runner_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR}/evidence_runner_token

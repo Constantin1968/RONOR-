@@ -2,43 +2,49 @@
   "gate": "G7",
   "name": "R-Knowledge conformance",
   "baselineCommit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
-  "branch": "main",
-  "head": "22c5e0e48126cb246ab781dc527c741e4584355d",
+  "branch": "automation/development-controller",
+  "head": "4bbb0a091aca1ab6e80ad28810b9dac034816cba",
   "verdict": "PASS",
   "determinativeChecks": 13,
   "informationalChecks": 1,
   "checks": [
     {
       "id": "CONF-1",
-      "description": "Governance and audit spine byte-identical to baseline",
+      "description": "Governance, audit and approved MI9 repair match pinned hashes",
       "determinative": true,
       "result": "PASS",
       "observed": {
         "src/orchestrator.ts": {
           "baseline": "903f2f8ae350acf521726889df209f20d027bcc0",
-          "current": "903f2f8ae350acf521726889df209f20d027bcc0",
+          "expected": "2630262353157928b165facbfdf63c44fb7a9c00",
+          "current": "2630262353157928b165facbfdf63c44fb7a9c00",
           "identical": true
         },
         "src/audit/hash-chain.ts": {
           "baseline": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
-          "current": "fe5d39fda677e5608ef9c34596be0c70b5fca686",
+          "expected": "3c2b9e848684c1e6953516a6c8f4f0f794ffc50f",
+          "current": "3c2b9e848684c1e6953516a6c8f4f0f794ffc50f",
           "identical": true
         },
         "src/governance/mi9-gate.ts": {
           "baseline": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
-          "current": "12810f3749fa1e9a6bd76d44c6c2fea5766fe765",
+          "expected": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
+          "current": "31ef9f2562254bdca7f871b71e1b7d7be11b90dd",
           "identical": true
         }
       }
     },
     {
       "id": "CONF-2",
-      "description": "Dependency surface (MIP-015): 10 production, 15 development",
+      "description": "Dependency surface: 14 authorised production packages by name, network-capable ones pinned exactly, development at or above baseline",
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "production": 10,
-        "development": 15
+        "production": 14,
+        "development": 16,
+        "unexpected": [],
+        "missing": [],
+        "unpinnedNetworkCapable": []
       }
     },
     {
@@ -52,13 +58,33 @@
     },
     {
       "id": "CONF-4",
-      "description": "Pre-existing corpus intact: 8 suites, 137 tests, isolated from knowledge tests",
+      "description": "Pre-existing corpus intact: all 8 baseline suites present and green",
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "suites": 8,
-        "tests": 137,
-        "failures": 0
+        "baselineCommit": "d058544d1c579611cce99cdf2b87a78d7534e75b",
+        "baselineSuitesExpected": 8,
+        "baselineSuitePaths": [
+          "tests/audit/hash-chain.test.ts",
+          "tests/e2e/decisions.test.ts",
+          "tests/e2e/ronor.test.ts",
+          "tests/governance/mi9-gate.test.ts",
+          "tests/sentinel/alerts.test.ts",
+          "tests/sentinel/collectors.test.ts",
+          "tests/sentinel/degradation.test.ts",
+          "tests/sentinel/forecaster.test.ts"
+        ],
+        "missingBaselineSuites": [],
+        "baselineRun": {
+          "suites": 8,
+          "tests": 148,
+          "failures": 0
+        },
+        "nonKnowledgeTotals": {
+          "suites": 62,
+          "tests": 1227,
+          "failures": 0
+        }
       }
     },
     {
@@ -67,8 +93,8 @@
       "determinative": true,
       "result": "PASS",
       "observed": {
-        "suites": 23,
-        "tests": 594,
+        "suites": 77,
+        "tests": 1684,
         "failures": 0
       }
     },

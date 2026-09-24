@@ -94,7 +94,10 @@ describe('Codex rejection diagnostics at the HTTP boundary', () => {
   it.each([
     'Bearer abcdefghijklmnopqrstuvwxyz123456', 'Bearer abcdefghijkl',
     'sk-abcdefghijklmnop1234', 'eyJabc.abc.def', 'fixture-service-credential',
-  ])('never exposes credential-like failure detail: %s', async secret => {
+    // The title must not interpolate the fixture: the evidence runner refuses a test
+  // report whose output contains credential-shaped text, so %s here failed the
+  // isolated verification of run_3847cd6530ad06a733eb on 24 September 2026.
+  ])('never exposes credential-like failure detail (fixture %#)', async secret => {
     let captured: unknown;
     try { await verify(failure({ summary: secret })); } catch (error) { captured = error; }
     expect(captured).toBeInstanceOf(AutomationAdapterError);

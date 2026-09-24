@@ -227,7 +227,14 @@ export async function runExecutiveMission(params: {
         const verified = await params.postExecutionVerifier.verify(runId, assignment.id, assignment.actions.includes('run_tests'), executionSignal);
         authoritativeArtifacts = verified.artifacts; workerClaims.push(...verified.claims);
         if (!verified.passed) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-nonzero`, run_id: runId, reason: 'tests_failed' }, 'openhands'); return terminal(run, 'failed', 'tests_failed', 'tests', 'openhands'); }
-      } catch { const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'isolated_verification_failed'; append('failure.recorded', { id: `${runId}-${assignment.id}-isolated-verification-failed`, run_id: runId, reason }, 'openhands'); return terminal(run, 'failed', reason, 'evidence', 'openhands'); }
+      } catch (error) {
+        const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'isolated_verification_failed';
+        // Keep the verifier's own code: without it an operator cannot tell a refused
+        // report from a failed transport. Only a bounded identifier is recorded.
+        const code = error instanceof Error && /^[a-z][a-z0-9_]{2,63}$/.test(error.message) ? error.message : 'unclassified';
+        append('failure.recorded', { id: `${runId}-${assignment.id}-isolated-verification-failed`, run_id: runId, reason, verifier_code: code }, 'openhands');
+        return terminal(run, 'failed', reason, 'evidence', 'openhands');
+      }
     } else if (params.artifactCollector) {
       try { authoritativeArtifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id); }
       catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return terminal(run, 'failed', 'artifact_collection_failed', 'evidence', 'openhands'); }

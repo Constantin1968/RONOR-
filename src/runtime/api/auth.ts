@@ -186,8 +186,47 @@ export function authenticate(secret: string): ApiKeyRecord | null {
   return null;
 }
 
+/**
+ * Minimum estimated strength, in bits, for a credential supplied through the
+ * environment. 128 bits is the floor at which an unsalted SHA-256 digest of the
+ * key is not a practical offline-guessing target (CodeQL js/insufficient-password-hash
+ * is a real finding only for low-entropy secrets) and matches a 32-character hex
+ * or 22-character base64url random token.
+ */
+export const MIN_ENV_KEY_BITS = 128;
+
+/**
+ * Conservative strength estimate: length multiplied by log2 of the alphabet the
+ * key draws from. A pure hexadecimal key is scored on 16 symbols (hex-32 = 128
+ * bits); otherwise the alphabet is the union of the character classes present.
+ * A key built from fewer than 8 distinct characters is scored on its distinct
+ * characters only, so `aaaa...` or `abab...` cannot pass by length alone.
+ */
+export function estimateKeyBits(secret: string): number {
+  if (!secret) return 0;
+  let alphabet = 0;
+  if (/^[0-9a-fA-F]+$/.test(secret)) {
+    alphabet = 16;
+  } else {
+    if (/[a-z]/.test(secret)) alphabet += 26;
+    if (/[A-Z]/.test(secret)) alphabet += 26;
+    if (/[0-9]/.test(secret)) alphabet += 10;
+    if (/[^a-zA-Z0-9]/.test(secret)) alphabet += 33;
+  }
+  const distinct = new Set(secret).size;
+  const effective = distinct < 8 ? distinct : alphabet;
+  if (effective < 2) return 0;
+  return Math.floor(secret.length * Math.log2(effective));
+}
+
 export interface BootstrapResult {
   keysSeeded: number;
+  /**
+   * Environment credentials refused because their estimated strength is below
+   * MIN_ENV_KEY_BITS. Only the variable name and position are reported, never the
+   * value or the operator-chosen label, so the result is safe to log.
+   */
+  weakKeysRejected: string[];
   /** True when a shipped default credential is active. */
   insecureDefaultActive: boolean;
 }
@@ -203,9 +242,19 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
   ensureRuntimeLedgerSchema();
   let seeded = 0;
   let insecure = false;
+  const weak: string[] = [];
+  // A weak key is refused, not seeded: an unusable credential fails loudly at boot
+  // (index.ts logs it and /health reports no key), whereas a guessable one would
+  // work silently. The shipped demo key keeps its own, stronger signal below.
+  const strong = (secret: string, source: string): boolean => {
+    if (secret === INSECURE_DEFAULT_KEY) return true;
+    if (estimateKeyBits(secret) >= MIN_ENV_KEY_BITS) return true;
+    weak.push(source);
+    return false;
+  };
 
   const architect = env.RONOR_ARCHITECT_API_KEY?.trim();
-  if (architect) {
+  if (architect && strong(architect, 'RONOR_ARCHITECT_API_KEY')) {
     upsertApiKey({
       secret: architect,
       label: 'merlin',
@@ -218,7 +267,7 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
   }
 
   const admin = env.RONOR_ADMIN_API_KEY?.trim();
-  if (admin) {
+  if (admin && strong(admin, 'RONOR_ADMIN_API_KEY')) {
     upsertApiKey({
       secret: admin,
       label: 'bootstrap-admin',
@@ -241,6 +290,7 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
       const label = sep > 0 ? item.slice(0, sep).trim() : `operator-${i}`;
       const secret = sep > 0 ? item.slice(sep + 1).trim() : item;
       if (!secret) continue;
+      if (!strong(secret, `RONOR_API_KEYS[${i}]`)) continue;
       upsertApiKey({
         secret,
         label,
@@ -256,7 +306,7 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
   // Legacy variable from the Core Active deployment, honoured so an existing
   // .env keeps working rather than locking an operator out after an upgrade.
   const legacy = env.GATEWAY_API_KEY?.trim();
-  if (legacy && !list && !admin) {
+  if (legacy && !list && !admin && strong(legacy, 'GATEWAY_API_KEY')) {
     upsertApiKey({
       secret: legacy,
       label: 'legacy-gateway-key',
@@ -268,7 +318,7 @@ export function bootstrapApiKeys(env: NodeJS.ProcessEnv = process.env): Bootstra
     if (legacy === INSECURE_DEFAULT_KEY) insecure = true;
   }
 
-  return { keysSeeded: seeded, insecureDefaultActive: insecure };
+  return { keysSeeded: seeded, weakKeysRejected: weak, insecureDefaultActive: insecure };
 }
 
 export function hasAnyActiveKey(): boolean {

@@ -103,6 +103,13 @@ async function bootstrap(): Promise<void> {
   } else {
     logger.info(`Runtime API keys loaded: ${keyBootstrap.keysSeeded} ✓`);
   }
+  if (keyBootstrap.weakKeysRejected.length > 0) {
+    logger.error(
+      `SECURITY: ${keyBootstrap.weakKeysRejected.length} environment API key(s) refused as too weak ` +
+        `(${keyBootstrap.weakKeysRejected.join(', ')}); generate at least 128 bits, e.g. ` +
+        '`openssl rand -hex 32`.',
+    );
+  }
   if (keyBootstrap.insecureDefaultActive) {
     logger.error(
       'SECURITY: a shipped default API key is active. Rotate RONOR_API_KEYS before ' +

@@ -12,8 +12,10 @@
 
 import express from 'express';
 import request from 'supertest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { closeDb } from '../../src/audit/hash-chain';
 import { createMission } from '../../src/runtime/mission/store';
 import {
   INSECURE_DEFAULT_KEY,
@@ -54,6 +56,17 @@ import {
 import { createRuntimeRouter } from '../../src/runtime/api/routes';
 import { loadPolicy } from '../../src/governance/mi9-gate';
 import { clearAutomationAttestations } from '../../src/runtime/automation/attestation';
+
+// Each run gets its own scratch audit database. This suite creates fixed-secret
+// keys and revokes one; on a shared data/audit.db a later run finds the revoked
+// row, and F14 (correctly) refuses to reactivate it. Isolation keeps the suite
+// deterministic without weakening F14.
+const scratchDir = mkdtempSync(join(tmpdir(), 'ronor-api-test-'));
+process.env.AUDIT_DB_PATH = join(scratchDir, 'audit.db');
+afterAll(() => {
+  closeDb();
+  rmSync(scratchDir, { recursive: true, force: true });
+});
 
 const TEST_SECRET = 'test-operator-secret-key-0123456789';
 const ADMIN_SECRET = 'test-admin-secret-key-9876543210abc';

@@ -7,8 +7,10 @@
  *      Cosign prefers authenticated key label/id over body.operator.
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { closeDb } from '../../src/audit/hash-chain';
 import {
   authenticate,
   listApiKeys,
@@ -16,6 +18,17 @@ import {
   revokeApiKey,
   upsertApiKey,
 } from '../../src/runtime/api/auth';
+
+// Each run gets its own scratch audit database. These suites create fixed-secret
+// keys and revoke them; on a shared data/audit.db a later run finds the revoked
+// row, and F14 (correctly) refuses to reactivate it. Isolation keeps the suite
+// deterministic without weakening F14.
+const scratchDir = mkdtempSync(join(tmpdir(), 'ronor-f01-f14-'));
+process.env.AUDIT_DB_PATH = join(scratchDir, 'audit.db');
+afterAll(() => {
+  closeDb();
+  rmSync(scratchDir, { recursive: true, force: true });
+});
 
 describe('F14 · upsertApiKey must not reactivate revoked keys', () => {
   const secret = 'f14-revoke-preserve-secret-0123456789abcdef';

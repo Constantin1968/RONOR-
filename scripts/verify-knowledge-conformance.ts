@@ -61,23 +61,17 @@ function main(): number {
     'src/audit/hash-chain.ts',
     'src/governance/mi9-gate.ts',
   ];
-  const approvedSpineHashes: Record<string, string> = {
-    // Approved gateway/MI9 convergence: the MI9 gate is evaluated on every
-    // inference request and the resulting act is deposited in the audit chain,
-    // so reported sovereignty is derived from gate 1 instead of asserted.
-    'src/orchestrator.ts': '2630262353157928b165facbfdf63c44fb7a9c00',
-    // Approved D-1 repair: pure MI9 evaluation plus post-execution accounting.
-    'src/governance/mi9-gate.ts': '31ef9f2562254bdca7f871b71e1b7d7be11b90dd',
-    // Approved audit-mirror hook: one fire-and-forget call inside append(), after
-    // the local insert and before the return. Hashing, ordering, verification and
-    // export are byte-for-byte unchanged; the mirror cannot block or throw here.
-    'src/audit/hash-chain.ts': '3c2b9e848684c1e6953516a6c8f4f0f794ffc50f',
-  };
+  // Shared with ISO-1 and the Jest suite: one approval, one place.
+  const pinFile = JSON.parse(readFileSync(join(REPO_ROOT, 'governance', 'approved-spine-hashes.json'), 'utf8')) as
+    { files: Record<string, { git_blob_sha1: string }> };
+  const approvedSpineHashes: Record<string, string> = Object.fromEntries(
+    Object.entries(pinFile.files).map(([path, entry]) => [path, entry.git_blob_sha1]));
   const spineDetail: Record<string, { baseline: string; expected: string; current: string; identical: boolean }> = {};
   let spineOk = true;
   for (const path of spine) {
     const baselineHash = sh(`git rev-parse ${BASELINE}:${path}`);
-    const expectedHash = approvedSpineHashes[path] ?? baselineHash;
+    // No fall-back to the baseline: an unlisted spine file is itself a failure.
+    const expectedHash = approvedSpineHashes[path] ?? 'unpinned';
     const currentHash = sh(`git hash-object ${path}`);
     const identical = expectedHash === currentHash;
     spineDetail[path] = { baseline: baselineHash, expected: expectedHash, current: currentHash, identical };

@@ -1,4 +1,5 @@
 import type { CodexEvaluationPort } from './verification-authorities';
+import { compactMaterialsForModel } from './codex-evidence-compaction';
 
 type Fetcher = typeof fetch;
 
@@ -23,7 +24,7 @@ export function createOpenAIResponsesCodexEvaluator(config: {
   if (!config.apiKey || !config.model || !Number.isFinite(config.inputUsdPerMillionTokens) || config.inputUsdPerMillionTokens < 0 || !Number.isFinite(config.outputUsdPerMillionTokens) || config.outputUsdPerMillionTokens < 0) throw new Error('codex_evaluator_config_invalid');
   const endpoint = responsesEndpoint(config.baseUrl);
   return { async evaluate(input) {
-    const payload = JSON.stringify({ mission_id: input.missionId, claims: input.claims, artifacts: input.materials });
+    const payload = JSON.stringify({ mission_id: input.missionId, claims: input.claims, artifacts: compactMaterialsForModel(input.materials) });
     if (new TextEncoder().encode(payload).byteLength > 400_000) throw new Error('codex_evidence_context_too_large');
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), config.timeoutMs ?? 120_000);
     let cost: number | null = null;

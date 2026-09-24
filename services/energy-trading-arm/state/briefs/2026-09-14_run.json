@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-13 11:17:01.320042",
+  "opportunities_scanned": 2,
+  "trades_proposed": 2,
+  "trades_rejected": 0,
+  "total_expected_pnl": 2427.75,
+  "evidence_level": "operator_provided",
+  "claim_id": "CLM-0002",
+  "rejections": []
+}

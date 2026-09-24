@@ -1,0 +1,19 @@
+{
+  "balance": {
+    "home_zone": "RO",
+    "exports_mw": 0,
+    "imports_mw": 0,
+    "transit_mw": 0,
+    "net_mw": 0,
+    "import_dependence": 0.0,
+    "per_border_mw": {},
+    "flags": []
+  },
+  "energy": {
+    "lines": [],
+    "total_mwh": 0,
+    "total_carbon_t": 0,
+    "total_expected_pnl_eur": 0,
+    "carbon_defaults": "provisional estimates — override with TSO factors"
+  }
+}

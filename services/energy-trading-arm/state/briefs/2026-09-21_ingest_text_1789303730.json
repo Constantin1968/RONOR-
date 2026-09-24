@@ -1,0 +1,13 @@
+{
+  "day": "2026-09-21",
+  "availability": {
+    "UA-MD": 0.0
+  },
+  "prices_override": {},
+  "decisions": [
+    "UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"
+  ],
+  "unassigned_prices": {},
+  "bids": {},
+  "warnings": []
+}

@@ -51,6 +51,31 @@ import {
   pruneApprovals,
   settleApproval,
 } from './approval-store';
+import { TradingClient } from './energy-trading/trading-client';
+import {
+  authoriseTradingCommand,
+  tradingBucketFor,
+  isTradeCoSigner,
+  describeRole,
+  type RoleAssignment,
+  type TradingCommandBucket,
+} from './energy-trading/roles';
+import {
+  cmdEnergyStatus,
+  cmdEnergyReport,
+  cmdDay,
+  cmdPl,
+  cmdBrief,
+  cmdFeedback,
+  cmdCorrect,
+  cmdTradeRequest,
+  settleTradeTicket,
+  cmdDispute,
+  cmdUploadCaseHint,
+  handleUploadCasePayload,
+  cmdHistory,
+  tradingTrainerOnboarding,
+} from './energy-trading/handlers';
 import type {
   CommandName,
   ParsedCommand,
@@ -197,6 +222,12 @@ function parseCommand(text: string): ParsedCommand {
   const argument = (match[2] ?? '').trim();
   const knownCommands: CommandName[] = [
     'start', 'help', 'status', 'query', 'mission', 'approve', 'reject', 'pending',
+    // Energy trading arm commands. When the trading module is disabled the
+    // dispatcher refuses them with a clean message; parsing them here anyway
+    // is what lets that refusal be specific ("trading arm not enabled") rather
+    // than generic ("unknown command").
+    'energy_status', 'energy_report', 'day', 'pl', 'brief',
+    'trade_request', 'upload_case', 'feedback', 'correct', 'dispute', 'history',
   ];
   const name: CommandName = (knownCommands.includes(cmd as CommandName) ? cmd : 'unknown') as CommandName;
   return { name, argument, raw: trimmed };
@@ -210,6 +241,7 @@ export class RonorTelegramBot {
   private readonly tg: TelegramApiClient;
   private readonly ronor: RonorRuntimeClient;
   private readonly config: TelegramConfig;
+  private readonly trading: TradingClient | null;
   private pollOffset = 0;
   private running = false;
   private pruneInterval: NodeJS.Timeout | null = null;
@@ -218,6 +250,68 @@ export class RonorTelegramBot {
     this.config = config;
     this.tg = new TelegramApiClient(config.botToken);
     this.ronor = new RonorRuntimeClient(config.apiBaseUrl, config.apiKey);
+    // The trading client is instantiated only when the module is enabled.
+    // Instantiating with placeholder values would let a malformed request
+    // through the type system and only fail on the first HTTP attempt — by
+    // which point the operator has waited on nothing.
+    this.trading = config.energyTrading.enabled
+      ? new TradingClient({
+          baseUrl: config.energyTrading.baseUrl,
+          apiToken: config.energyTrading.apiToken,
+        })
+      : null;
+  }
+
+  // Per-chat/user tracking for /upload_case: the first message with the
+  // command sets a pending intent; the next document or text from the same
+  // (chatId, userId) is routed to handleUploadCasePayload. TTL keeps stale
+  // intents from catching an unrelated later document.
+  private readonly pendingUploadCase = new Map<string, { day: string; createdAt: number }>();
+  private readonly UPLOAD_CASE_TTL_MS = 10 * 60_000;
+
+  private todayIsoCet(): string {
+    // The arm and RO grid work in CET; keep a common day format across bot
+    // and arm rather than mixing local sandbox time with arm-side clock.
+    const d = new Date();
+    // Compute Europe/Bucharest date without a full timezone library — the day
+    // boundary is what matters, not sub-second precision.
+    const s = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Bucharest',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+    return s;
+  }
+
+  // -------------------------------------------------------------------------
+  // Trading role helpers
+  // -------------------------------------------------------------------------
+
+  /** Return the trading role for a user, or undefined if none. */
+  private roleOf(userId: number): RoleAssignment | undefined {
+    return this.config.energyTrading.roleMap.get(userId);
+  }
+
+  /**
+   * Gate a trading command. Returns null when the command may proceed;
+   * otherwise returns the message to send the user explaining the refusal.
+   */
+  private gateTrading(
+    userId: number,
+    bucket: TradingCommandBucket,
+  ): { proceed: true } | { proceed: false; text: string } {
+    if (!this.config.energyTrading.enabled || this.trading === null) {
+      return {
+        proceed: false,
+        text: '⛔ The energy trading arm is not enabled on this bridge. Set TRADING_ARM_BASE_URL in .env.production and restart.',
+      };
+    }
+    const decision = authoriseTradingCommand(bucket, this.roleOf(userId));
+    if (!decision.allowed) {
+      return { proceed: false, text: `⛔ ${decision.reason ?? 'Not authorised for this command.'}` };
+    }
+    return { proceed: true };
   }
 
   // -------------------------------------------------------------------------
@@ -301,11 +395,17 @@ export class RonorTelegramBot {
     const userId = msg.from?.id;
     const chatId = msg.chat.id;
     const text = msg.text ?? '';
+    const hasDocument = msg.document !== undefined;
+    const hasPhoto = msg.photo !== undefined && msg.photo.length > 0;
 
-    if (!userId || msg.text === undefined || text.trim().length === 0) return;
+    // A message with only a document/photo has no `text` field; we still want
+    // to look at it, because /upload_case may have primed a pending intent.
+    if (!userId) return;
+    if (!hasDocument && !hasPhoto && (msg.text === undefined || text.trim().length === 0)) return;
+
     // Conversational mode: plain text (no / prefix) is treated as /query.
     // Auth and rate-limit checks still run below before the query is forwarded.
-    const isPlainText = !text.startsWith('/');
+    const isPlainText = !hasDocument && !hasPhoto && !text.startsWith('/');
 
     if (!this.config.allowedUserIds.has(userId)) {
       logger.warn(`rejected message from unauthorised user ${userId}`);
@@ -324,6 +424,33 @@ export class RonorTelegramBot {
       return;
     }
 
+    // /upload_case pending intent: if the previous command from this user was
+    // /upload_case, route the next document / text / photo to the handler and
+    // clear the intent. TTL guards against a stray later document being
+    // interpreted as case data.
+    const uploadKey = `${chatId}:${userId}`;
+    const pendingUpload = this.pendingUploadCase.get(uploadKey);
+    if (pendingUpload && Date.now() - pendingUpload.createdAt <= this.UPLOAD_CASE_TTL_MS) {
+      // A slash-command interrupts the upload flow — don't hijack it.
+      if (hasDocument || hasPhoto || (text && !text.startsWith('/'))) {
+        this.pendingUploadCase.delete(uploadKey);
+        await this.handleUploadCaseMessage(chatId, userId, msg, pendingUpload.day);
+        return;
+      }
+    } else if (pendingUpload) {
+      // Stale intent — discard.
+      this.pendingUploadCase.delete(uploadKey);
+    }
+
+    // Documents/photos without a pending intent: politely note the correct flow.
+    if (hasDocument || hasPhoto) {
+      await this.tg.sendMessage({
+        chat_id: chatId,
+        text: 'Send /upload_case first, then attach the .xlsx or .csv (or paste text) as your next message.',
+      });
+      return;
+    }
+
     // Conversational passthrough: route plain text directly to query handler.
     if (isPlainText) {
       logger.info(`conversational query from user ${userId} in chat ${chatId}`);
@@ -334,7 +461,24 @@ export class RonorTelegramBot {
     logger.info(`command /${cmd.name} from user ${userId} in chat ${chatId}`);
 
     switch (cmd.name) {
-      case 'start':
+      case 'start': {
+        // On /start, if the user holds the trading_trainer role, greet them
+        // with the trainer-specific onboarding instead of the generic help.
+        // Sovereign and observer still see the generic help.
+        const role = this.roleOf(userId);
+        if (role && role.role === 'trading_trainer') {
+          const userName = msg.from?.first_name ?? 'Operator';
+          await this.tg.sendMessage({
+            chat_id: chatId,
+            text: tradingTrainerOnboarding(userName),
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+          });
+        } else {
+          await this.cmdHelp(chatId);
+        }
+        break;
+      }
       case 'help':
         await this.cmdHelp(chatId);
         break;
@@ -355,6 +499,19 @@ export class RonorTelegramBot {
         break;
       case 'reject':
         await this.cmdReject(chatId, msg.message_id, userId, cmd.argument);
+        break;
+      case 'energy_status':
+      case 'energy_report':
+      case 'day':
+      case 'pl':
+      case 'brief':
+      case 'trade_request':
+      case 'upload_case':
+      case 'feedback':
+      case 'correct':
+      case 'dispute':
+      case 'history':
+        await this.cmdTrading(chatId, msg, userId, cmd.name, cmd.argument);
         break;
       default:
         await this.tg.sendMessage({
@@ -397,6 +554,219 @@ export class RonorTelegramBot {
   }
 
   // -------------------------------------------------------------------------
+  // /upload_case follow-up: route the next document / text from the primed
+  // (chatId, userId) to the arm. Refuse images/PDFs per Muse's Decizia 2.
+  // -------------------------------------------------------------------------
+
+  private async handleUploadCaseMessage(
+    chatId: number,
+    userId: number,
+    msg: TelegramMessage,
+    day: string,
+  ): Promise<void> {
+    const gate = this.gateTrading(userId, 'contribute');
+    if (!gate.proceed) {
+      await this.tg.sendMessage({ chat_id: chatId, text: gate.text, parse_mode: 'HTML' });
+      return;
+    }
+    const client = this.trading!;
+    const assignment = this.roleOf(userId)!;
+    const userName = `${msg.from?.first_name ?? 'Operator'}${msg.from?.last_name ? ' ' + msg.from.last_name : ''}`;
+    const ctx = { userId, userName, assignment, client };
+
+    if (msg.photo && msg.photo.length > 0) {
+      const text = await handleUploadCasePayload(ctx, { kind: 'image', day });
+      await this.tg.sendMessage({ chat_id: chatId, text, parse_mode: 'HTML' });
+      return;
+    }
+
+    if (msg.document) {
+      const doc = msg.document;
+      const filename = doc.file_name ?? 'unnamed';
+      const mime = (doc.mime_type ?? '').toLowerCase();
+      const lower = filename.toLowerCase();
+      const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)$/i.test(lower);
+      const isPdf = mime === 'application/pdf' || lower.endsWith('.pdf');
+      const isFile =
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.xls') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.json') ||
+        mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        mime === 'text/csv' ||
+        mime === 'application/json';
+
+      let payloadText: string;
+      if (isImage) {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'image', filename, day });
+      } else if (isPdf) {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'pdf', filename, day });
+      } else if (isFile) {
+        try {
+          const { bytes } = await this.tg.downloadFile(doc.file_id);
+          payloadText = await handleUploadCasePayload(ctx, {
+            kind: 'file',
+            bytes,
+            filename,
+            day,
+          });
+        } catch (err) {
+          logger.error('failed to download upload_case document', err);
+          payloadText = `⛔ Failed to download attachment: ${(err as Error).message}`;
+        }
+      } else {
+        payloadText = await handleUploadCasePayload(ctx, { kind: 'unsupported', filename, day });
+      }
+      await this.tg.sendMessage({ chat_id: chatId, text: payloadText, parse_mode: 'HTML' });
+      return;
+    }
+
+    const pasted = (msg.text ?? '').trim();
+    if (pasted.length === 0) {
+      await this.tg.sendMessage({
+        chat_id: chatId,
+        text: 'No attachment or text found. Send /upload_case again then attach the .xlsx / .csv or paste the numbers.',
+      });
+      return;
+    }
+    const text = await handleUploadCasePayload(ctx, { kind: 'text', text: pasted, day });
+    await this.tg.sendMessage({ chat_id: chatId, text, parse_mode: 'HTML' });
+  }
+
+  // -------------------------------------------------------------------------
+  // Energy trading commands
+  // -------------------------------------------------------------------------
+  //
+  // All trading commands funnel through this dispatcher: it enforces the role
+  // gate before every call and formats the arm's response for Telegram. A
+  // trainer who is refused a command sees a specific reason, not a silent
+  // ignore. The base allowlist has already run by the time we get here — the
+  // outer gate is unchanged.
+  private async cmdTrading(
+    chatId: number,
+    msg: TelegramMessage,
+    userId: number,
+    command: CommandName,
+    argument: string,
+  ): Promise<void> {
+    const bucket = tradingBucketFor(command);
+    if (bucket === null) {
+      // Should never happen — handleMessage narrows CommandName to the trading
+      // set before dispatching here. If it does, the switch and the map have
+      // drifted; fail loud rather than silent.
+      logger.error(`cmdTrading called with non-trading command: ${command}`);
+      return;
+    }
+    const gate = this.gateTrading(userId, bucket);
+    if (!gate.proceed) {
+      await this.tg.sendMessage({ chat_id: chatId, text: gate.text, parse_mode: 'HTML' });
+      return;
+    }
+    // this.trading is guaranteed non-null when gate.proceed is true.
+    const client = this.trading!;
+    const assignment = this.roleOf(userId)!;
+    const userName = `${msg.from?.first_name ?? 'Operator'}${msg.from?.last_name ? ' ' + msg.from.last_name : ''}`;
+    const ctx = { userId, userName, assignment, client };
+
+    let text: string;
+    switch (command) {
+      case 'energy_status':
+        text = await cmdEnergyStatus(ctx);
+        break;
+      case 'energy_report':
+        text = await cmdEnergyReport(ctx, argument);
+        break;
+      case 'day':
+        text = await cmdDay(ctx, argument);
+        break;
+      case 'pl':
+        text = await cmdPl(ctx, argument);
+        break;
+      case 'brief':
+        text = await cmdBrief(ctx, argument);
+        break;
+      case 'feedback':
+        text = await cmdFeedback(ctx, argument);
+        break;
+      case 'correct':
+        text = await cmdCorrect(ctx, argument);
+        break;
+      case 'upload_case': {
+        const hint = cmdUploadCaseHint(argument);
+        text = hint.text;
+        // Track the pending upload so the next document / text from this chat
+        // is routed to handleUploadCasePayload. Keyed by chatId + userId to
+        // avoid one operator's upload catching another's next document.
+        this.pendingUploadCase.set(`${chatId}:${userId}`, {
+          day: hint.day ?? this.todayIsoCet(),
+          createdAt: Date.now(),
+        });
+        break;
+      }
+      case 'dispute':
+        text = await cmdDispute(ctx, argument);
+        break;
+      case 'history':
+        text = await cmdHistory(ctx, argument);
+        break;
+      case 'trade_request': {
+        const r = await cmdTradeRequest(ctx, argument);
+        text = r.text;
+        // If the arm returned a ticket, immediately raise a co-sign gate
+        // bound to it. The sovereign settles the gate with /approve or
+        // /reject and the bot then calls /api/settle on the arm.
+        if (r.ticketId) {
+          createApproval({
+            approvalId: r.ticketId, // arm's ticket id doubles as the approval id
+            kind: 'trade',
+            tradeTicketId: r.ticketId,
+            tradeIds: r.proposedTradeIds ?? [],
+            requestId: r.ticketId,
+            runtimeApprovalId: null,
+            heldResponse: null,
+            payload: argument,
+            requestedByUserId: userId,
+            requestedByName: userName,
+            chatId,
+            promptMessageId: null,
+            verdict: 'trade-cosign-required',
+            gateFindings: [
+              {
+                gate: 0,
+                name: 'energy-trading:trade-cosign',
+                verdict: 'block-until-approved',
+                reason: 'Every trade request from a trading_trainer requires a sovereign co-sign before settlement.',
+              },
+            ],
+            ttlMinutes: this.config.approvalTtlMinutes,
+            auditRecordId: null,
+          });
+          // If a control chat is set, notify it too so approvals do not depend
+          // on the sovereign being in the same chat the trainer used.
+          if (this.config.controlChatId && String(chatId) !== this.config.controlChatId) {
+            await this.tg.sendMessage({
+              chat_id: this.config.controlChatId,
+              text:
+                `🔔 <b>Trade co-sign requested</b>\n` +
+                `by ${esc(userName)} (${esc(describeRole(assignment))})\n` +
+                `ticket: <code>${esc(r.ticketId)}</code>\n\n` +
+                `Settle with <code>/approve ${r.ticketId}</code> or <code>/reject ${r.ticketId} [reason]</code>.`,
+              parse_mode: 'HTML',
+            }).catch((e) => logger.warn('control chat notify failed:', e));
+          }
+        }
+        break;
+      }
+      default: {
+        // Exhaustiveness — any new trading command must be added above.
+        text = `❓ Trading command ${command} is not implemented on the bridge yet.`;
+      }
+    }
+
+    await this.tg.sendChunked(chatId, text, this.config.maxMessageChars);
+  }
+
+  // -------------------------------------------------------------------------
   // /help
   // -------------------------------------------------------------------------
 
@@ -412,8 +782,25 @@ export class RonorTelegramBot {
       '/approve [id] [note] — approve the latest (or named) co-sign request',
       '/reject [id] [reason] — reject the latest (or named) co-sign request',
       '',
+      ...(this.config.energyTrading.enabled
+        ? [
+            '<b>Energy Trading Arm</b> (role-gated)',
+            '/energy_status — arm state',
+            '/energy_report [prompt] — operator brief',
+            '/day YYYY-MM-DD — top corridors for a day',
+            '/pl [day] — proof-of-optimisation summary',
+            '/brief &lt;question&gt; — free-form question to the arm',
+            '/trade_request corridor=... day=... hour=... volume=... side=... — initiate a trade (requires sovereign co-sign)',
+            '/upload_case [day=YYYY-MM-DD] — upload an ops .xlsx/.csv, or paste text (no OCR)',
+            '/feedback &lt;text&gt; — record trainer feedback',
+            '/correct &lt;text&gt; — record a correction against arm reasoning',
+            '/dispute ticket:trade [day=YYYY-MM-DD] [reason] — open a dispute for a nominated trade',
+            '/history day=YYYY-MM-DD — re-run the arm for a given day (reads bids + disputes)',
+            '',
+          ]
+        : []),
       '<b>Gate 1/2 approval flow</b>',
-      'When MI9 governance requires a co-sign, RONOR sends you a prompt. Reply with /approve or /reject. The request expires if not settled within the configured TTL.',
+      'When MI9 governance requires a co-sign, RONOR sends you a prompt. Reply with /approve or /reject. The request expires if not settled within the configured TTL. Trade requests use the same flow but settle against the trading arm.',
       '',
       '<i>Prepared by AMB · Mayleven Ecosystem</i>',
     ].join('\n');
@@ -692,6 +1079,30 @@ export class RonorTelegramBot {
       return;
     }
 
+    // Trade approvals require the sovereign role AND membership of
+    // TELEGRAM_TRADING_APPROVERS (when non-empty). This is the second gate on
+    // top of the base approver check that already ran in cmdApprove. A base
+    // approver who is not a trade co-signer can approve everything ELSE, just
+    // not trades — which is the correct model when trading is delegated to a
+    // subset of the approver group.
+    if (approval.kind === 'trade') {
+      const isBaseApprover = this.config.approverUserIds.has(userId);
+      const canCoSignTrade = isTradeCoSigner(
+        userId,
+        isBaseApprover,
+        this.roleOf(userId),
+        this.config.energyTrading.tradingApprovers,
+      );
+      if (!canCoSignTrade) {
+        await this.tg.sendMessage({
+          chat_id: chatId,
+          text: '⛔ You are approved for RONOR gates but not authorised to co-sign a TRADE. Only the sovereign role (or a user listed in TELEGRAM_TRADING_APPROVERS) may settle a trade ticket.',
+          parse_mode: 'HTML',
+        });
+        return;
+      }
+    }
+
     // Keep the local gate pending until the runtime action succeeds. A
     // transient failure can therefore be retried without issuing a new gate.
     if (!(await this.completeApproved(approval))) return;
@@ -742,6 +1153,27 @@ export class RonorTelegramBot {
     const approval = approvalId
       ? getApproval(approvalId)
       : findLatestPending();
+
+    // Trade rejections cancel the arm-side ticket so the ledger records the
+    // rejection with a signature, rather than leaving the ticket dangling in
+    // the arm's pending set until it expires.
+    if (approval && approval.status === 'pending' && approval.kind === 'trade' && this.trading && approval.tradeTicketId) {
+      try {
+        const cancelled = await settleTradeTicket(
+          this.trading,
+          approval.tradeTicketId,
+          approval.tradeIds ?? [],
+          approval.requestedByName,
+          'cancelled',
+          reason,
+        );
+        await this.tg.sendChunked(chatId, cancelled.text, this.config.maxMessageChars);
+      } catch (err) {
+        logger.error(`trade rejection settle failed for ticket ${approval.tradeTicketId}:`, err);
+      }
+      settleApproval(approval.approvalId, 'rejected', userId, reason);
+      return;
+    }
 
     if (!approval || approval.status !== 'pending') {
       await this.tg.sendMessage({
@@ -877,7 +1309,28 @@ export class RonorTelegramBot {
   private async completeApproved(approval: PendingApproval): Promise<boolean> {
     const chatId = approval.chatId;
     try {
-      if (approval.kind === 'query') {
+      if (approval.kind === 'trade') {
+        // A trade approval is settled against the trading arm, not the runtime.
+        // The base bridge has already checked that the approver is on
+        // TELEGRAM_APPROVER_USER_IDS; the trading module adds two more checks
+        // here: the approver must hold the sovereign role, and (if configured)
+        // must be on TELEGRAM_TRADING_APPROVERS. Refusing at this point rather
+        // than in doApprove keeps a settlement path that failed authorisation
+        // from marking the ticket settled anywhere.
+        if (!this.trading || !approval.tradeTicketId) {
+          throw new Error('trade approval has no trading client or ticket id');
+        }
+        const settled = await settleTradeTicket(
+          this.trading,
+          approval.tradeTicketId,
+          approval.tradeIds ?? [],
+          approval.requestedByName, // approved on behalf of the requester
+          'executed',
+          null,
+        );
+        await this.tg.sendChunked(chatId, settled.text, this.config.maxMessageChars);
+        return true;
+      } else if (approval.kind === 'query') {
         const response = approval.heldResponse;
         if (!response) throw new Error('approved query has no held response');
 

@@ -19,7 +19,26 @@
  * Prepared by AMB · Mayleven Ecosystem
  */
 
+import { parseRoleMap, RoleMapError, RoleAssignment } from './energy-trading/roles';
+
 export type TelegramMode = 'polling' | 'webhook';
+
+export interface EnergyTradingConfig {
+  /** Whether the energy trading arm is present. Set true when TRADING_ARM_BASE_URL is set. */
+  enabled: boolean;
+  /** Base URL of the trading arm on the internal docker network. */
+  baseUrl: string;
+  /** X-RONOR-Token value asserted to the trading arm. */
+  apiToken: string;
+  /** Role assignments — which allowed users hold which trading role. */
+  roleMap: ReadonlyMap<number, RoleAssignment>;
+  /**
+   * Subset of approverUserIds cleared to co-sign a TRADE ticket. Empty means
+   * "every approver may co-sign a trade", which is the correct default while
+   * the sovereign is the only approver.
+   */
+  tradingApprovers: ReadonlySet<number>;
+}
 
 export interface TelegramConfig {
   /** Bot token from @BotFather. The token IS the bot; treat as a credential. */
@@ -51,6 +70,8 @@ export interface TelegramConfig {
   pollTimeoutSeconds: number;
   /** Per-user request ceiling per minute at the bridge. */
   rateLimitPerMinute: number;
+  /** Energy trading arm configuration. `enabled=false` disables all trading commands. */
+  energyTrading: EnergyTradingConfig;
 }
 
 export class TelegramConfigError extends Error {
@@ -168,6 +189,78 @@ export function loadTelegramConfig(env: NodeJS.ProcessEnv = process.env): Telegr
 
   const apiBaseUrl = (env.RONOR_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
 
+  // -------------------------------------------------------------------------
+  // Energy Trading Arm — optional module
+  // -------------------------------------------------------------------------
+  // The trading arm is a separate FastAPI container reached over the internal
+  // docker network. It is enabled only when TRADING_ARM_BASE_URL is set. When
+  // enabled, ET_API_TOKEN and TELEGRAM_ROLE_MAP are required — without them
+  // the arm would either reject every call (missing token) or grant sovereign
+  // powers to whoever the allowlist admits (missing role map).
+  const tradingBaseUrl = (env.TRADING_ARM_BASE_URL ?? '').trim();
+  let energyTrading: EnergyTradingConfig;
+  if (!tradingBaseUrl) {
+    energyTrading = {
+      enabled: false,
+      baseUrl: '',
+      apiToken: '',
+      roleMap: new Map(),
+      tradingApprovers: new Set(),
+    };
+  } else {
+    const apiToken = (env.ET_API_TOKEN ?? '').trim();
+    if (!apiToken) {
+      throw new TelegramConfigError(
+        'TRADING_ARM_BASE_URL is set but ET_API_TOKEN is not. The trading arm rejects every call without X-RONOR-Token, ' +
+          'so the bridge would fail on the first trading command. Generate one with `openssl rand -hex 32`.',
+      );
+    }
+    let roleMap: Map<number, RoleAssignment>;
+    try {
+      roleMap = parseRoleMap(env.TELEGRAM_ROLE_MAP);
+    } catch (err) {
+      if (err instanceof RoleMapError) {
+        throw new TelegramConfigError(err.message);
+      }
+      throw err;
+    }
+    if (roleMap.size === 0) {
+      throw new TelegramConfigError(
+        'TELEGRAM_ROLE_MAP is empty but the trading arm is enabled. Without a role assignment nobody can run a trading ' +
+          'command — which means the arm is unreachable to every allowed user. Assign at least one sovereign.',
+      );
+    }
+    // Every role assignment must be on the outer allowlist. A trading role
+    // held by a user the bridge does not read is unexercisable.
+    for (const [uid] of roleMap) {
+      if (!allowedUserIds.has(uid)) {
+        throw new TelegramConfigError(
+          `TELEGRAM_ROLE_MAP assigns user ${uid} a trading role but they are not in TELEGRAM_ALLOWED_USER_IDS. ` +
+            'A role held by a user the bridge cannot hear is not a role.',
+        );
+      }
+    }
+    const tradingApprovers = parseIdList(env.TELEGRAM_TRADING_APPROVERS, 'TELEGRAM_TRADING_APPROVERS');
+    // If tradingApprovers is non-empty, every id must be in approverUserIds
+    // (base approver list). A trade approver who cannot approve a base gate is
+    // a contradiction the operator should hear about at boot, not on incident.
+    for (const id of tradingApprovers) {
+      if (!approverUserIds.has(id)) {
+        throw new TelegramConfigError(
+          `TELEGRAM_TRADING_APPROVERS includes ${id} but they are not in TELEGRAM_APPROVER_USER_IDS. ` +
+            'A trade approver who cannot approve a base gate is misconfigured.',
+        );
+      }
+    }
+    energyTrading = {
+      enabled: true,
+      baseUrl: tradingBaseUrl.replace(/\/+$/, ''),
+      apiToken,
+      roleMap,
+      tradingApprovers,
+    };
+  }
+
   return {
     botToken,
     mode,
@@ -185,6 +278,7 @@ export function loadTelegramConfig(env: NodeJS.ProcessEnv = process.env): Telegr
     maxMessageChars: parseIntWithDefault(env.TELEGRAM_MAX_MESSAGE_CHARS, 3800, 500, 4000),
     pollTimeoutSeconds: parseIntWithDefault(env.TELEGRAM_POLL_TIMEOUT_SECONDS, 30, 1, 50),
     rateLimitPerMinute: parseIntWithDefault(env.TELEGRAM_RATE_LIMIT_PER_MINUTE, 20, 1, 600),
+    energyTrading,
   };
 }
 
@@ -202,5 +296,13 @@ export function describeConfig(config: TelegramConfig): Record<string, unknown> 
     control_chat: config.controlChatId ? 'set' : 'absent',
     approval_ttl_minutes: config.approvalTtlMinutes,
     rate_limit_per_minute: config.rateLimitPerMinute,
+    energy_trading: config.energyTrading.enabled
+      ? {
+          base_url: config.energyTrading.baseUrl,
+          api_token: `present (${config.energyTrading.apiToken.length} chars)`,
+          role_assignments: config.energyTrading.roleMap.size,
+          trading_approvers: config.energyTrading.tradingApprovers.size || 'default (all base approvers)',
+        }
+      : 'disabled',
   };
 }

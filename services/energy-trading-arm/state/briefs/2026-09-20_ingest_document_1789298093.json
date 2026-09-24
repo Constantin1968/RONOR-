@@ -1,0 +1,12 @@
+{
+  "day": "2026-09-20",
+  "availability": {
+    "RO-UA": 400.0,
+    "UA-MD": 0.0
+  },
+  "prices_override": {},
+  "decisions": [],
+  "unassigned_prices": {},
+  "bids": {},
+  "warnings": []
+}

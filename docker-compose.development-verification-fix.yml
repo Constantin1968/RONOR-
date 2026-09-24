@@ -1,0 +1,17 @@
+# Overlay only: keep the approved project worktree and all other services intact.
+# Use together with the INSTALLED docker-compose.development-isolated.yml.
+services:
+  codex-verifier:
+    build:
+      context: ${RONOR_VERIFICATION_FIX_SOURCE:?absolute reviewed release directory}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-development-verifier:${RONOR_VERIFICATION_FIX_TAG:?reviewed commit}
+  automation-evidence-runner:
+    build:
+      context: ${RONOR_VERIFICATION_FIX_SOURCE:?absolute reviewed release directory}
+      dockerfile: Dockerfile.development-tools
+      target: evidence
+    image: ronor-development-evidence:${RONOR_VERIFICATION_FIX_TAG:?reviewed commit}
+    environment:
+      RONOR_AUTOMATION_EXPECTED_HEAD: ${RONOR_AUTOMATION_EXPECTED_HEAD:?original approved project base}

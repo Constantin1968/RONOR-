@@ -1,0 +1,722 @@
+{"ts": "2026-09-13T06:44:23.868634+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:44:23.871746+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:44:23.908971+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:44:23.911283+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:44:23.913644+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:44:23.915884+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:44:24.004636+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:45:22.898282+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:45:22.900781+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:45:22.942094+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:45:22.944452+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:45:22.947074+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:45:22.948829+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:45:23.040489+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:56:29.432690+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:29.439885+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:29.547940+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:56:48.850804+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T06:56:48.984407+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:56:48.987400+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:49.024994+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:49.027723+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:56:49.029877+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:56:49.031722+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T06:56:49.146365+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T06:56:49.163665+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:49.168785+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T06:56:49.176933+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:01:53.656108+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:01:53.664280+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:01:53.810415+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:02:00.982415+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:02:31.564952+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:02:31.704852+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:02:31.708356+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:02:31.742732+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:02:31.744504+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:02:31.746437+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:02:31.747901+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:02:31.843909+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:02:31.859977+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:02:31.864932+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:02:31.915102+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:03:03.121913+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:03:03.276948+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:03:03.280301+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:03:03.318344+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:03:03.320285+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:03:03.322168+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:03:03.323927+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:03:03.413650+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:03:03.426771+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:03:03.430670+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:03:03.433333+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:03:03.441950+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:05:18.188251+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:05:18.326627+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:05:18.329464+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:05:18.367071+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:05:18.368992+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:05:18.371204+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:05:18.372694+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:05:18.457307+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:05:18.471104+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:05:18.474997+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:05:18.478235+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:05:18.486811+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:06:42.087326+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:06:42.212130+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:06:42.215278+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:06:42.250322+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:06:42.252489+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:06:42.254300+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:06:42.255800+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:06:42.365587+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:06:42.380351+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:06:42.385006+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:06:42.388890+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:06:42.431844+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:11.280147+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:07:11.402506+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:11.406305+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:11.442766+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:11.444893+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:11.446544+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:11.447940+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:11.554435+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:11.567653+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:11.572010+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:11.574788+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:07:11.618483+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:12.511012+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:07:12.653691+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:12.656186+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:12.690576+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:12.692511+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:12.694108+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:12.695715+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:07:12.782234+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:12.795611+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:12.800194+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:07:12.802960+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:07:12.804869+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:07:12.814882+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:08:30.829345+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:08:30.972777+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:08:30.976473+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:08:31.014239+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:08:31.016336+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:08:31.018602+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:08:31.020403+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:08:31.108868+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:08:31.122970+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:08:31.127288+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:08:31.129946+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:08:31.132016+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:08:31.141519+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:09:31.744082+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:09:31.874094+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:09:31.876664+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:09:31.914936+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:09:31.916950+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:09:31.919308+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:09:31.920894+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:09:32.029979+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:09:32.043938+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:09:32.047949+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:09:32.050589+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:09:32.052449+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:09:32.061535+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:09.387347+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:14:09.515661+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:09.518550+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:09.578662+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:09.580669+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:09.583275+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:09.584980+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:09.671656+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:09.687106+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:09.691439+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:09.694855+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:14:09.696492+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:09.705385+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:54.476227+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:14:54.629040+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:54.631963+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:54.694490+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:54.696777+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:54.698652+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:54.700329+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:14:54.792984+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:54.806954+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:54.811279+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:14:54.814194+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:14:54.816062+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:14:54.825533+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:15:03.112815+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:15:03.261064+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:15:03.263723+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:15:03.324920+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:15:03.326900+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:15:03.328861+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:15:03.330966+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:15:03.425292+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:15:03.439202+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:15:03.444076+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:15:03.447230+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:15:03.449175+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:15:03.459059+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:12.342700+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:17:12.466402+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:12.469111+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:12.508354+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:12.510501+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:12.512084+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:12.513505+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:12.601410+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:12.615360+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:12.619582+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:12.622523+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:17:12.624257+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:12.633201+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:18.615473+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:17:18.740192+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:18.743614+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:18.801480+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:18.804148+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:18.806785+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:18.808689+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:18.897066+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:18.911306+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:18.915360+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:18.918291+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:17:18.920374+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:18.929809+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:45.271160+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:17:45.412615+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:45.415177+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:45.450414+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:45.452317+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:45.454306+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:45.455993+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:45.552567+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:45.566833+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:45.571223+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:45.574187+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:17:45.575962+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:45.585159+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:46.468557+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:17:46.590038+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:46.592770+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:46.645566+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:46.647799+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:46.649741+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:46.651625+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:46.743652+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:46.756547+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:46.760564+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:46.763457+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:17:46.765244+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:46.774220+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:47.662283+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:17:47.783283+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:47.785563+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:47.837080+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:47.839961+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:47.841902+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:47.843721+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:17:47.936725+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:47.950644+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:47.954917+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:17:47.957661+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:17:47.959595+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:17:47.968468+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:09.299868+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:20:09.421159+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:09.424280+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:09.478164+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:09.480192+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:09.482602+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:09.484204+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:09.590268+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:09.603606+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:09.607899+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:09.610422+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:20:09.611999+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:09.621514+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:19.326353+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:20:19.450575+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:19.453443+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:19.493365+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:19.495543+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:19.497341+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:19.499776+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:19.625389+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:19.639282+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:19.643294+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:19.646404+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:20:19.648408+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:19.657529+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:33.810688+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:20:33.950281+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:33.953119+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:33.993552+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:33.996463+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:33.998666+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:34.000292+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:20:34.091447+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:34.106280+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:34.111034+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:20:34.114139+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:20:34.116371+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:20:34.126840+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:21:46.255800+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:21:46.377187+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:21:46.380064+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:21:46.431857+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:21:46.434486+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:21:46.436676+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:21:46.438164+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:21:46.522328+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:21:46.535738+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:21:46.540558+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:21:46.543399+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:21:46.545165+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:21:46.554366+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:48.571650+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:26:48.690286+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:48.692820+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:48.726843+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:48.728766+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:48.730452+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:48.732062+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:48.817457+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:48.830860+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:48.835185+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:48.837795+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:26:48.839576+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:48.848527+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:55.572055+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:26:55.674345+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:55.677080+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:55.712312+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:55.714218+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:55.716266+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:55.717797+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:26:55.801452+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:55.815555+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:55.835980+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:26:55.839751+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:26:55.841877+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:26:55.851951+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:03.690936+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:28:03.792798+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:03.795862+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:03.827330+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:03.829006+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:03.831306+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:03.832932+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:03.913354+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:03.927384+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:03.931831+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:03.935043+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:28:03.936820+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:03.961955+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:15.711721+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:28:15.812535+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:15.815972+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:15.852800+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:15.854912+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:15.856480+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:15.857945+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:15.937886+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:15.952597+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:15.973816+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:15.978416+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:28:15.980932+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:15.990485+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:38.090533+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:28:38.211864+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:38.214854+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:38.249298+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:38.252067+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:38.254436+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:38.256094+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:38.337693+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:38.352204+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:38.356512+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:38.359298+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:28:38.361197+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:38.370197+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:47.623856+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:28:47.745512+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:47.748321+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:47.781008+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:47.783475+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:47.785339+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:47.787434+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:47.885941+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:47.901155+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:47.906575+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:47.909129+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:28:47.911177+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:47.919494+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:56.354623+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T07:28:56.463149+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:56.465503+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:56.498349+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:56.500224+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:56.501964+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:56.503727+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T07:28:56.585207+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:56.599594+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:56.603519+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T07:28:56.606257+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T07:28:56.608183+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T07:28:56.616632+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:34:57.975536+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:34:58.090082+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:34:58.093653+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:34:58.157179+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:34:58.159786+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:34:58.162166+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:34:58.164061+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:34:58.255783+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:34:58.270341+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:34:58.274123+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:34:58.276750+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:34:58.279116+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:34:58.290130+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:36:50.951479+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:36:51.056498+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:36:51.061008+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:36:51.113746+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:36:51.117076+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:36:51.120087+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:36:51.122071+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:36:51.232896+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:36:51.252802+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:36:51.258306+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:36:51.262449+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:36:51.265278+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:36:51.284328+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:37:11.880198+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:37:12.001159+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:37:12.003597+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:37:12.038368+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:37:12.040955+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:37:12.043035+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:37:12.045329+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:37:12.157983+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:37:12.172805+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:37:12.176936+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:37:12.179879+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:37:12.181583+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:37:12.191395+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:00.251583+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:38:00.383029+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:00.387035+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:00.428104+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:00.430528+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:00.433015+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:00.435420+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:00.586014+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:00.603094+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:00.607834+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:00.610518+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:38:00.613057+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:00.624364+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:07.858510+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:38:07.978600+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:07.982136+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:08.019808+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:08.022913+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:08.025564+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:08.027188+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:08.139194+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:08.155829+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:08.160722+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:08.163936+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:38:08.166206+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:08.175833+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:35.136746+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:38:35.240163+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:35.242980+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:35.282408+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:35.285869+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:35.288063+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:35.290473+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:38:35.414433+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:35.433582+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:35.439581+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:38:35.442886+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:38:35.445517+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:38:35.455745+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:39:06.060460+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:39:06.160821+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:39:06.163088+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:39:06.220595+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:39:06.222429+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:39:06.224176+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:39:06.225713+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:39:06.314675+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:39:06.331395+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:39:06.336916+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:39:06.340101+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:39:06.342100+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:39:06.351441+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:38.539558+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:52:38.655024+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:38.658355+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:40.711880+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:40.713988+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:40.716238+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:40.718072+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:40.857405+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:40.873288+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:40.877182+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:40.880116+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:52:40.881987+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:40.893453+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:56.669066+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:52:56.772385+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:56.774503+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:56.812090+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:56.814060+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:56.815619+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:56.817176+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:52:56.954378+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:56.968964+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:56.974030+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:52:56.977038+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:52:56.978673+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:52:56.988543+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:53:55.048669+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:53:55.151572+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:53:55.154328+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:53:55.192206+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:53:55.194852+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:53:55.197335+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:53:55.199311+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:53:55.291152+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:53:55.308737+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:53:55.312809+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:53:55.315866+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:53:55.317902+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:53:55.327754+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:12.799074+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:55:12.905202+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:12.908166+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:12.943459+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:12.945762+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:12.948562+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:12.950509+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:13.059475+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:13.105259+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:13.109938+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:13.113605+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:55:13.116064+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:13.126600+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:20.200681+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:55:20.302842+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:20.305748+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:20.346146+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:20.348378+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:20.350137+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:20.351650+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:20.455809+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:20.493745+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:20.499191+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:20.502681+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:55:20.505342+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:20.514916+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:33.560373+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:55:33.682057+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:33.685415+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:33.725523+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:33.727946+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:33.730233+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:33.732267+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:55:33.829462+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:33.846101+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:33.852456+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:55:33.855859+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:55:33.857827+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:55:33.867785+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:35.540985+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:57:35.652742+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:35.655436+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:37.696813+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:37.699362+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:37.702237+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:37.704380+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:37.824126+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:37.841741+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:37.848291+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:37.851818+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:57:37.854075+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:37.864599+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:55.427052+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:57:55.540806+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:55.543842+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:57.582047+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:57.584284+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:57.586458+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:57.588961+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:57:57.702333+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:57.720182+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:57.725525+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:57:57.728485+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:57:57.730586+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:57:57.740512+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:24.427610+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:24.430737+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:24.473433+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:24.476468+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:24.478155+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:24.480414+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:30.905742+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:30.909498+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:32.960629+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:32.963155+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:32.965258+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:32.966798+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:51.488134+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T10:58:51.592451+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:51.596529+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:51.635921+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:51.638336+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:51.640572+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:51.642478+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T10:58:51.735878+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:51.753352+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:51.759655+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T10:58:51.762922+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T10:58:51.765550+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T10:58:51.775465+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:00:45.407474+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T11:00:45.545509+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:00:45.549312+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:00:45.588713+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:00:45.590856+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:00:45.593710+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:00:45.595398+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:00:45.690203+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:00:45.707694+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:00:45.712079+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:00:45.715136+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T11:00:45.717329+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:00:45.727492+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:02:39.788797+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:02:52.623724+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "warnings": 0}
+{"ts": "2026-09-13T11:02:52.729378+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:02:52.731680+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:02:52.769926+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:02:52.771824+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:02:52.773787+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:02:52.775370+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:02:52.888040+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:02:52.903400+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:02:52.908954+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:02:52.911953+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T11:02:52.913747+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:02:52.923519+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "warnings": 0}
+{"ts": "2026-09-13T11:03:13.752297+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:41.613681+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:41.720790+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:41.723310+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:41.760700+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:41.762768+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:41.765557+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:41.767224+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:41.879779+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:41.985654+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:41.991269+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:41.994330+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T11:14:41.996272+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:42.005182+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:53.435390+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:53.540103+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:53.542416+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:53.577812+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:53.579629+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:53.581649+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:53.583356+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:14:53.673058+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:53.757874+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:53.762284+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:14:53.764717+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T11:14:53.766172+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:14:53.774899+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:16:30.494605+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:16:30.607722+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:16:30.610509+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:16:30.648581+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:16:30.650392+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:16:30.652647+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:16:30.654247+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T11:16:30.773431+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:16:30.860615+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:16:30.864874+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T11:16:30.867184+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T11:16:30.869899+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T11:16:30.880725+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:40.539794+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:40.647844+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:40.651496+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:40.687160+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:40.689249+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:40.691251+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:40.692831+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:40.810578+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:40.904621+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:40.909263+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:40.912109+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T12:48:40.913937+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:40.923148+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:49.659290+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:49.758295+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:49.760968+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:49.796329+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:49.798532+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:49.800474+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:49.802220+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:48:49.910296+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:50.000449+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:50.005404+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:48:50.008386+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T12:48:50.010480+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:48:50.020963+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:33.653179+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:33.656241+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:33.697232+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:33.699746+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:33.701603+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:33.703379+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:44.714557+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:44.817467+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:44.820462+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:44.857600+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:44.859985+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:44.861870+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:44.863609+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-13T12:49:44.974169+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-13", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:45.064519+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:45.069640+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-13T12:49:45.072346+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-13T12:49:45.074106+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-13T12:49:45.083062+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-14T05:25:02.016589+00:00", "chat_id": "upload", "kind": "document", "source": " zilnic.xlsx", "day": "2026-09-12", "availability": {"RO-UA": 450.0, "UA-MD": 600.0, "RO-MD": 400.0}, "decisions": [], "price_points": 26, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-14T05:25:02.147055+00:00", "chat_id": "-100", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-14", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-14T05:25:02.149489+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-14T05:25:02.208746+00:00", "chat_id": "api", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-14T05:25:02.211081+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-14T05:25:02.213280+00:00", "chat_id": "api", "kind": "command", "source": "/status"}
+{"ts": "2026-09-14T05:25:02.215236+00:00", "chat_id": "7", "kind": "command", "source": "/status"}
+{"ts": "2026-09-14T05:25:02.322098+00:00", "chat_id": "1", "kind": "text", "source": "RO-UA ATC 450 MW", "day": "2026-09-14", "availability": {"RO-UA": 450.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-14T05:25:02.438232+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-14T05:25:02.442546+00:00", "chat_id": "ronor", "kind": "command", "source": "/granite"}
+{"ts": "2026-09-14T05:25:02.445304+00:00", "chat_id": "ronor", "kind": "command", "source": "/ntc 14.09"}
+{"ts": "2026-09-14T05:25:02.447066+00:00", "chat_id": "ronor", "kind": "text", "source": "skip UA-MD 21.09", "day": "2026-09-21", "availability": {"UA-MD": 0.0}, "decisions": ["UA-MD exclus (decizie operator: 'skip UA-MD 21.09')"], "price_points": 0, "position_rows": 0, "warnings": 0}
+{"ts": "2026-09-14T05:25:02.457344+00:00", "chat_id": "ronor", "kind": "document", "source": "ntc.xlsx", "day": "2026-09-20", "availability": {"RO-UA": 400.0, "UA-MD": 0.0}, "decisions": [], "price_points": 0, "position_rows": 0, "warnings": 0}

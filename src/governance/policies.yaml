@@ -10,12 +10,23 @@
 # OPCOM DAM/ID/aFRR, EUR-denominated commercial flows). Domains follow the
 # convention: <sector>.<asset>.<action>.
 
-version: "build-week-2026.07.20"
+version: "2026.09.18"
 description: >
-  MI9 Gate policy for Work & Productivity submission. Calibrated for a
-  20 MWh BESS in Romania trading on OPCOM DAM/ID/aFRR/balancing markets.
-  All thresholds are derived from public 2026 market analysis (max daily
-  spread ~€168/MWh, average DAM ~€110/MWh, aFRR upward ~€9/MW/h).
+  MI9 Gate policy. Two planes are governed by this single rule set.
+
+  Energy plane: calibrated for a 20 MWh BESS in Romania trading on OPCOM
+  DAM/ID/aFRR/balancing markets. All thresholds are derived from public 2026
+  market analysis (max daily spread ~€168/MWh, average DAM ~€110/MWh, aFRR
+  upward ~€9/MW/h).
+
+  Development plane: the plane that modifies RONOR's own code. Its verdicts
+  mirror the prohibitions already enforced in code at
+  src/runtime/automation/policy.ts (ALWAYS_DENIED_ACTIONS), so that a single
+  declarative source describes what both planes may do. Merge, release and
+  deploy are blocked here because they are blocked there: they are the
+  owner's decisions and cannot be delegated to an agent.
+
+  Unknown domains are refused, not defaulted. See unknown_domain_tier.
 
 gates:
 
@@ -35,7 +46,38 @@ gates:
   # Gate 2 — Risk tier (EU AI Act mapping)
   # -------------------------------------------------------------
   risk_tier:
+    # A domain absent from domain_tiers is refused rather than assumed benign.
+    # Deny-by-default: an unclassified action has no established authority, so
+    # the gate blocks it. Acting in a new domain therefore requires amending
+    # this policy first, which is the intended constitutional route: authority
+    # is granted by an explicit written rule, never by an omission.
+    unknown_domain_tier: unacceptable
     domain_tiers:
+      # --- Runtime surfaces (governance-bridge builds runtime.<surface>.<taskType>) ---
+      # The leaf task type comes from a classifier and cannot be enumerated in
+      # advance, so each surface is classified at family level and its leaves
+      # inherit that tier. A surface absent from this list is refused.
+      runtime.query:                   limited
+      runtime.agent:                   limited
+      runtime.tool:                    limited
+      runtime.ingest:                  limited
+      runtime.worker:                  high
+      # --- Development plane (RONOR modifying its own code) ---
+      development.repo.read:           minimal
+      development.worktree.edit:       limited
+      development.tests.run:           limited
+      development.commit.local:        limited
+      development.branch.create:       limited
+      development.pr.prepare:          limited
+      development.push.working_branch: high
+      development.merge.main:          unacceptable
+      development.release.publish:     unacceptable
+      development.deploy.production:   unacceptable
+      development.secrets.read:        unacceptable
+      development.egress.external:     unacceptable
+      development.canon.amend:         high
+      development.host.configure:      high
+      # --- Energy plane ---
       energy.bess.dispatch:            high
       energy.bess.bid:                 high
       energy.vpp.dispatch:             high

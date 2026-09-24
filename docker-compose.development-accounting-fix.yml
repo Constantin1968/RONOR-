@@ -1,0 +1,20 @@
+# Last overlay: preserve the installed isolation, controller and verification overlays.
+services:
+  controller:
+    build:
+      context: ${RONOR_ACCOUNTING_FIX_SOURCE:?reviewed absolute release directory}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_ACCOUNTING_FIX_TAG:?reviewed full commit}
+  openhands-bridge:
+    build:
+      context: ${RONOR_ACCOUNTING_FIX_SOURCE:?reviewed absolute release directory}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-accounting-runtime:${RONOR_ACCOUNTING_FIX_TAG:?reviewed full commit}
+  codex-verifier:
+    build:
+      context: ${RONOR_ACCOUNTING_FIX_SOURCE:?reviewed absolute release directory}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-accounting-runtime:${RONOR_ACCOUNTING_FIX_TAG:?reviewed full commit}

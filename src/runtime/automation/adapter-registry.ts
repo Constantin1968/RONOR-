@@ -1,6 +1,7 @@
 import type { AutomationAdapters } from './contracts';
 import { createAssuranceAdapter, createCodexVerifierAdapter, createLangGraphAdapter, createOpenHandsAdapter } from './adapters/http';
 import { currentAutomationAttestation } from './attestation';
+import { codexControllerTimeoutFromEnv } from './codex-timeout';
 
 type AdapterStatusName = 'langgraph' | 'openhands' | 'codex' | 'assurance' | 'evidence';
 export interface AutomationAdapterStatus { enabled: boolean; configured: boolean; ready: boolean; runner: string; attested_at: string | null; attestation_expires_at: string | null; adapters: Record<AdapterStatusName, string>; }
@@ -66,7 +67,7 @@ export function configuredAutomationAdapters(env: NodeJS.ProcessEnv): Automation
   return {
     langgraph: createLangGraphAdapter({ baseUrl: env.RONOR_LANGGRAPH_URL!, token: token('RONOR_LANGGRAPH_TOKEN'), plaintextServiceHosts: [INTERNAL_SERVICE_HOST.langgraph] }),
     openhands: createOpenHandsAdapter({ baseUrl: env.RONOR_OPENHANDS_URL!, token: token('RONOR_OPENHANDS_TOKEN'), capabilityKey: env.RONOR_AUTOMATION_CAPABILITY_KEY, plaintextServiceHosts: [INTERNAL_SERVICE_HOST.openhands] }),
-    codex: createCodexVerifierAdapter({ baseUrl: env.RONOR_CODEX_VERIFIER_URL!, token: token('RONOR_CODEX_VERIFIER_TOKEN'), plaintextServiceHosts: [INTERNAL_SERVICE_HOST.codex] }),
+    codex: createCodexVerifierAdapter({ baseUrl: env.RONOR_CODEX_VERIFIER_URL!, token: token('RONOR_CODEX_VERIFIER_TOKEN'), capabilityKey: env.RONOR_AUTOMATION_CAPABILITY_KEY, timeoutMs: codexControllerTimeoutFromEnv(env), plaintextServiceHosts: [INTERNAL_SERVICE_HOST.codex] }),
     assurance: createAssuranceAdapter({ baseUrl: env.RONOR_ASSURANCE_URL!, token: token('RONOR_ASSURANCE_TOKEN'), plaintextServiceHosts: [INTERNAL_SERVICE_HOST.assurance] }),
   };
 }

@@ -1,3 +1,5 @@
+import type { EffectDiagnostics } from './effect-diagnostics';
+
 export const AUTOMATION_ACTIONS = [
   'read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local', 'prepare_draft_pr',
   'external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy',
@@ -27,6 +29,12 @@ export interface ExecutionMandate {
   max_fix_cycles: number;
   issued_at: string;
   expires_at: string;
+  recovery?: {
+    authorization_id: string; original_fingerprint: string; evidence_sha256: string;
+    workspace_digest: string; accounted_cost_usd: number;
+    openhands_conversation_id: string; openhands_assignment_id: string;
+    accounting_basis: 'catalog-no-cache-discount-not-invoice';
+  };
 }
 
 export interface PlannedAssignment { id: string; instruction: string; actions: AutomationAction[]; }
@@ -36,6 +44,8 @@ export interface OpenHandsExecutionEnvelope {
   allowed_actions: AutomationAction[];
   objective_hash: string;
   deadline: string;
+  budget_token?: string;
+  resume?: {conversation_id:string;accounted_cost_usd:number};
 }
 export interface EvidenceArtifact {
   kind: 'git_diff' | 'git_status' | 'test_report' | 'event_log';
@@ -43,7 +53,12 @@ export interface EvidenceArtifact {
   reference: string;
   bytes: number;
 }
-export interface AdapterResult { ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number; }
+// null means accounting is unavailable. It must never be coerced to free execution.
+export interface AdapterResult {
+  ok: boolean; summary: string; evidence: string[]; artifacts?: EvidenceArtifact[]; cost_usd: number | null;
+  /** Failure-only diagnostics; never a receipt, artifact or acceptance signal. */
+  effect_diagnostics?: EffectDiagnostics;
+}
 export interface VerificationReceipt {
   version: 'ronor-codex-receipt/v1';
   issuer: 'codex-verifier';
@@ -58,8 +73,8 @@ export interface VerificationEvidence { claims: string[]; artifacts: EvidenceArt
 
 export interface AutomationAdapters {
   langgraph: { plan(objective: string, signal?: AbortSignal): Promise<PlannedAssignment[]> };
-  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal): Promise<AdapterResult> };
-  codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
+  openhands: { execute(assignment: PlannedAssignment, mandate: ExecutionMandate, signal?: AbortSignal, budget?: import('./model-budget').ModelBudgetContext): Promise<AdapterResult> };
+  codex: { verify(missionId: string, evidence: VerificationEvidence, signal?: AbortSignal, authorization?: {mandate: ExecutionMandate; budget: import('./model-budget').ModelBudgetContext}): Promise<VerificationVerdict> };
   assurance: { accept(missionId: string, verdict: VerificationVerdict, evidence: VerificationEvidence, signal?: AbortSignal): Promise<VerificationVerdict> };
 }
 
@@ -70,7 +85,7 @@ export interface AutomationRun {
   run_id: string;
   mission_id: string;
   status: AutomationRunStatus;
-  cost_usd: number;
+  cost_usd: number | null;
   completed_assignments: number;
   total_assignments: number;
   reason: string | null;

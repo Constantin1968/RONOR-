@@ -6,6 +6,13 @@ import type { WorkspaceArtifactCollector } from './artifacts';
 import type { TestExecutor } from './test-executor';
 import type { PostExecutionVerifier } from './post-execution-verifier';
 import { verifyMandateAuthority } from './mandate-issuer';
+import { AutomationAdapterError, describeCodexFailure } from './adapters/http';
+import { readResultEffectDiagnostics } from './effect-diagnostics';
+
+function addCost(current: number | null, additional: number | null): number | null {
+  return current === null || additional === null || !Number.isFinite(additional) || additional < 0
+    ? null : current + additional;
+}
 
 export function executionRunId(mandateId: string): string {
   return `run_${crypto.createHash('sha256').update(mandateId).digest('hex').slice(0, 20)}`;
@@ -20,7 +27,8 @@ export function completedExecutionRun(mandate: ExecutionMandate): AutomationRun 
   if (!assured) return null;
   const tasks = Object.values(fabric.tasks).filter((task) => task.run_id === runId);
   const projected = fabric.runs[runId];
-  const cost = typeof projected?.cost_usd === 'number' ? projected.cost_usd : 0;
+  const cost = typeof projected?.cost_usd === 'number' && Number.isFinite(projected.cost_usd) ? projected.cost_usd : null;
+  if (cost === null || cost < 0 || cost > mandate.max_cost_usd) return null;
   return {
     run_id: runId, mission_id: mandate.mission_id, status: 'complete', cost_usd: cost,
     completed_assignments: tasks.length, total_assignments: tasks.length, reason: null,
@@ -78,16 +86,16 @@ export async function runExecutiveMission(params: {
   if (verifyMissionFabric(params.mandate.mission_id)?.valid !== true) {
     return { ...base, reason: 'mission_fabric_integrity_failed' };
   }
-  const validation = validateMandate(params.mandate, {
-    objective: params.objective, workspaceRoot: params.workspaceRoot, branch: params.branch, now: now(),
-  });
-  if (!validation.valid) return { ...base, reason: validation.reason };
-
   const initialFabric = getMissionFabric(params.mandate.mission_id)!;
   const persistedCost = initialFabric.runs[runId]?.cost_usd;
   if (typeof persistedCost === 'number' && Number.isFinite(persistedCost) && persistedCost >= 0) {
     base.cost_usd = persistedCost;
   }
+  if (initialFabric.runs[runId] && !(typeof persistedCost === 'number' && Number.isFinite(persistedCost) && persistedCost >= 0)) base.cost_usd = null;
+  const validation = validateMandate(params.mandate, {
+    objective: params.objective, workspaceRoot: params.workspaceRoot, branch: params.branch, now: now(),
+  });
+  if (!validation.valid) return { ...base, reason: validation.reason };
   const mandateClaimed = initialFabric.checkpoints.some((event) => event.payload.mandate_id === params.mandate.mandate_id);
   const completed = completedExecutionRun(params.mandate);
   if (completed) return completed;
@@ -99,10 +107,19 @@ export async function runExecutiveMission(params: {
       actor: { kind: actor, id: actor === 'agent' ? 'victoria' : actor },
     });
   };
-  const emitStatus = (run: AutomationRun, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => append('run.status_changed', {
+  /* Unknown amounts stay null, never zero. A pending dispatch is distinguished
+   * from terminal unknown accounting, which requires reconciliation. The runner
+   * cannot assert that an external ledger exists or has settled the amount.
+   * These labels carry no amount and do not establish an accounting authority. */
+  const emitStatus = (
+    run: AutomationRun, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent',
+    basis?: 'unknown_pending_dispatch',
+  ) => append('run.status_changed', {
     id: runId, run_id: runId, mission_id: params.mandate.mission_id, stage, status: run.status,
     completed_assignments: run.completed_assignments, total_assignments: run.total_assignments,
-    cost_usd: Number(run.cost_usd.toFixed(6)), reason_code: run.reason, updated_at: now().toISOString(),
+    cost_usd: run.cost_usd === null ? null : Number(run.cost_usd.toFixed(9)),
+    cost_basis: run.cost_usd !== null ? 'runner_subtotal' : basis ?? 'unknown_reconciliation_required',
+    reason_code: run.reason, updated_at: now().toISOString(),
   }, actor);
   const terminal = (run: AutomationRun, status: AutomationRun['status'], reason: string | null, stage: string, actor: 'langgraph' | 'openhands' | 'codex' | 'agent') => {
     const result = { ...run, status, reason };
@@ -116,6 +133,7 @@ export async function runExecutiveMission(params: {
 
   const expired = () => now().getTime() >= deadline || deadlineSignal.aborted;
   const cancelled = () => params.signal?.aborted === true;
+  if (base.cost_usd === null) return terminal(base, 'blocked', 'cost_accounting_unknown', 'budget', 'langgraph');
   if (cancelled()) return terminal(base, 'failed', 'cancelled', 'planning', 'langgraph');
   const planFabric = getMissionFabric(params.mandate.mission_id)!;
   const planCheckpoint = planFabric.checkpoints.find((event) => event.payload.id === `${runId}-plan`);
@@ -134,7 +152,7 @@ export async function runExecutiveMission(params: {
     }, 'langgraph'));
     append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignment_count: assignments.length, status: 'complete' }, 'langgraph');
   }
-  let run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
+  const run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
   emitStatus(run, 'langgraph', 'langgraph');
   const workerClaims: string[] = [];
   const workerArtifacts: EvidenceArtifact[] = [];
@@ -154,6 +172,7 @@ export async function runExecutiveMission(params: {
       append('failure.recorded', { id: `${runId}-deadline`, run_id: runId, reason: 'runtime_limit_exceeded' }, 'langgraph');
       return terminal(run, 'failed', 'runtime_limit_exceeded', 'openhands', 'openhands');
     }
+    if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'langgraph');
     if (run.cost_usd >= params.mandate.max_cost_usd) {
       append('failure.recorded', { id: `${runId}-${assignment.id}-budget-empty`, run_id: runId, reason: 'cost_budget_exhausted_before_execution' }, 'langgraph');
       return terminal(run, 'failed', 'cost_budget_exhausted_before_execution', 'budget', 'langgraph');
@@ -165,13 +184,41 @@ export async function runExecutiveMission(params: {
     }
     append('task.upserted', { id: assignment.id, run_id: runId, assignee: 'openhands', status: 'executing', actions: assignment.actions }, 'langgraph');
     run.status = 'executing';
-    emitStatus(run, 'openhands', 'openhands');
+    // Crash between dispatch and response leaves UNKNOWN accounting in storage.
+    // The in-memory subtotal remains available to add a validated response.
+    emitStatus({ ...run, cost_usd: null }, 'openhands', 'openhands', 'unknown_pending_dispatch');
     let result;
-    try { result = await params.adapters.openhands.execute(assignment, params.mandate, executionSignal); }
-    catch { const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'openhands_failed'; append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason }, 'openhands'); return terminal(run, 'failed', reason, 'openhands', 'openhands'); }
-    run.cost_usd += result.cost_usd;
+    try { result = await params.adapters.openhands.execute(assignment, params.mandate, executionSignal, {run_id:runId,accounted_cost_usd:run.cost_usd}); }
+    catch (error) {
+      run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);
+      const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded'
+        : error instanceof AutomationAdapterError && /^(?:openhands|adapter|capability|nonce)_[a-z0-9_]{1,80}$/.test(error.message)
+          ? error.message : 'openhands_failed';
+      append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason }, 'openhands');
+      return terminal(run, 'failed', reason, 'openhands', 'openhands');
+    }
+    run.cost_usd = addCost(run.cost_usd, result.cost_usd);
+    // Preserve only an opaque conversation identity before any failed/unknown
+    // outcome exits. A trace is not an accepted assignment or verified artifact.
+    const conversations = Array.isArray(result.evidence) ? result.evidence.filter((reference): reference is string =>
+      typeof reference === 'string' && reference.length === 49 &&
+      /^conversation:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/.test(reference)) : [];
+    for (const reference of new Set(conversations)) append('checkpoint.created', {
+      id: `${runId}-conversation-${reference.slice('conversation:'.length)}`, run_id: runId, assignment_id: assignment.id,
+      kind: 'openhands_conversation', reference,
+    }, 'openhands');
+    // Record refusal before the accounting gate: unknown cost must not erase
+    // its reason or diagnostics. Neither the trace nor this failure is evidence.
+    if (!result.ok) {
+      const effectDiagnostics = readResultEffectDiagnostics(result);
+      append('failure.recorded', {
+        id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.summary,
+        ...(effectDiagnostics ? { effect_diagnostics: effectDiagnostics } : {}),
+      }, 'openhands');
+    }
+    if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'openhands');
     if (!result.ok || run.cost_usd > params.mandate.max_cost_usd) {
-      append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: result.ok ? 'cost_limit_exceeded' : result.summary }, 'openhands');
+      if (result.ok) append('failure.recorded', { id: `${runId}-${assignment.id}-failed`, run_id: runId, reason: 'cost_limit_exceeded' }, 'openhands');
       return terminal(run, 'failed', result.ok ? 'cost_limit_exceeded' : result.summary, 'openhands', 'openhands');
     }
     let authoritativeArtifacts = result.artifacts ?? [];
@@ -180,7 +227,14 @@ export async function runExecutiveMission(params: {
         const verified = await params.postExecutionVerifier.verify(runId, assignment.id, assignment.actions.includes('run_tests'), executionSignal);
         authoritativeArtifacts = verified.artifacts; workerClaims.push(...verified.claims);
         if (!verified.passed) { append('failure.recorded', { id: `${runId}-${assignment.id}-tests-nonzero`, run_id: runId, reason: 'tests_failed' }, 'openhands'); return terminal(run, 'failed', 'tests_failed', 'tests', 'openhands'); }
-      } catch { const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'isolated_verification_failed'; append('failure.recorded', { id: `${runId}-${assignment.id}-isolated-verification-failed`, run_id: runId, reason }, 'openhands'); return terminal(run, 'failed', reason, 'evidence', 'openhands'); }
+      } catch (error) {
+        const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'isolated_verification_failed';
+        // Keep the verifier's own code: without it an operator cannot tell a refused
+        // report from a failed transport. Only a bounded identifier is recorded.
+        const code = error instanceof Error && /^[a-z][a-z0-9_]{2,63}$/.test(error.message) ? error.message : 'unclassified';
+        append('failure.recorded', { id: `${runId}-${assignment.id}-isolated-verification-failed`, run_id: runId, reason, verifier_code: code }, 'openhands');
+        return terminal(run, 'failed', reason, 'evidence', 'openhands');
+      }
     } else if (params.artifactCollector) {
       try { authoritativeArtifacts = params.artifactCollector.collect(params.workspaceRoot, runId, assignment.id); }
       catch { append('failure.recorded', { id: `${runId}-${assignment.id}-evidence-failed`, run_id: runId, reason: 'artifact_collection_failed' }, 'openhands'); return terminal(run, 'failed', 'artifact_collection_failed', 'evidence', 'openhands'); }
@@ -208,15 +262,31 @@ export async function runExecutiveMission(params: {
   emitStatus(run, 'codex', 'codex');
   if (cancelled()) return terminal(run, 'failed', 'cancelled', 'codex', 'codex');
   if (expired()) return terminal(run, 'failed', 'runtime_limit_exceeded', 'codex', 'codex');
+  if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'codex');
   if (run.cost_usd >= params.mandate.max_cost_usd) return terminal(run, 'failed', 'cost_budget_exhausted_before_verification', 'budget', 'codex');
   let codex;
   let verifiedArtifacts = workerArtifacts;
   try { if (params.artifactCollector) verifiedArtifacts = params.artifactCollector.verify(workerArtifacts); }
   catch { append('failure.recorded', { id: `${runId}-artifact-integrity-failed`, run_id: runId, reason: 'artifact_integrity_failed' }, 'codex'); return terminal(run, 'failed', 'artifact_integrity_failed', 'codex', 'codex'); }
   const verificationEvidence = { claims: workerClaims, artifacts: verifiedArtifacts };
-  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal); }
-  catch { const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'codex_adapter_failed'; append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason }, 'codex'); return terminal(run, 'failed', reason, 'codex', 'codex'); }
-  run.cost_usd += codex.cost_usd;
+  emitStatus({ ...run, cost_usd: null }, 'codex', 'codex', 'unknown_pending_dispatch');
+  try { codex = await params.adapters.codex.verify(params.mandate.mission_id, verificationEvidence, executionSignal,
+    {mandate:params.mandate,budget:{run_id:runId,accounted_cost_usd:run.cost_usd}}); }
+  catch (error) {
+    run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);
+    const diagnostic = describeCodexFailure(error);
+    const reasons = {
+      rejection: 'codex_verification_rejected', service: 'codex_service_failed',
+      http: 'codex_http_failed', transport: 'codex_transport_failed',
+      protocol: 'codex_protocol_failed', unknown: 'codex_adapter_failed',
+    };
+    const reason = cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : reasons[diagnostic.category];
+    // A refusal is diagnostic data only, never a receipt or accepted evidence.
+    append('failure.recorded', { id: `${runId}-codex-failed`, run_id: runId, reason, diagnostic }, 'codex');
+    return terminal(run, 'failed', reason, 'codex', 'codex');
+  }
+  run.cost_usd = addCost(run.cost_usd, codex.cost_usd);
+  if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'codex');
   append('checkpoint.created', { id: `${runId}-codex`, run_id: runId, verdict: codex.verdict, evidence: codex.evidence }, 'codex');
   if (!codex.ok || codex.verdict !== 'pass') return terminal(run, 'failed', 'codex_verification_failed', 'codex', 'codex');
   if (run.cost_usd > params.mandate.max_cost_usd) return terminal(run, 'failed', 'cost_limit_exceeded', 'codex', 'codex');
@@ -224,8 +294,15 @@ export async function runExecutiveMission(params: {
   run.status = 'assuring';
   emitStatus(run, 'assurance', 'agent');
   if (expired()) return terminal(run, 'failed', 'runtime_limit_exceeded', 'assurance', 'agent');
-  const assurance = await params.adapters.assurance.accept(params.mandate.mission_id, codex, verificationEvidence, executionSignal);
-  run.cost_usd += assurance.cost_usd;
+  let assurance;
+  emitStatus({ ...run, cost_usd: null }, 'assurance', 'agent', 'unknown_pending_dispatch');
+  try { assurance = await params.adapters.assurance.accept(params.mandate.mission_id, codex, verificationEvidence, executionSignal); }
+  catch (error) {
+    run.cost_usd = addCost(run.cost_usd, error instanceof AutomationAdapterError ? error.cost_usd : null);
+    return terminal(run, 'failed', cancelled() ? 'cancelled' : expired() ? 'runtime_limit_exceeded' : 'assurance_adapter_failed', 'assurance', 'agent');
+  }
+  run.cost_usd = addCost(run.cost_usd, assurance.cost_usd);
+  if (run.cost_usd === null) return terminal(run, 'blocked', 'cost_accounting_unknown', 'budget', 'agent');
   append('checkpoint.created', { id: `${runId}-victoria`, run_id: runId, verdict: assurance.verdict, evidence: assurance.evidence }, 'agent');
   if (!assurance.ok || assurance.verdict !== 'pass') return terminal(run, 'failed', 'independent_assurance_failed', 'assurance', 'agent');
   if (run.cost_usd > params.mandate.max_cost_usd) return terminal(run, 'failed', 'cost_limit_exceeded', 'assurance', 'agent');

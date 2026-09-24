@@ -1,0 +1,19 @@
+# Apply last, after every installed overlay, including transport and egress.
+# Replaces exactly two services: the controller and the OpenHands bridge.
+# Both run the corrected context, pagination and receipt code. The model
+# egress proxy, the OpenHands agent, the verifier, the assurance service,
+# the evidence runner, the LangGraph service, and every budget, ledger,
+# mandate and secret remain exactly as installed.
+services:
+  controller:
+    build:
+      context: ${RONOR_CONTEXT_SOURCE:?reviewed release}
+      dockerfile: Dockerfile.development-tools
+      target: development-controller
+    image: ronor-development-controller:${RONOR_CONTEXT_TAG:?reviewed revision}
+  openhands-bridge:
+    build:
+      context: ${RONOR_CONTEXT_SOURCE}
+      dockerfile: Dockerfile.development-tools
+      target: runtime
+    image: ronor-context-runtime:${RONOR_CONTEXT_TAG}

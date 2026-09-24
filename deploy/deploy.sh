@@ -12,6 +12,7 @@
 #   ./deploy/deploy.sh                       # update: pull, rebuild, restart
 #   ./deploy/deploy.sh --with-edge           # include the nginx TLS edge
 #   ./deploy/deploy.sh --with-telegram       # include the Telegram bridge
+#   ./deploy/deploy.sh --with-energy-trading # include the crossborder trading arm
 #   ./deploy/deploy.sh --rollback            # return to the previous image
 #   ./deploy/deploy.sh --check               # verify only, change nothing
 #
@@ -55,6 +56,7 @@ readonly PREV_TAG="ronor:previous"
 FIRST_RUN=false
 WITH_EDGE=false
 WITH_TELEGRAM=false
+WITH_ENERGY_TRADING=false
 ROLLBACK=false
 CHECK_ONLY=false
 NO_BUILD=false
@@ -65,6 +67,7 @@ while [[ $# -gt 0 ]]; do
     --first-run)     FIRST_RUN=true; shift ;;
     --with-edge)     WITH_EDGE=true; shift ;;
     --with-telegram) WITH_TELEGRAM=true; shift ;;
+    --with-energy-trading) WITH_ENERGY_TRADING=true; shift ;;
     --rollback)      ROLLBACK=true; shift ;;
     --check)         CHECK_ONLY=true; shift ;;
     --no-build)      NO_BUILD=true; shift ;;
@@ -78,6 +81,7 @@ compose() {
   local args=(-f "$COMPOSE_FILE" --env-file "$ENV_FILE")
   $WITH_EDGE     && args+=(--profile edge)
   $WITH_TELEGRAM && args+=(--profile telegram)
+  $WITH_ENERGY_TRADING && args+=(--profile energy-trading)
   docker compose "${args[@]}" "$@"
 }
 
@@ -109,6 +113,11 @@ preflight() {
   local required=(RONOR_API_KEYS RONOR_ADMIN_API_KEY REDIS_PASSWORD KNOWLEDGE_QDRANT_API_KEY)
   $WITH_TELEGRAM && required+=(TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_IDS TELEGRAM_APPROVER_USER_IDS)
   $WITH_EDGE     && required+=(RONOR_DOMAIN CERTBOT_EMAIL)
+  # ET_API_TOKEN gates every authenticated call from the bot to the trading
+  # arm. TELEGRAM_ROLE_MAP is what makes commands role-aware; without it every
+  # allowed user would inherit sovereign powers, which is not what the pilot
+  # role model contemplates.
+  $WITH_ENERGY_TRADING && required+=(ET_API_TOKEN TELEGRAM_ROLE_MAP)
 
   local missing=() placeholder=()
   for v in "${required[@]}"; do
@@ -280,7 +289,7 @@ head1 "RONOR — deploy"
 printf '  repo    : %s\n' "$REPO_ROOT"
 printf '  branch  : %s\n' "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'not a git checkout')"
 printf '  commit  : %s\n' "$(git rev-parse --short HEAD 2>/dev/null || echo '-')"
-printf '  profiles: %s%s\n' "$($WITH_EDGE && echo 'edge ')" "$($WITH_TELEGRAM && echo 'telegram')"
+printf '  profiles: %s%s%s\n' "$($WITH_EDGE && echo 'edge ')" "$($WITH_TELEGRAM && echo 'telegram ')" "$($WITH_ENERGY_TRADING && echo 'energy-trading')"
 
 preflight
 

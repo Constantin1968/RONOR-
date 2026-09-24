@@ -9,7 +9,22 @@ import {
 import { objectiveHash, ALWAYS_DENIED_ACTIONS } from '../../src/runtime/automation/policy';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 import { signMandateAuthority } from '../../src/runtime/automation/mandate-issuer';
-import { getDb } from '../../src/audit/hash-chain';
+import { closeDb, getDb } from '../../src/audit/hash-chain';
+import { resetSchemaGuard } from '../../src/runtime/ledgers/schema';
+
+const previousAuditDbPath = process.env.AUDIT_DB_PATH;
+beforeAll(() => {
+  // Do not reuse or mutate the caller's persistent audit database.
+  closeDb();
+  resetSchemaGuard();
+  process.env.AUDIT_DB_PATH = ':memory:';
+});
+afterAll(() => {
+  closeDb();
+  resetSchemaGuard();
+  if (previousAuditDbPath === undefined) delete process.env.AUDIT_DB_PATH;
+  else process.env.AUDIT_DB_PATH = previousAuditDbPath;
+});
 
 const authorityKey = 'test-lease-authority-key-0123456789abcdef';
 const claimAutomationRun = (params: Omit<Parameters<typeof claimRun>[0], 'authorityKey'>) =>

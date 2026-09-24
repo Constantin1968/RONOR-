@@ -1,7 +1,8 @@
 # RONOR: registrul remedierilor auditului din 23 septembrie 2026
 
-Stadiu v5: lotul de replicare Hetzner–Contabo, izolarea botului conversațional
-și accesul CIDA numai pentru citire pe Hetzner sunt instalate și verificate în limitele descrise mai jos. Restul
+Stadiu v6: lotul de replicare Hetzner–Contabo, izolarea botului conversațional,
+accesul CIDA numai pentru citire și includerea botului izolat în backup pe Hetzner
+sunt instalate și verificate în limitele descrise mai jos. Restul
 candidatului rămâne local, nepublicat și neinstalat. Bază: `a857989`, ramura
 integrată citită din GitHub în această sesiune. Solicitarea de reparare integrală
 nu este încă îndeplinită. Constatarea F17 are controale remediate, dar nu este
@@ -67,6 +68,58 @@ utilizatorul a răspuns propunerii exacte cu instrucțiunea de a continua repara
 
 Limită: o căutare reușită dovedește accesul, nu calitatea sau completitudinea
 corpusului (F18, F21 rămân deschise). Cheia expiră; reînnoirea trebuie planificată.
+
+## Actualizare instalată: botul izolat în backup
+
+Executat la 24 septembrie 2026, 05:14–05:20 UTC (08:14–08:20 EEST), după
+aprobarea explicită a citirii (etapa A), apoi a modificării și a unui backup complet imediat.
+
+- **Constatare la citire:** `/opt/ronor/backup_hetzner.sh` arhiva numai `/opt/ronor`.
+  Coada SQLite și configurația botului lipseau din backup. Arhiva de secrete prelua
+  `private/bot.env`, care conține doar aliasuri, dar nu `relay.json` cu acreditările
+  reale și nici copiile conservate ale vechiului container.
+- **Modificare:** aplicată doar după verificarea amprentei `23988f31…`. Noua amprentă
+  este `0be8a83fc7ab8506770c6d1db5529114f46767fce579148906c62eb44a7603dd`. Originalul
+  se află în `/root/ronor-backup-repair-20260924/backup_hetzner.before.sh` (600).
+  Secțiunea nouă 3c face copia consistentă a cozii SQLite, cu `integrity_check`, și
+  arhivează `compose.yaml` plus codul versiunilor, cu permisiuni private. Arhiva de
+  secrete primește în plus `relay.json` și `preserved/*`. Programarea, retenția și
+  replicarea off-site sunt neschimbate.
+- **Backup complet manual** `20260924-051446`, rulat direct, fără notificare Telegram:
+  cod 0, 577 MB. 3c `[ok]`; arhiva de secrete conține 77 de fișiere, modul 600.
+  Față de fotografia precedentă nu lipsește niciun element; au apărut exact
+  `ronor_bot/config.tar.gz` și `ronor_bot/inbox.sqlite`.
+- **Restaurare izolată:** în director temporar, șters apoi. SQLite `ok`; distribuția
+  pe stări este identică cu cea reală. Coada era goală, fiindcă de la transfer nu
+  au sosit mesaje, deci restaurarea unor rânduri reale rămâne probată doar sintetic.
+  `compose.yaml` restaurat este identic cu cel instalat. Cele cinci fișiere
+  sensibile din arhiva de secrete au amprente identice cu originalele. Nu există
+  `relay.json` sau `preserved/` în fotografia principală.
+- **Efect secundar corectat:** rularea manuală a moștenit `umask 077`, astfel că
+  fotografia nouă a devenit privată, iar `latest` a întrerupt temporar citirea
+  `latest/postgres/cida.dump` de către utilizatorul `ronor` (copia DigitalOcean).
+  `latest` a fost readus la `20260924-023002`, fără schimbări de permisiuni; accesul
+  a fost reverificat. Fotografia nouă rămâne pe disc. Permisiunile ei private sunt
+  un efect al rulării manuale, nu o remediere a permisiunilor sursei.
+- **Limite:** prima rulare programată cu secțiunea 3c va fi la 02:30, ora serverului,
+  iar replicarea off-site la 04:30. Scriptul are în continuare ramuri care pot
+  înregistra eșecuri cu cod final 0 (F17). `[sărit] ronor-gov-postgrest` este
+  comportament preexistent.
+
+## Abatere semnalată în zona de dezvoltare (numai citire)
+
+Alarma din 24 septembrie, 08:10 EEST, a raportat pe Hetzner 16 fișiere noi și 4 modificate.
+Două provin din izolarea botului aprobată: `/opt/ronor-bot-isolated/compose.yaml` și
+intrarea declarativă a vechiului orchestrator. Celelalte 17 din
+`/srv/ronor/development-automation/tooling` au toate data modificării
+`2026-09-22T07:27Z`, proprietar root și modul 644, deci par un singur lot de copiere.
+Sunt suprapuneri Compose care cer explicit sursă și revizie revizuite
+(`${…:?reviewed release}`). Containerele de dezvoltare active rulează din
+`releases/dac8833ce2b1…` plus `docker-compose.development-isolated.yml`, pornite de
+circa 45 de ore, ceea ce este compatibil cu un lot din 22 septembrie. Directorul
+`.git` din `tooling` nu este un depozit valid, deci originea nu poate fi atestată
+prin Git. Nu s-a modificat nimic. Reconcilierea fotografiei de referință cere o
+decizie separată; referința nu a fost rescrisă pentru a ascunde abaterea.
 
 ### Defect CIDA constatat la instalarea botului (rezolvat în v5)
 
@@ -230,8 +283,7 @@ din jurnalul gazdei sursă nu substituie citirea destinației și restaurarea.
 ## Următoarea poartă
 
 Citirea, lotul de replicare și izolarea botului aprobate sunt încheiate.
-Următoarele dependențe sunt backupul noii stări
-a botului, restricționarea sursei fără întreruperea cititorului DigitalOcean,
+Următoarele dependențe sunt restricționarea sursei fără întreruperea cititorului DigitalOcean,
 migrarea accesului, revocarea cheilor expuse și restaurarea izolată.
 Aceste intervenții și instalarea runtime-ului au criterii distincte de acceptare
 și revenire; nu sunt autorizate implicit prin loturile deja executate.

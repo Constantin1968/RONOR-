@@ -26,6 +26,36 @@ export const CONTEXT_BOUNDS = Object.freeze({
   condenserMaxTokens: 80_000,
 });
 
+/**
+ * How long the adapter waits, in wall-clock time, for a requested pause to
+ * settle. The agent serves a pause only between steps, and a step can be a
+ * model call: on the host the pause landed 55 s after the request, so the
+ * former window of 8 reads x 500 ms (4 s) always expired first and a real
+ * stop reason was replaced by 'openhands_pause_unconfirmed'. The window is
+ * measured on the clock, not in attempts, so slow reads cannot consume it.
+ *
+ * The same reserve is subtracted from the signed deadline before work starts,
+ * so the pause is requested early enough to settle, and be accounted, before
+ * the deadline the controller enforces. Nothing here extends the deadline.
+ */
+export const PAUSE_CONFIRMATION = Object.freeze({
+  windowMs: 180_000,
+  intervalMs: 2_000,
+  /** Time kept after the window for the final state read and accounting. */
+  accountingMarginMs: 10_000,
+  minWindowMs: 5_000,
+  maxWindowMs: 900_000,
+});
+
+/** Read the operator override, refusing anything outside the closed range. */
+export function pauseConfirmWindowFromEnv(value: string | undefined): number {
+  if (value === undefined || value === '') return PAUSE_CONFIRMATION.windowMs;
+  if (!/^[0-9]{1,7}$/.test(value)) throw new NativeOpenHandsError('openhands_pause_window_invalid');
+  const ms = Number(value);
+  if (ms < PAUSE_CONFIRMATION.minWindowMs || ms > PAUSE_CONFIRMATION.maxWindowMs) throw new NativeOpenHandsError('openhands_pause_window_invalid');
+  return ms;
+}
+
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
 const EVENTS_PATH = '/events/search';
@@ -94,9 +124,11 @@ export function createNativeOpenHandsClient(config: {
   sessionApiKey: string;
   fetcher?: Fetcher;
   pollIntervalMs?: number;
-  /** How many times to re-read conversation state after POST /pause. */
+  /** Wall-clock window for a requested pause to settle (default 180 s). */
+  pauseConfirmWindowMs?: number;
+  /** Optional hard cap on confirmation reads, in addition to the window. */
   pauseConfirmAttempts?: number;
-  /** Gap between those re-reads, in milliseconds. */
+  /** Gap between confirmation reads, in milliseconds. */
   pauseConfirmIntervalMs?: number;
   maxPolls?: number;
   startupPolls?: number;
@@ -113,6 +145,12 @@ export function createNativeOpenHandsClient(config: {
   const fetcher = config.fetcher ?? fetch;
   const sleep = config.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const readCost = config.catalogAccounting ? nativeOpenHandsCatalogCost : nativeOpenHandsCost;
+  const pauseWindowMs = config.pauseConfirmWindowMs ?? PAUSE_CONFIRMATION.windowMs;
+  if (!Number.isSafeInteger(pauseWindowMs) || pauseWindowMs < 0 || pauseWindowMs > PAUSE_CONFIRMATION.maxWindowMs) throw new NativeOpenHandsError('openhands_pause_window_invalid');
+  // A zero window means one confirmation read and no reservation. The bridge
+  // cannot select it (its closed range starts at minWindowMs); it exists so
+  // unit tests can exercise sub-second deadlines deterministically.
+  const pauseReserveMs = pauseWindowMs === 0 ? 0 : pauseWindowMs + PAUSE_CONFIRMATION.accountingMarginMs;
 
   /** Report WHY a run stopped without ever echoing provider or event prose:
    * only a recognised, bounded failure code is lifted out of the error events.
@@ -178,7 +216,13 @@ export function createNativeOpenHandsClient(config: {
       if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
         return { ok: false, summary: 'openhands_deadline_expired', evidence: [], cost_usd: 0 };
       }
-      const deadlineSignal = AbortSignal.timeout(Math.min(remainingMs, 2_147_483_647));
+      // Work stops early enough for the pause to settle inside the signed
+      // deadline. Without room for that, refuse before anything is billable.
+      const workMs = remainingMs - pauseReserveMs;
+      if (workMs <= 0) {
+        return { ok: false, summary: 'openhands_deadline_leaves_no_pause_window', evidence: [], cost_usd: 0 };
+      }
+      const deadlineSignal = AbortSignal.timeout(Math.min(workMs, 2_147_483_647));
       const executionSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
       let conversationId: string | null = null;
       let cost: number | null = 0;
@@ -216,13 +260,18 @@ export function createNativeOpenHandsClient(config: {
       const SETTLED = ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
       const pauseAndAccount = async (): Promise<boolean> => {
         if (!conversationId) return false;
-        const attempts = Math.max(1, config.pauseConfirmAttempts ?? 8);
-        const gapMs = Math.max(0, config.pauseConfirmIntervalMs ?? 500);
+        const gapMs = Math.max(0, config.pauseConfirmIntervalMs ?? PAUSE_CONFIRMATION.intervalMs);
+        const attempts = Math.max(1, config.pauseConfirmAttempts ?? Math.ceil(pauseWindowMs / Math.max(1, gapMs)) + 1);
+        const clock = config.now ?? Date.now;
         try {
           await call(`/api/conversations/${conversationId}/pause`, 'POST', {}, AbortSignal.timeout(4_000));
+          const windowEnds = clock() + pauseWindowMs;
           let final: Record<string, unknown> | undefined;
           for (let attempt = 0; attempt < attempts; attempt += 1) {
-            if (attempt > 0) await sleep(gapMs);
+            if (attempt > 0) {
+              if (clock() >= windowEnds) break;
+              await sleep(gapMs);
+            }
             final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
             cost = executionCost(final);
             if (SETTLED.includes(String(final.execution_status).toLowerCase())) return true;

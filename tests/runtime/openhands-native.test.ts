@@ -40,7 +40,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(()=>json({success:true}))
       .mockImplementationOnce(()=>json({...state(110000,true),execution_status:'finished'}))
       .mockImplementationOnce(()=>json({items:[]}));
-    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+    const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
     expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
       .toMatchObject({ok:true,cost_usd:0.02,evidence:[`conversation:${conversationId}`]});
@@ -64,7 +64,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(()=>json(state('running',100000)))
       .mockImplementationOnce(()=>json({...state('finished',110000)}))
       .mockImplementationOnce(()=>json({items:[]}));
-    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+    const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,sleep:async()=>undefined,catalogAccounting:true,
       llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
     expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
@@ -83,7 +83,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementation((input:URL)=>json(new URL(input).pathname.endsWith('/events/search')
         ? {items:[{kind:'ConversationErrorEvent',error:'litellm.BadRequestError: budget_nontext_refused'}]}
         : state('paused')));
-    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+    const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
       llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
     const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
@@ -108,7 +108,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(()=>json(state('paused')))
       .mockImplementationOnce(()=>json({success:true}))
       .mockImplementation((input:URL)=>json(new URL(input).pathname.endsWith('/events/search')?events:state('error')));
-    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+    const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
       llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
     const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
@@ -121,7 +121,7 @@ describe('native OpenHands Agent Server client', () => {
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
     const fetcher=jest.fn().mockImplementationOnce(()=>json(state)).mockImplementationOnce(()=>json({success:true}))
       .mockImplementationOnce(()=>json(state));
-    const client=createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
+    const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
     expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
       .toMatchObject({ok:false,cost_usd:0,summary:'openhands_resume_configuration_unverified'});
@@ -134,7 +134,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(() => json({ execution_status: 'running', cost_usd: 0 }))
       .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.02 }))
       .mockImplementationOnce(() => json({ items: [{ kind: 'MessageEvent', content: 'done' }] }));
-    const client = createNativeOpenHandsClient({
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0,
       baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined,
       llm: { model: 'openai/qwen3-coder:30b', apiKey: 'model-client-key', baseUrl: 'http://model-egress-proxy:3004/v1', apiMode: 'chat' },
     });
@@ -175,7 +175,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(() => json({ accepted: true }))
       .mockImplementationOnce(() => json({ execution_status: 'finished', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ items: [] }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: true });
     expect(JSON.parse(String((fetcher.mock.calls[5][1] as RequestInit).body))).toMatchObject({ accept: true });
   });
@@ -189,7 +189,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(() => json({ accepted: false }))
       .mockImplementationOnce(() => json({ paused: true }))
       .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, summary: expect.stringContaining('git_push_forbidden') });
     expect(JSON.parse(String((fetcher.mock.calls[4][1] as RequestInit).body))).toMatchObject({ accept: false });
     expect(String(fetcher.mock.calls[5][0])).toBe(`https://hands.invalid/api/conversations/${conversationId}/pause`);
@@ -202,7 +202,7 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(() => json({ execution_status: 'running', cost_usd: 0.01 }))
       .mockImplementationOnce(() => json({ paused: true }))
       .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, maxPolls: 1, pollIntervalMs: 0, sleep: async () => undefined });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, maxPolls: 1, pollIntervalMs: 0, sleep: async () => undefined });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, summary: expect.stringContaining('paused') });
     const urls = fetcher.mock.calls.map((call) => String(call[0]));
     expect(urls).toContain(`https://hands.invalid/api/conversations/${conversationId}/pause`);
@@ -222,7 +222,7 @@ describe('native OpenHands Agent Server client', () => {
       }))
       .mockImplementationOnce(() => json({ paused: true }))
       .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.015 }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0 });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'session-key', fetcher, pollIntervalMs: 0 });
     const execution = client.execute(envelope, controller.signal);
     await polling;
     controller.abort();
@@ -233,7 +233,7 @@ describe('native OpenHands Agent Server client', () => {
 
   it('uses the authenticated official health endpoint', async () => {
     const fetcher = jest.fn(() => json({ status: 'ok' }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'http://127.0.0.1:8000', sessionApiKey: 'session-key', fetcher });
     await expect(client.health()).resolves.toBe(true);
     const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toBe('http://127.0.0.1:8000/health');
@@ -256,7 +256,7 @@ describe('native OpenHands Agent Server client', () => {
 
   it('does not start a conversation under an expired mandate', async () => {
     const fetcher = jest.fn();
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
     await expect(client.execute({ ...envelope, deadline: '2020-01-01T00:00:00Z' })).resolves.toMatchObject({ ok: false, cost_usd: 0, summary: 'openhands_deadline_expired' });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -270,7 +270,7 @@ describe('native OpenHands Agent Server client', () => {
       }))
       .mockImplementationOnce(() => json({ paused: true }))
       .mockImplementationOnce(() => json({ execution_status: 'paused', cost_usd: 0.07 }));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
     await expect(client.execute({ ...envelope, deadline: new Date(Date.now() + 100).toISOString() }))
       .resolves.toMatchObject({ ok: false, cost_usd: 0.07, summary: 'openhands_deadline_expired' });
   });
@@ -279,28 +279,28 @@ describe('native OpenHands Agent Server client', () => {
     const fetcher = jest.fn()
       .mockImplementationOnce(() => json({ conversation_id: conversationId }))
       .mockRejectedValue(new Error('connection lost'));
-    const client = createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: 'key', fetcher });
     await expect(client.execute(envelope)).resolves.toMatchObject({ ok: false, cost_usd: null, summary: 'openhands_pause_unconfirmed' });
   });
 
   it('fails closed on missing session key and plaintext remote endpoints', () => {
-    expect(() => createNativeOpenHandsClient({ baseUrl: 'https://hands.invalid', sessionApiKey: '' })).toThrow('openhands_session_key_required');
-    expect(() => createNativeOpenHandsClient({ baseUrl: 'http://hands.invalid', sessionApiKey: 'key' })).toThrow('openhands_url_requires_https_or_trusted_service');
+    expect(() => createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://hands.invalid', sessionApiKey: '' })).toThrow('openhands_session_key_required');
+    expect(() => createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'http://hands.invalid', sessionApiKey: 'key' })).toThrow('openhands_url_requires_https_or_trusted_service');
   });
 
   it('admits only an explicitly named plaintext service on the isolated network', async () => {
     const fetcher = jest.fn(() => json({ ok: true }));
-    const client = createNativeOpenHandsClient({
+    const client = createNativeOpenHandsClient({pauseConfirmWindowMs:0,
       baseUrl: 'http://openhands-agent:8000', sessionApiKey: 'session-key',
       plaintextServiceHosts: ['openhands-agent'], fetcher,
     });
     await expect(client.health()).resolves.toBe(true);
     const [healthUrl] = fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(healthUrl)).toBe('http://openhands-agent:8000/health');
-    expect(() => createNativeOpenHandsClient({
+    expect(() => createNativeOpenHandsClient({pauseConfirmWindowMs:0,
       baseUrl: 'http://other-agent:8000', sessionApiKey: 'session-key', plaintextServiceHosts: ['openhands-agent'],
     })).toThrow('openhands_url_requires_https_or_trusted_service');
-    expect(() => createNativeOpenHandsClient({
+    expect(() => createNativeOpenHandsClient({pauseConfirmWindowMs:0,
       baseUrl: 'http://openhands-agent:8000/path?redirect=x', sessionApiKey: 'session-key', plaintextServiceHosts: ['openhands-agent'],
     })).toThrow('openhands_url_invalid');
   });

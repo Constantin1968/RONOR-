@@ -1,4 +1,4 @@
-import { createNativeOpenHandsClient } from '../adapters/openhands-native';
+import { createNativeOpenHandsClient, pauseConfirmWindowFromEnv } from '../adapters/openhands-native';
 import { createOpenHandsBridgeApp, FileCapabilityNonceStore } from './openhands-bridge';
 import { requiredSecret } from './secret-files';
 import { MODEL_RATE_CARD } from '../model-budget';
@@ -13,6 +13,7 @@ export async function startOpenHandsBridge() {
     baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
     sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
     plaintextServiceHosts: ['openhands-agent'],
+    pauseConfirmWindowMs: pauseConfirmWindowFromEnv(process.env.RONOR_OPENHANDS_PAUSE_CONFIRM_WINDOW_MS),
     catalogAccounting: true,
     onConversationCreated: createConversationRecorder(path.join(nonceDir, 'conversations')),
     llm: {

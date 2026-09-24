@@ -159,7 +159,7 @@ describe('effect refusal native → bridge → HTTP → runner → durable fabri
       return json({ execution_status: paused ? 'paused' : 'waiting_for_confirmation',
         leaf_event_id: 'pending', cost_usd: paused ? finalCost : 0.1 });
     });
-    const native = createNativeOpenHandsClient({
+    const native = createNativeOpenHandsClient({pauseConfirmWindowMs:0,
       baseUrl: 'https://native.invalid', sessionApiKey: 'fixture-native-token', fetcher: nativeFetch,
       pollIntervalMs: 0, startupPolls: 0,
     });
@@ -213,7 +213,7 @@ describe('effect refusal native → bridge → HTTP → runner → durable fabri
       return json({ execution_status: 'waiting_for_confirmation', leaf_event_id: 'pending', cost_usd: 0.1 });
     });
     const setup = fixture();
-    const native = createNativeOpenHandsClient({ baseUrl: 'https://native.invalid', sessionApiKey: 'fixture-token', fetcher });
+    const native = createNativeOpenHandsClient({pauseConfirmWindowMs:0, baseUrl: 'https://native.invalid', sessionApiKey: 'fixture-token', fetcher });
     const result = await native.execute({
       assignment_id: assignment.id, instruction: objective, allowed_actions: assignment.actions,
       objective_hash: setup.mandate.objective_hash, deadline: setup.mandate.expires_at,

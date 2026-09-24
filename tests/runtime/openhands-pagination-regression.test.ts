@@ -25,7 +25,7 @@ describe('OpenHands real pagination regression', () => {
       if (url.pathname.endsWith('/events/search')) return json(url.searchParams.get('sort_order') === 'TIMESTAMP_DESC' ? latestPage : oldPage);
       return json({execution_status: 'error', cost_usd: 1.752042});
     });
-    const result = await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    const result = await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
     expect(result).toMatchObject({ok:false, summary:'openhands_terminated_error_budget_context_too_large', cost_usd:1.752042, evidence:[`conversation:${id}`]});
     expect(JSON.stringify(result)).not.toContain('secret-content-must-not-leak');
   });
@@ -45,7 +45,7 @@ describe('OpenHands real pagination regression', () => {
         if (url.pathname.endsWith('/pause')) return json({paused:true});
         return json({execution_status:ended?'paused':'waiting_for_confirmation',leaf_event_id:'pending-now',cost_usd:0.1});
       });
-      const result = await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,startupPolls:0}).execute(envelope);
+      const result = await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,startupPolls:0}).execute(envelope);
       const confirmation = fetcher.mock.calls.find(([u])=>new URL(u).pathname.endsWith('/events/respond_to_confirmation'));
       expect(JSON.parse(String(confirmation?.[1]?.body))).toMatchObject({accept:false});
       expect(result.ok).toBe(false);
@@ -68,7 +68,7 @@ describe('OpenHands real pagination regression', () => {
       if(url.pathname.endsWith('/pause'))return json({ok:true});
       return json({execution_status:ended?(forbidden?'paused':'finished'):'waiting_for_confirmation',leaf_event_id:'pending-now',cost_usd:0.1});
     });
-    const result=await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
     const confirmation=fetcher.mock.calls.find(([url])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation'));
     expect(JSON.parse(String(confirmation?.[1]?.body)).accept).toBe(!forbidden);
     expect(result.ok).toBe(!forbidden);
@@ -87,7 +87,7 @@ describe('OpenHands real pagination regression', () => {
       reads+=1;
       return json({execution_status:paused?'paused':'waiting_for_confirmation',leaf_event_id:reads===1?'pending-now':'different',cost_usd:0.1});
     });
-    const result=await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
     expect(result).toMatchObject({ok:false,summary:'openhands_pending_state_changed'});
     expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation'))).toBe(false);
   });
@@ -102,7 +102,7 @@ describe('OpenHands real pagination regression', () => {
       if(url.pathname.endsWith('/pause')){paused=true;return json({ok:true});}
       return json({execution_status:paused?'paused':'waiting_for_confirmation',leaf_event_id:'pending-now',cost_usd:0.1});
     });
-    const result=await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
     expect(result).toMatchObject({ok:false,summary:'openhands_action_refused_pending_branch_incomplete'});
     expect(fetcher.mock.calls.filter(([url])=>new URL(url).pathname.endsWith('/events/search'))).toHaveLength(2);
   });

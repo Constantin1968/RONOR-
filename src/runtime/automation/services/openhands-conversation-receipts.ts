@@ -108,6 +108,9 @@ function persistReceipt(directory: string, identity: ReceiptIdentity): void {
   let parentDescriptor: number | undefined;
   let directoryDescriptor: number | undefined;
   let descriptor: number | undefined;
+  // The first failure is the one reported. Throwing from a finally block would
+  // replace it with a bare close error and hide why the receipt was refused.
+  let primary: { error: unknown } | undefined;
   try {
     // Only the final conversations directory may be created; its nonce-store
     // parent must already exist. Recheck the tree on every call, not just startup.
@@ -147,15 +150,18 @@ function persistReceipt(directory: string, identity: ReceiptIdentity): void {
     assertSameEntry(parent, parentDescriptor);
     fsyncSync(directoryDescriptor);
     fsyncSync(parentDescriptor);
-  } finally {
-    let closeFailed = false;
-    for (const fd of [descriptor, directoryDescriptor, parentDescriptor]) {
-      if (fd !== undefined) {
-        try { closeSync(fd); } catch { closeFailed = true; }
-      }
-    }
-    if (closeFailed) throw new Error();
+  } catch (error) {
+    primary = { error };
   }
+  let closeFailed = false;
+  for (const fd of [descriptor, directoryDescriptor, parentDescriptor]) {
+    if (fd !== undefined) {
+      try { closeSync(fd); } catch { closeFailed = true; }
+    }
+  }
+  if (primary) throw primary.error;
+  // A receipt whose descriptors cannot be closed is still not reported durable.
+  if (closeFailed) throw new Error();
 }
 
 /** Durable identity receipts, not acceptance evidence or a replacement for the

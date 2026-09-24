@@ -67,7 +67,7 @@ describe('pause confirmation settles asynchronously', () => {
 
     const client = createNativeOpenHandsClient({
       baseUrl: 'https://hands.invalid', sessionApiKey: 'test-session', fetcher,
-      pollIntervalMs: 0, pauseConfirmIntervalMs: 0, sleep: async () => undefined,
+      pollIntervalMs: 0, pauseConfirmIntervalMs: 0, pauseConfirmWindowMs: 5_000, sleep: async () => undefined,
       maxPolls: 1, catalogAccounting: true,
       llm: { model: 'openai/qwen3.8-max', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
     });

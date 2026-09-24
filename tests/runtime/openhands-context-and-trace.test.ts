@@ -12,7 +12,7 @@ describe('bounded context and pre-inference trace barrier',()=>{
       if(url.pathname.endsWith('/events/search'))return json({items:[]});
       return json({execution_status:'finished',cost_usd:0});
     });
-    await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
+    await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
       llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}}).execute(envelope);
     expect(payload.agent.condenser.llm).toEqual({...payload.agent.llm,usage_id:'condenser'});
     expect(payload.agent.llm.extra_headers['x-ronor-budget']).toBe('test-budget');
@@ -33,7 +33,7 @@ describe('bounded context and pre-inference trace barrier',()=>{
       if(url.pathname.endsWith('/events/search'))return json({items:[]});
       return json({execution_status:'finished',cost_usd:0});
     });
-    await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
+    await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
       onConversationCreated:async(got,value)=>{expect(got).toBe(id);expect(value).toBe(envelope);calls.push('durable');}}).execute(envelope);
     expect(calls.indexOf('durable')).toBeLessThan(calls.indexOf(`/api/conversations/${id}/events`));
   });
@@ -42,7 +42,7 @@ describe('bounded context and pre-inference trace barrier',()=>{
       if(url.pathname==='/api/conversations')return json({id});
       return json({execution_status:'paused',cost_usd:0});
     });
-    const result=await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
       onConversationCreated:async()=>{throw Error('disk full');}}).execute(envelope);
     expect(result).toMatchObject({ok:false,summary:'openhands_trace_persist_failed',cost_usd:0,evidence:[`conversation:${id}`]});
     expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/events'))).toBe(false);
@@ -54,7 +54,7 @@ describe('bounded context and pre-inference trace barrier',()=>{
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
       stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
     const fetcher=jest.fn().mockImplementation((url:URL)=>json(url.pathname.endsWith('/switch_llm')?{ok:true}:state));
-    const result=await createNativeOpenHandsClient({baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,catalogAccounting:true,
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,catalogAccounting:true,
       llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}})
       .execute({...envelope,resume:{conversation_id:id,accounted_cost_usd:0.2}});
     expect(result).toMatchObject({ok:false,summary:'openhands_resume_context_unverified'});

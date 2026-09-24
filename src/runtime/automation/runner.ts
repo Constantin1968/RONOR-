@@ -152,7 +152,7 @@ export async function runExecutiveMission(params: {
     }, 'langgraph'));
     append('checkpoint.created', { id: `${runId}-plan`, run_id: runId, assignment_count: assignments.length, status: 'complete' }, 'langgraph');
   }
-  let run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
+  const run: AutomationRun = { ...base, status: 'planned', total_assignments: assignments.length };
   emitStatus(run, 'langgraph', 'langgraph');
   const workerClaims: string[] = [];
   const workerArtifacts: EvidenceArtifact[] = [];

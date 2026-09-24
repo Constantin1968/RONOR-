@@ -87,13 +87,19 @@ export function createRouter(orchestrator: RONOROrchestrator): Router {
   });
 
   // POST /api/v1/cosign — un om elibereaza o decizie retinuta.
-  // Suprafata nu are autentificare proprie: e legata pe interfata locala, iar
-  // `operator` e o identitate declarata, nu o dovada criptografica. Cosemnarea
-  // se depune in lantul de audit ca act separat, legat de cel retinut.
+  // F01: do not trust body.operator alone. Prefer the authenticated API key
+  // label/id (set by requireAuth on /api/v1). Cosemnarea se depune in lantul
+  // de audit ca act separat, legat de cel retinut.
   router.post('/cosign', (req: Request, res: Response) => {
     const body = (req.body ?? {}) as { recordId?: string; operator?: string; note?: string };
-    if (!body.recordId || !body.operator) {
-      return res.status(400).json({ error: 'recordId si operator sunt obligatorii' });
+    const operator =
+      req.apiKey?.label?.trim() ||
+      req.apiKey?.key_id ||
+      '';
+    if (!body.recordId || !operator) {
+      return res.status(400).json({
+        error: 'recordId este obligatoriu; operatorul trebuie sa vina din cheia autentificata',
+      });
     }
     const held = cosign.get(body.recordId);
     if (!held) {
@@ -110,9 +116,10 @@ export function createRouter(orchestrator: RONOROrchestrator): Router {
     const ctx = JSON.parse(held.contextJson);
     ctx.metadata = {
       ...(ctx.metadata ?? {}),
-      cosignedBy: body.operator,
+      cosignedBy: operator,
       cosignNote: body.note,
       heldRecordId: held.recordId,
+      cosignKeyId: req.apiKey?.key_id,
     };
 
     const rec = auditChain.append({
@@ -127,17 +134,17 @@ export function createRouter(orchestrator: RONOROrchestrator): Router {
       },
       outcome: { action: 'executed' },
       operatorSignature: {
-        operatorId: body.operator,
+        operatorId: operator,
         signedAt: new Date().toISOString(),
         role: 'human-cosigner',
       },
     });
 
-    const ok = cosign.markReleased(held.recordId, body.operator);
+    const ok = cosign.markReleased(held.recordId, operator);
     if (!ok) {
       return res.status(409).json({ error: 'cosemnare concurenta; decizia era deja eliberata' });
     }
-    logger.info(`Decizie eliberata prin cosemnare: ${held.recordId} de ${body.operator}`);
+    logger.info(`Decizie eliberata prin cosemnare: ${held.recordId} de ${operator}`);
 
     return res.json({
       recordId: held.recordId,
@@ -145,7 +152,7 @@ export function createRouter(orchestrator: RONOROrchestrator): Router {
       verdict: held.verdict,
       content: held.content,
       modelUsed: held.modelUsed,
-      cosignedBy: body.operator,
+      cosignedBy: operator,
       cosignAuditRecordId: rec.recordId,
       cosignAuditSeq: Number(rec.seq),
       cosignAuditChainHash: rec.chainHash,

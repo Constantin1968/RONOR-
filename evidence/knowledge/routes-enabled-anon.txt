@@ -1,0 +1,4 @@
+/api/v1/sentinel/status 401
+/api/v1/model-exchange/registry 401
+/api/v1/knowledge/status 401
+/health 200

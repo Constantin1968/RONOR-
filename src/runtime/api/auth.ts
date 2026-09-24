@@ -71,20 +71,40 @@ export function upsertApiKey(params: {
   const role = params.role ?? 'operator';
   const rpm = params.rateLimitRpm ?? 60;
 
+  // F14: ON CONFLICT must NOT set active=1. A bootstrap re-seed must preserve
+  // revokeApiKey — only a fresh INSERT activates a key; reactivation is explicit.
   getDb()
     .prepare(
-      `INSERT INTO runtime_api_keys (key_id, key_hash, label, role, scopes, rate_limit_rpm, active)
-       VALUES (?,?,?,?,?,?,1)
-       ON CONFLICT(key_id) DO UPDATE SET
-         label = excluded.label,
-         role = excluded.role,
-         scopes = excluded.scopes,
-         rate_limit_rpm = excluded.rate_limit_rpm,
-         active = 1`,
+      `INSERT INTO runtime_api_keys (key_id, key_hash, label, role, scopes, rate_limit_rpm, active)\n       VALUES (?,?,?,?,?,?,1)\n       ON CONFLICT(key_id) DO UPDATE SET\n         label = excluded.label,\n         role = excluded.role,\n         scopes = excluded.scopes,\n         rate_limit_rpm = excluded.rate_limit_rpm`,
     )
     .run(keyId, hash, params.label, role, scopes.join(','), rpm);
 
-  return { key_id: keyId, label: params.label, role, scopes, rate_limit_rpm: rpm, active: true };
+  const row = getDb()
+    .prepare(`SELECT active FROM runtime_api_keys WHERE key_id = ?`)
+    .get(keyId) as { active: number };
+
+  return {
+    key_id: keyId,
+    label: params.label,
+    role,
+    scopes,
+    rate_limit_rpm: rpm,
+    active: row.active === 1,
+  };
+}
+
+/**
+ * Explicitly reactivate a previously revoked key (F14).
+ *
+ * Upsert preserves `active` on conflict so bootstrap cannot undo revokeApiKey.
+ * Call this only when reactivation is intentional and audited.
+ */
+export function reactivateApiKey(keyId: string): boolean {
+  ensureRuntimeLedgerSchema();
+  const info = getDb()
+    .prepare(`UPDATE runtime_api_keys SET active = 1 WHERE key_id = ?`)
+    .run(keyId);
+  return info.changes > 0;
 }
 
 export function revokeApiKey(keyId: string): boolean {
@@ -99,8 +119,7 @@ export function listApiKeys(): ApiKeyRecord[] {
   ensureRuntimeLedgerSchema();
   const rows = getDb()
     .prepare(
-      `SELECT key_id, label, role, scopes, rate_limit_rpm, active
-         FROM runtime_api_keys ORDER BY id ASC`,
+      `SELECT key_id, label, role, scopes, rate_limit_rpm, active\n         FROM runtime_api_keys ORDER BY id ASC`,
     )
     .all() as Array<{
     key_id: string;
@@ -133,8 +152,7 @@ export function authenticate(secret: string): ApiKeyRecord | null {
 
   const rows = getDb()
     .prepare(
-      `SELECT key_id, key_hash, label, role, scopes, rate_limit_rpm, active
-         FROM runtime_api_keys WHERE active = 1`,
+      `SELECT key_id, key_hash, label, role, scopes, rate_limit_rpm, active\n         FROM runtime_api_keys WHERE active = 1`,
     )
     .all() as Array<{
     key_id: string;

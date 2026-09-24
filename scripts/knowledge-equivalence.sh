@@ -14,6 +14,11 @@
 # CommonJS ts-node cannot resolve. That is a pre-existing condition of the baseline,
 # recorded here rather than fixed, because fixing it is outside this Order's scope.
 #
+# F01 (approved auth hardening): /api/v1 is behind requireAuth('read'). Probes that
+# assert route registration therefore present a harness API key. A separate anonymous
+# probe records that unauthenticated /api/v1 traffic is refused with 401 — that is
+# the security posture, not a regression against the knowledge plane.
+#
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,6 +27,11 @@ cd "$ROOT"
 PORT_DISABLED=3091
 PORT_ENABLED=3092
 OUT="evidence/knowledge"
+
+# Harness-only credential. Seeded via RONOR_API_KEYS so requireAuth on /api/v1 can
+# be satisfied when probing registration. Not a production secret.
+EQ_API_KEY="eq-harness-key-not-for-production"
+export RONOR_API_KEYS="equivalence:${EQ_API_KEY}"
 
 # Kill any lingering process on the ports we intend to use, so a re-run after a
 # partial failure does not collide with a zombie from the previous attempt.
@@ -52,6 +62,7 @@ wait_for_health() {
 
 probe_routes() {
   local port="$1"
+  local auth=(-H "Authorization: Bearer ${EQ_API_KEY}")
   # POST routes probed with POST and GET routes with GET. Probing a GET route with
   # POST returns 404 from Express whether or not the route is mounted, so a
   # uniform POST probe would have reported /status and /quarantine as absent even
@@ -60,19 +71,40 @@ probe_routes() {
   # `corpus` added by MIP-015 Stage D. It MUST appear here: a route absent from this
   # probe would never be checked for the disabled-mode 404, and the equivalence
   # claim would be silently narrower than it appears.
+  #
+  # Authenticated probes (F01): registration claims must clear requireAuth first.
   for route in ingest corpus query compose; do
     printf '/api/v1/knowledge/%s %s\n' "$route" \
-      "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+      "$(curl -s -o /dev/null -w '%{http_code}' -X POST "${auth[@]}" -H 'Content-Type: application/json' \
          -d '{}' "http://localhost:${port}/api/v1/knowledge/${route}")"
   done
   for route in status quarantine; do
     printf '/api/v1/knowledge/%s %s\n' "$route" \
-      "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/api/v1/knowledge/${route}")"
+      "$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+         "http://localhost:${port}/api/v1/knowledge/${route}")"
   done
   for route in health api/v1/sentinel/status api/v1/model-exchange/registry; do
+    if [ "$route" = "health" ]; then
+      # Public liveness surface — no credential.
+      printf '/%s %s\n' "$route" \
+        "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/${route}")"
+    else
+      printf '/%s %s\n' "$route" \
+        "$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" \
+           "http://localhost:${port}/${route}")"
+    fi
+  done
+}
+
+probe_routes_anonymous() {
+  local port="$1"
+  # F01 control: unauthenticated /api/v1 must be refused. /health stays public.
+  for route in api/v1/sentinel/status api/v1/model-exchange/registry api/v1/knowledge/status; do
     printf '/%s %s\n' "$route" \
       "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/${route}")"
   done
+  printf '/health %s\n' \
+    "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/health")"
 }
 
 echo "== building =="
@@ -88,6 +120,7 @@ wait_for_health "$PORT_DISABLED" || { echo "DISABLED BOOT FAILED"; cat /tmp/eq_d
 
 curl -s "http://localhost:${PORT_DISABLED}/health" > "$OUT/health-disabled.json"
 probe_routes "$PORT_DISABLED" > "$OUT/routes-disabled.txt"
+probe_routes_anonymous "$PORT_DISABLED" > "$OUT/routes-disabled-anon.txt"
 # Open handles held by the process, to evidence that no store or socket was opened.
 ls -l /proc/$DISABLED_PID/fd 2>/dev/null | wc -l > /tmp/eq_fd_disabled.txt
 lsof -p $DISABLED_PID 2>/dev/null | grep -c "knowledge" > /tmp/eq_knowledge_handles.txt || echo 0 > /tmp/eq_knowledge_handles.txt
@@ -113,6 +146,7 @@ wait_for_health "$PORT_ENABLED" || { echo "ENABLED BOOT FAILED"; cat /tmp/eq_ena
 
 curl -s "http://localhost:${PORT_ENABLED}/health" > "$OUT/health-enabled.json"
 probe_routes "$PORT_ENABLED" > "$OUT/routes-enabled.txt"
+probe_routes_anonymous "$PORT_ENABLED" > "$OUT/routes-enabled-anon.txt"
 
 kill $ENABLED_PID 2>/dev/null
 wait $ENABLED_PID 2>/dev/null

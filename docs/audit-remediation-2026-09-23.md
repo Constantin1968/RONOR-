@@ -1,7 +1,7 @@
 # RONOR: registrul remedierilor auditului din 23 septembrie 2026
 
-Stadiu v4: lotul de replicare Hetzner–Contabo și izolarea botului conversațional
-pe Hetzner sunt instalate și verificate în limitele descrise mai jos. Restul
+Stadiu v5: lotul de replicare Hetzner–Contabo, izolarea botului conversațional
+și accesul CIDA numai pentru citire pe Hetzner sunt instalate și verificate în limitele descrise mai jos. Restul
 candidatului rămâne local, nepublicat și neinstalat. Bază: `a857989`, ramura
 integrată citită din GitHub în această sesiune. Solicitarea de reparare integrală
 nu este încă îndeplinită. Constatarea F17 are controale remediate, dar nu este
@@ -45,7 +45,30 @@ sau inferențe plătite. Nu a autorizat rotația cheilor ori schimbarea altor se
   și `ronor-r-memory` sunt neschimbate. Nu au fost repornite și nu s-au modificat
   cheile, firewallul, runtime-urile generale sau pragurile de acceptare.
 
-### Defect CIDA constatat, nu ascuns
+## Actualizare instalată: acces CIDA numai pentru citire
+
+Executat la 24 septembrie 2026, 05:06 UTC (08:06 EEST, 06:06 BST), după ce
+utilizatorul a răspuns propunerii exacte cu instrucțiunea de a continua reparația.
+
+- **Cheie nouă:** identificator 4, eticheta `ronor-bot-readonly-20260924`, drept
+  exclusiv `read`, 60 de cereri pe minut, expiră la `2026-12-23 05:06:35 UTC`.
+  Valoarea nu a fost afișată și nu există în Git, raport sau conversație; se află
+  numai în fișierul releului, modul 400, proprietar 10002:10001.
+- **Neschimbate:** cheia root dezactivată rămâne dezactivată; celelalte chei, CIDA,
+  memoria și botul nu au fost modificate sau repornite. Numai releul a fost recreat.
+- **Probe directe:** `/search` lexical întoarce 200; `/keys`, `/audit` și
+  `/retention` întorc 403 cu cheia nouă.
+- **Probe prin bot:** căutarea lexicală prin releu întoarce 200 și două rezultate
+  cu titlu, sursă, scor și proveniență; `/keys` și modul semantic sunt refuzate
+  de releu cu 403. Heartbeat-ul Telegram a rămas proaspăt; nu s-a trimis mesaj
+  și nu s-a apelat modelul.
+- **Revenire:** configurația anterioară a releului este păstrată privat. Revenirea
+  înseamnă dezactivarea exclusivă a cheii 4 și restaurarea acelei configurații.
+
+Limită: o căutare reușită dovedește accesul, nu calitatea sau completitudinea
+corpusului (F18, F21 rămân deschise). Cheia expiră; reînnoirea trebuie planificată.
+
+### Defect CIDA constatat la instalarea botului (rezolvat în v5)
 
 Botul vechi folosea `/query`, dar serviciul instalat expune `/search`.
 Candidatul folosește acum căutarea lexicală `/search`, cu limită explicită.
@@ -166,6 +189,7 @@ independentă nu a fost instituită. Scriptul de backup al sursei rămâne nesch
 
 | Constatare | Stadiu și probă lipsă |
 |---|---|
+| F06a Acces CIDA al botului | Cheie dedicată numai `read`, expirabilă, deținută exclusiv de releu; verificată prin probe pozitive și negative |
 | F01 Autoritate directă | Izolare instalată: fără rețea directă, Docker, SSH sau chei în procesul conversațional; executorul extern cu mandat și acceptarea integrală rămân necesare |
 | F02 Guvernanță după inferență | Refuz anterior inferenței testat; autoritate operațională și rută atestată de conectat |
 | F03 Continuitate și STOP | Coada persistentă instalată; recepție verificată; STOP și shutdown testate cu dubluri în imaginea exactă, nu prin efecte externe reale |
@@ -206,7 +230,7 @@ din jurnalul gazdei sursă nu substituie citirea destinației și restaurarea.
 ## Următoarea poartă
 
 Citirea, lotul de replicare și izolarea botului aprobate sunt încheiate.
-Următoarele dependențe sunt accesul CIDA numai pentru citire, backupul noii stări
+Următoarele dependențe sunt backupul noii stări
 a botului, restricționarea sursei fără întreruperea cititorului DigitalOcean,
 migrarea accesului, revocarea cheilor expuse și restaurarea izolată.
 Aceste intervenții și instalarea runtime-ului au criterii distincte de acceptare

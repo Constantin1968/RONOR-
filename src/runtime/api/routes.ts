@@ -41,7 +41,14 @@ import {
 } from '../../audit/hash-chain';
 import { getPolicyVersion } from '../../governance/mi9-gate';
 import { raporteazaPersistenta, persistentaEsteObligatorie } from '../../persistence/audit-mirror';
-import { insecureDefaultActive, listApiKeys, upsertApiKey, revokeApiKey } from './auth';
+import {
+  estimateKeyBits,
+  insecureDefaultActive,
+  listApiKeys,
+  MIN_ENV_KEY_BITS,
+  upsertApiKey,
+  revokeApiKey,
+} from './auth';
 import {
   asyncHandler,
   ingressRateLimit,
@@ -1221,6 +1228,16 @@ export function createRuntimeRouter(env: NodeJS.ProcessEnv = process.env): Runti
           ok: false,
           error: 'invalid_request',
           message: '`label` and a `secret` of at least 24 characters are required.',
+        });
+        return;
+      }
+      // Same floor as environment keys: the length check alone accepted
+      // 24 repeated characters, which an unsalted digest does not protect.
+      if (estimateKeyBits(secret) < MIN_ENV_KEY_BITS) {
+        res.status(400).json({
+          ok: false,
+          error: 'weak_secret',
+          message: `\`secret\` must carry at least ${MIN_ENV_KEY_BITS} bits (e.g. \`openssl rand -hex 32\`).`,
         });
         return;
       }

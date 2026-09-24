@@ -203,12 +203,14 @@ describe('L0 · authentication', () => {
   });
 
   it('bootstraps labelled keys from the environment', () => {
-    const result = bootstrapApiKeys({
-      RONOR_API_KEYS: 'alpha:secret-alpha-000000000000000000,beta:secret-beta-1111111111111111',
-    });
+    // Generated at run time: environment keys must clear the 128-bit floor.
+    const alpha = require('crypto').randomBytes(32).toString('hex');
+    const beta = require('crypto').randomBytes(32).toString('hex');
+    const result = bootstrapApiKeys({ RONOR_API_KEYS: `alpha:${alpha},beta:${beta}` });
     expect(result.keysSeeded).toBe(2);
-    expect(authenticate('secret-alpha-000000000000000000')?.label).toBe('alpha');
-    expect(authenticate('secret-beta-1111111111111111')?.label).toBe('beta');
+    expect(result.weakKeysRejected).toEqual([]);
+    expect(authenticate(alpha)?.label).toBe('alpha');
+    expect(authenticate(beta)?.label).toBe('beta');
   });
 
   it('reports an insecure default seeded from the environment', () => {

@@ -1,0 +1,12 @@
+# Poarta de supravietuire la repornire (24.09.2026): serviciile stivei de
+# dezvoltare repornesc automat dupa o cadere sau dupa repornirea gazdei.
+# `unless-stopped`, nu `always`: o oprire manuala deliberata ramane oprita.
+services:
+  controller: { restart: unless-stopped }
+  openhands-bridge: { restart: unless-stopped }
+  codex-verifier: { restart: unless-stopped }
+  automation-evidence-runner: { restart: unless-stopped }
+  model-egress-proxy: { restart: unless-stopped }
+  langgraph: { restart: unless-stopped }
+  openhands-agent: { restart: unless-stopped }
+  victoria-assurance: { restart: unless-stopped }

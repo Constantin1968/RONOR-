@@ -1,5 +1,6 @@
 # proiect	serviciu	director_compose	eticheta_in_compose	imagine_fixata
 autogen	autogen	/opt/autogen	python:3.11-slim	python@sha256:94c50be2dc994b873b55bc123e95e6dbade08095b3dfd790f51c34de3f08cbb7
+# cida-minio: imagine retrasă din registru; minio/minio a fost șters de pe Docker Hub la 11.09.2026. Sursa: arhiva docker save din ronor/infrastructura/retete/ronor-secondary/imagini-retrase/ (cu SHA256SUMS), încărcată cu docker load. Vezi CITESTE.md.
 cida	cida-minio	/opt/cida	minio/minio:RELEASE.2025-04-22T22-12-26Z	minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
 cida	cida-postgres	/opt/cida	postgres:17	postgres@sha256:ccb771565a9685249a794529986c6f6eb007c676dd4169d84d3f1c46a280e696
 dify	dify-api	/opt/dify	langgenius/dify-api:latest	langgenius/dify-api@sha256:dcefa5f7c47c77e621f5b864bc1d64a2ba18cd215b001f15b3882bb7911c6c64

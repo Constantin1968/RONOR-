@@ -1,0 +1,16 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "langfuse" (/opt/langfuse).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6   # inainte: docker.io/clickhouse/clickhouse-server:25.12
+  langfuse-web:
+    image: docker.io/langfuse/langfuse@sha256:434f228500ba1e1e0f3deaa6dc412827330c5e9f01fba841c6122ff8c46a9323   # inainte: docker.io/langfuse/langfuse:4
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker@sha256:0efc56f424044db9cf7bc9c0881d104b28d31764fda956be2238d1ed269124f1   # inainte: docker.io/langfuse/langfuse-worker:4
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:5f2b82fe2edccafed7902f423f171ae5e6b8b363fae72441c0e0e4289dc45555   # inainte: cgr.dev/chainguard/minio
+  postgres:
+    image: docker.io/postgres@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d   # inainte: docker.io/postgres:17
+  redis:
+    image: docker.io/redis@sha256:8e839f5b3738dbc1223ea01d5d3da0da0d750018e1336f45866630a9bf217014   # inainte: docker.io/redis:7

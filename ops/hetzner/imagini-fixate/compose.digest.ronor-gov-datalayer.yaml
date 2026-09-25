@@ -1,0 +1,8 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "ronor-gov-datalayer" (/opt/ronor-gov-datalayer).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  datalayer:
+    image: nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10   # inainte: nginx:1.27-alpine
+  postgrest:
+    image: postgrest/postgrest@sha256:729bf65c733b73f5b52777f0e4b853f22ed73aa67a22d38269d289779b0a8401   # inainte: postgrest/postgrest:v12.2.3

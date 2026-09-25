@@ -35,16 +35,19 @@ export type OperatorActionType = (typeof OPERATOR_ACTION_TYPES)[number];
 
 /**
  * Corespondența tip operator → acțiune de mandat. Un tip fără corespondent
- * (`null`) nu poate fi delegat de vocabularul actual al mandatului
- * (`AUTOMATION_ACTIONS`) și este deci refuzat întotdeauna.
+ * (`null`) nu poate fi delegat de vocabularul mandatului (`AUTOMATION_ACTIONS`)
+ * și este deci refuzat întotdeauna. `ops.observe` și `ops.actuate` au acum
+ * acțiuni proprii (`ops_observe`, `ops_actuate`); execuția lor aparține numai
+ * executorului cu mandat (`src/runtime/executor`), iar `ops.actuate` cere în
+ * plus o aprobare legată de hash-ul acțiunii și cu expirare.
  */
 export const OPERATOR_TYPE_MANDATE_ACTION: Readonly<Record<OperatorActionType, AutomationAction | null>> = {
-  'ops.observe': null,
+  'ops.observe': 'ops_observe',
   'repo.read': 'read_repo',
   'repo.edit': 'edit_worktree',
   'tests.run': 'run_tests',
   'vcs.commit_local': 'commit_local',
-  'ops.actuate': null,
+  'ops.actuate': 'ops_actuate',
   'notify.send': 'external_send',
 };
 
@@ -161,7 +164,8 @@ function validateArgs(type: OperatorActionType, args: Record<string, unknown>): 
   }
   switch (type) {
     case 'ops.observe': {
-      if (typeof args.target !== 'string' || args.target.length < 1 || args.target.length > 300) return 'invalid_args';
+      // Identificator din lista albă a executorului, nu o adresă sau o comandă.
+      if (typeof args.target !== 'string' || !SAFE_ID.test(args.target)) return 'invalid_args';
       return null;
     }
     case 'repo.read': {
@@ -182,8 +186,10 @@ function validateArgs(type: OperatorActionType, args: Record<string, unknown>): 
       return null;
     }
     case 'ops.actuate': {
-      if (typeof args.device !== 'string' || args.device.length < 1 || args.device.length > 120) return 'invalid_args';
-      if (typeof args.command !== 'string' || args.command.length < 1 || args.command.length > 120) return 'invalid_args';
+      // `device` e un identificator din lista albă a executorului, iar `command`
+      // un verb din vocabularul închis al acelei intrări; niciodată o linie de comandă.
+      if (typeof args.device !== 'string' || !SAFE_ID.test(args.device)) return 'invalid_args';
+      if (typeof args.command !== 'string' || !SAFE_ID.test(args.command)) return 'invalid_args';
       return null;
     }
     case 'notify.send': {

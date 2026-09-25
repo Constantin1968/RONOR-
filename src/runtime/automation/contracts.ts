@@ -4,6 +4,10 @@ export const AUTOMATION_ACTIONS = [
   'read_repo', 'create_branch', 'edit_worktree', 'run_tests', 'commit_local', 'prepare_draft_pr',
   'external_send', 'secrets_read', 'main_write', 'push', 'merge', 'release', 'deploy',
   'financial_action', 'destructive_action',
+  // Operațiuni pe gazdă, numai prin executorul cu mandat (src/runtime/executor):
+  // observare fără efect și actuare din lista albă, cu aprobare legată de acțiune.
+  // Nu sunt în DEFAULT_ALLOWED_ACTIONS: un mandat de dezvoltare nu le primește.
+  'ops_observe', 'ops_actuate',
 ] as const;
 
 export type AutomationAction = typeof AUTOMATION_ACTIONS[number];

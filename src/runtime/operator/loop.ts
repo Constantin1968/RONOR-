@@ -11,8 +11,11 @@
  * lista: nu există parametru pentru asta, iar un câmp `allowedOperatorTypes`
  * strecurat în parametri este ignorat.
  *
- * Tieruri: `ops.actuate` cere aprobare umană explicită (`approved=true`) și, în
- * vocabularul actual al mandatului, nu poate fi delegat deloc.
+ * Tieruri: `ops.actuate` trebuie delegat explicit de mandat (`ops_actuate`) și
+ * cere o aprobare semnată, legată de hash-ul acțiunii exacte (gazdă, mandat,
+ * tip, argumente, resursă) și cu expirare (`src/runtime/executor/approval.ts`).
+ * Booleanul `approved` de altădată nu mai autorizează nimic. Execuția propriu-zisă
+ * aparține executorului cu mandat (`src/runtime/executor`), care reverifică totul.
  */
 
 import { validateMandate } from '../automation/policy';
@@ -23,6 +26,7 @@ import {
   type OperatorActionType,
 } from './actions';
 import type { ResourceLeaseManager } from './resource-lease';
+import { actionHash, verifyActuationApproval } from '../executor/approval';
 
 export type OperatorTickDecision =
   | { decision: 'ready_to_execute'; reason: 'operator_tick_permitted' }
@@ -39,10 +43,16 @@ export interface OperatorTickParams {
   owner: string;
   action: unknown;
   /**
-   * Aprobare umană pentru `ops.actuate`. Deocamdată un simplu boolean,
-   * nelegat de hash-ul acțiunii, de dispozitiv sau de o expirare (Tranșa 2).
+   * Păstrat numai pentru compatibilitatea apelanților vechi: nu mai autorizează
+   * nimic. Pentru `ops.actuate` contează doar `approval`.
    */
-  approved: boolean;
+  approved?: boolean;
+  /** Aprobarea semnată pentru `ops.actuate`, legată de hash-ul acțiunii și cu expirare. */
+  approval?: unknown;
+  /** Cheia de verificare a aprobărilor; fără ea, nicio actuare nu trece poarta. */
+  approvalSecret?: string;
+  /** Gazda pe care s-ar executa acțiunea; intră în hash-ul acțiunii. */
+  hostId?: string;
   costSoFarUsd: number;
   leaseManager: ResourceLeaseManager;
   leaseMs?: number;
@@ -82,9 +92,22 @@ export function runOperatorTick(params: OperatorTickParams): OperatorTickDecisio
   }
 
   const type = (params.action as { type: OperatorActionType }).type;
-  if (type === 'ops.actuate' && !params.approved) {
-    params.leaseManager.release({ resource: params.resource, owner: params.owner });
-    return { decision: 'blocked', reason: 'approval_required' };
+  if (type === 'ops.actuate') {
+    const release = (reason: string): OperatorTickDecision => {
+      params.leaseManager.release({ resource: params.resource, owner: params.owner });
+      return { decision: 'blocked', reason };
+    };
+    if (params.approval === undefined) return release('approval_required');
+    if (!params.approvalSecret || !params.hostId) return release('approval_verifier_unavailable');
+    const hash = actionHash({
+      host_id: params.hostId,
+      mandate_id: params.mandate.mandate_id,
+      type,
+      args: (params.action as { args: Record<string, unknown> }).args,
+      resource: params.resource,
+    });
+    const check = verifyActuationApproval(params.approval, { mandateId: params.mandate.mandate_id, actionHash: hash, now }, params.approvalSecret);
+    if (!check.ok) return release(check.reason);
   }
 
   return { decision: 'ready_to_execute', reason: 'operator_tick_permitted' };

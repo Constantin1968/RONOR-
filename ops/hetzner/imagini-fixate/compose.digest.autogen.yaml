@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "autogen" (/opt/autogen).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  autogen:
+    image: python@sha256:94c50be2dc994b873b55bc123e95e6dbade08095b3dfd790f51c34de3f08cbb7   # inainte: python:3.11-slim

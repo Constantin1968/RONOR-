@@ -1,0 +1,8 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "ronor-servicii-curate-declarativ" (/opt/ronor-servicii-curate-declarativ).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  gov-postgres:
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777   # inainte: postgres:16-alpine
+  gov-redis:
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2   # inainte: redis:7-alpine

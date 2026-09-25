@@ -1,0 +1,19 @@
+# RONOR - suprapunere pentru proiectul compose `app` de pe gazda primară (ronor-postgres).
+#
+# Declară dependențele 5 și 6 din reconstrucția pe probă (25.09.2026): compose-ul de pe gazdă
+# (/opt/ronor/app/docker-compose.yml) publică 5432 pe 127.0.0.1 și pe adresa Tailscale a
+# primarei, scrisă direct. Pe o gazdă fără acea adresă legarea portului eșuează și Postgres
+# nu pornește.
+#
+# Cu această suprapunere adresa e o variabilă obligatorie. Pe o gazdă fără Tailscale se
+# folosește în locul ei docker-compose.postgres-local.yml (numai 127.0.0.1); consumatorii de pe
+# gazda secundară nu ajung atunci la bază până la reorientarea lor
+# (docs/reconstructie-primara-digitalocean.md).
+#
+#   docker compose -p app -f docker-compose.yml \
+#     -f /cale/depozit/ops/ronor-sovereign/docker-compose.postgres-legare.yml up -d postgres
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+      - "${POSTGRES_TAILNET_ADDR:?adresa Tailscale a primarei}:5432:5432"

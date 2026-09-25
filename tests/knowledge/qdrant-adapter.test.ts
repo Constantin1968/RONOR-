@@ -476,8 +476,37 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     );
     const currentDockerfile = readFileSync(join(REPO_ROOT, 'Dockerfile'), 'utf8');
 
-    // (1) Nothing that existed at the baseline was altered or removed.
-    expect(currentDockerfile.startsWith(baselineDockerfile)).toBe(true);
+    // (0) Amendamente aprobate, enumerate exact, la etapele de la baseline.
+    //     Singurul amendament: instalarea din lockfile (`npm ci` cu
+    //     package-lock.json copiat), pentru o construire reproductibilă
+    //     (reconstrucția primarei, 25.09.2026). Fiecare text vechi trebuie să
+    //     apară o singură dată, iar înlocuirea nu poate aduce un depozit
+    //     vectorial sau un punct final implicit. Orice altă modificare a
+    //     etapelor de la baseline pică în continuare la (1).
+    const APPROVED_BASELINE_AMENDMENTS: Array<[string, string]> = [
+      [
+        'COPY package.json ./\nRUN npm install --no-audit --no-fund\n',
+        '# Construire reproductibilă: lockfile-ul comis decide versiunile exacte.\n' +
+          '# `npm ci` refuză să ruleze dacă package.json și package-lock.json nu se\n' +
+          '# potrivesc și nu rezolvă din nou intervalele `^` (reconstrucția primarei,\n' +
+          '# 25.09.2026: `npm install` fără lockfile a dat 3 pachete cu altă versiune).\n' +
+          'COPY package.json package-lock.json ./\nRUN npm ci --no-audit --no-fund\n',
+      ],
+      [
+        'COPY package.json ./\nRUN npm install --omit=dev --no-audit --no-fund && \\\n',
+        'COPY package.json package-lock.json ./\nRUN npm ci --omit=dev --no-audit --no-fund && \\\n',
+      ],
+    ];
+    let amendedBaseline = baselineDockerfile;
+    for (const [before, after] of APPROVED_BASELINE_AMENDMENTS) {
+      expect(amendedBaseline.split(before).length - 1).toBe(1);
+      expect(after).not.toMatch(/qdrant|QDRANT_URL|KNOWLEDGE_OPENAI_BASE_URL|FROM /i);
+      amendedBaseline = amendedBaseline.replace(before, after);
+    }
+
+    // (1) Nothing that existed at the baseline was altered or removed, beyond
+    //     the enumerated amendments above.
+    expect(currentDockerfile.startsWith(amendedBaseline)).toBe(true);
 
     // (2) The appended region declares only further stages, and the stages present
     //     at the baseline are still exactly the first two.
@@ -487,7 +516,7 @@ describe('G6 · MTA · Mocked-transport attestation', () => {
     const currentStages = currentDockerfile.split('\n').filter((line) => line.startsWith('FROM '));
     expect(currentStages.slice(0, baselineStages.length)).toEqual(baselineStages);
 
-    const appended = currentDockerfile.slice(baselineDockerfile.length);
+    const appended = currentDockerfile.slice(amendedBaseline.length);
     expect(appended.split('\n').filter((line) => line.startsWith('FROM ')).length).toBeGreaterThan(
       0
     );

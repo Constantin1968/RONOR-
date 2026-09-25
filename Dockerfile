@@ -15,8 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# Construire reproductibilă: lockfile-ul comis decide versiunile exacte.
+# `npm ci` refuză să ruleze dacă package.json și package-lock.json nu se
+# potrivesc și nu rezolvă din nou intervalele `^` (reconstrucția primarei,
+# 25.09.2026: `npm install` fără lockfile a dat 3 pachete cu altă versiune).
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -39,8 +43,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund && \
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && \
     npm cache clean --force
 
 # Copy built artefacts and static assets

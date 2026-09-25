@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "mlflow" (/opt/mlflow).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow@sha256:191fb7f5390f92ee7f95b3a08a77ce9eb4c01dd2721107ec2460e5ba37a0a97c   # inainte: ghcr.io/mlflow/mlflow:v2.22.0

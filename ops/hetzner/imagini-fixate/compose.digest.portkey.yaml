@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "portkey" (/opt/portkey).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  portkey-gateway:
+    image: portkeyai/gateway@sha256:97f094d9c8a764cbfaa2a7138c0017b247ca923bb06db1b4c13b7f8a33b5200d   # inainte: portkeyai/gateway:latest

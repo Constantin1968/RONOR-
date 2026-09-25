@@ -17,7 +17,8 @@ export function isAutomationAction(value: unknown): value is AutomationAction {
 }
 
 export interface ExecutionMandate {
-  authority_version?: 'ronor-mandate/v1';
+  /** v1: HMAC al autorității de dezvoltare; v2: mandat de operațiuni semnat Ed25519 (executorul cu mandat). */
+  authority_version?: 'ronor-mandate/v1' | 'ronor-ops-mandate/v2';
   authority_signature?: string;
   mandate_id: string;
   mission_id: string;

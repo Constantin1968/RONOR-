@@ -27,6 +27,7 @@ import {
 } from './actions';
 import type { ResourceLeaseManager } from './resource-lease';
 import { actionHash, verifyActuationApproval } from '../executor/approval';
+import type { PublicKeyring } from '../executor/keys';
 
 export type OperatorTickDecision =
   | { decision: 'ready_to_execute'; reason: 'operator_tick_permitted' }
@@ -49,8 +50,8 @@ export interface OperatorTickParams {
   approved?: boolean;
   /** Aprobarea semnată pentru `ops.actuate`, legată de hash-ul acțiunii și cu expirare. */
   approval?: unknown;
-  /** Cheia de verificare a aprobărilor; fără ea, nicio actuare nu trece poarta. */
-  approvalSecret?: string;
+  /** Cheile publice Ed25519 ale oamenilor care aprobă; fără ele, nicio actuare nu trece poarta. */
+  approvalKeys?: PublicKeyring;
   /** Gazda pe care s-ar executa acțiunea; intră în hash-ul acțiunii. */
   hostId?: string;
   costSoFarUsd: number;
@@ -98,7 +99,7 @@ export function runOperatorTick(params: OperatorTickParams): OperatorTickDecisio
       return { decision: 'blocked', reason };
     };
     if (params.approval === undefined) return release('approval_required');
-    if (!params.approvalSecret || !params.hostId) return release('approval_verifier_unavailable');
+    if (!params.approvalKeys || params.approvalKeys.size === 0 || !params.hostId) return release('approval_verifier_unavailable');
     const hash = actionHash({
       host_id: params.hostId,
       mandate_id: params.mandate.mandate_id,
@@ -106,7 +107,7 @@ export function runOperatorTick(params: OperatorTickParams): OperatorTickDecisio
       args: (params.action as { args: Record<string, unknown> }).args,
       resource: params.resource,
     });
-    const check = verifyActuationApproval(params.approval, { mandateId: params.mandate.mandate_id, actionHash: hash, now }, params.approvalSecret);
+    const check = verifyActuationApproval(params.approval, { mandateId: params.mandate.mandate_id, actionHash: hash, now }, params.approvalKeys);
     if (!check.ok) return release(check.reason);
   }
 

@@ -47,8 +47,33 @@ export interface ExecutorCatalog {
   entries: CatalogEntry[];
 }
 
+/**
+ * Pentru o actuare `systemd`, procesul lansat (`systemctl start`) e numai
+ * clientul care cere lui PID 1 un job; efectul rulează în unitate, în alt grup
+ * de procese. Oprirea trebuie să acționeze asupra unității (D1), iar starea ei
+ * se citește înainte de actuare (D2) și după oprire, ca confirmare.
+ */
+export interface SystemdControl {
+  unit: string;
+  /** `systemctl show --property=ActiveState,SubState -- <unit>` */
+  stateArgv: string[];
+  /** În ordine: `systemctl stop -- <unit>`, apoi `systemctl kill --signal=SIGKILL -- <unit>`. */
+  haltArgv: string[][];
+}
+
+export function systemdControl(catalog: Pick<ExecutorCatalog, 'systemctl'>, unitName: string): SystemdControl {
+  return {
+    unit: unitName,
+    stateArgv: [...catalog.systemctl, 'show', '--property=ActiveState,SubState', '--', unitName],
+    haltArgv: [
+      [...catalog.systemctl, 'stop', '--', unitName],
+      [...catalog.systemctl, 'kill', '--signal=SIGKILL', '--', unitName],
+    ],
+  };
+}
+
 export type ExecutionPlan =
-  | { kind: 'spawn'; argv: string[]; timeoutMs: number; resource: string }
+  | { kind: 'spawn'; argv: string[]; timeoutMs: number; resource: string; systemd?: SystemdControl }
   | { kind: 'http_get'; url: string; timeoutMs: number; resource: string };
 
 const SAFE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -180,7 +205,13 @@ export function planAction(catalog: ExecutorCatalog, action: { type: string; arg
     return {
       ok: true,
       entry,
-      plan: { kind: 'spawn', argv: [...catalog.systemctl, command, '--', entry.unit], timeoutMs: entry.timeout_ms, resource: `unit:${entry.unit}` },
+      plan: {
+        kind: 'spawn',
+        argv: [...catalog.systemctl, command, '--', entry.unit],
+        timeoutMs: entry.timeout_ms,
+        resource: `unit:${entry.unit}`,
+        systemd: systemdControl(catalog, entry.unit),
+      },
     };
   }
   return { ok: false, reason: 'type_not_executable' };

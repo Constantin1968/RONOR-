@@ -1,0 +1,16 @@
+services:
+  ronor:
+    build:
+      dockerfile: Dockerfile.runtime
+    networks:
+      - default
+      - legacy
+volumes:
+  ronor-data:
+    name: ronor-data
+  redis-data:
+    name: app_redis-data
+networks:
+  legacy:
+    external: true
+    name: app_default

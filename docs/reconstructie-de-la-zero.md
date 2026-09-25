@@ -153,6 +153,14 @@ depozit a cărui întreagă rațiune este reconstrucția identică, aceasta era 
 internă: o reconstrucție de azi și una de peste șase luni ar fi produs sisteme diferite din
 aceleași rețete. Imaginea este acum fixată pe `v5.8.0`.
 
+## 7. Gazda primară
+
+Acest index descrie gazda secundară și automatizarea dezvoltării. Gazda primară (runtime-ul,
+Qdrant, Redis și Postgres de pe DigitalOcean) are propriul document,
+`docs/reconstructie-primara-digitalocean.md`, cu cele opt dependențe găsite nedeclarate la
+reconstrucția pe probă din 25.09.2026, ordinea pornirii și scripturile din
+`ops/ronor-sovereign/`.
+
 ---
 
 ## Ce nu dovedește acest document

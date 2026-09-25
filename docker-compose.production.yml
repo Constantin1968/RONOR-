@@ -27,6 +27,28 @@
 #   healthcheck and volume is derived from the repository's existing
 #   docker-compose.yml, which was itself verified in the Build Week deploy.
 #
+# Cerința PKI (TLS pentru Qdrant)
+# -------------------------------
+#   Planul de cunoaștere refuză un punct final Qdrant în clar, deci Qdrant
+#   rulează cu TLS. Fișierele de mai jos NU sunt create de nicio rețetă din
+#   depozit; trebuie să existe pe gazdă înainte de `up`:
+#     · /etc/ronor/pki/ca.crt     — certificatul autorității interne (public),
+#                                   montat în runtime ca NODE_EXTRA_CA_CERTS;
+#     · /etc/ronor/pki/qdrant.crt — certificatul serverului Qdrant, emis de
+#                                   autoritatea internă; SAN trebuie să conțină
+#                                   `qdrant` (numele serviciului) și, dacă se
+#                                   folosesc clienți de pe gazdă, `localhost`
+#                                   și `127.0.0.1`;
+#     · /etc/ronor/pki/qdrant.key — cheia privată a serverului Qdrant.
+#   Cheia privată a autorității interne nu se ține în /etc/ronor/pki și nu se
+#   montează în niciun container. Certificatul se emite de operator, cu
+#   autoritatea internă, în afara acestui fișier; la reînnoire se înlocuiesc
+#   qdrant.crt și qdrant.key pe gazdă și se repornește serviciul `qdrant`.
+#   Dacă fișierele lipsesc, Docker creează în locul lor directoare goale, iar
+#   Qdrant nu pornește: verificați-le înainte de `up`.
+#   Clienții de pe gazdă trebuie să folosească https://127.0.0.1:6333 și să
+#   aibă încredere în ca.crt; http:// nu mai funcționează.
+#
 # Prepared by AMB · Mayleven Ecosystem
 # ============================================================================
 
@@ -67,7 +89,7 @@ services:
       # host's 127.0.0.1.
       KNOWLEDGE_QDRANT_ENDPOINT: https://qdrant:6333
       NODE_EXTRA_CA_CERTS: /etc/ssl/ronor-ca.crt
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: https://qdrant:6333
       # Password is interpolated from REDIS_PASSWORD so the runtime can
       # authenticate. The URL form redis://:password@host is the standard
       # Redis URI scheme; the colon before the password is required when
@@ -170,7 +192,11 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
-      - /etc/ronor/pki:/qdrant/tls:ro
+      # Numai certificatul și cheia serverului, fișier cu fișier. Directorul
+      # /etc/ronor/pki nu se montează întreg: dacă acolo se află și cheia
+      # privată a autorității interne, Qdrant nu trebuie să o vadă.
+      - /etc/ronor/pki/qdrant.crt:/qdrant/tls/qdrant.crt:ro
+      - /etc/ronor/pki/qdrant.key:/qdrant/tls/qdrant.key:ro
     healthcheck:
       # A TCP probe rather than HTTP: the image ships no curl, and with an API
       # key set an unauthenticated HTTP probe returns 401 and reads as

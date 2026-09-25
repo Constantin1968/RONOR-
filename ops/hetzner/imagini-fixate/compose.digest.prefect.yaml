@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "prefect" (/opt/prefect).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  prefect:
+    image: prefecthq/prefect@sha256:2d647011130f4bb36ee07b8386921890f1da44a9b7fbf81cfa86a555b92f151e   # inainte: prefecthq/prefect:3-latest

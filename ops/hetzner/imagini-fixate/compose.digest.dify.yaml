@@ -1,0 +1,12 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "dify" (/opt/dify).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  dify-api:
+    image: langgenius/dify-api@sha256:dcefa5f7c47c77e621f5b864bc1d64a2ba18cd215b001f15b3882bb7911c6c64   # inainte: langgenius/dify-api:latest
+  dify-db:
+    image: postgres@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f   # inainte: postgres:15-alpine
+  dify-redis:
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2   # inainte: redis:7-alpine
+  dify-web:
+    image: langgenius/dify-web@sha256:87dd47e4e28f86834f6a7aefd9a02b9f4097056867031e4d99ebd46908a0e390   # inainte: langgenius/dify-web:latest

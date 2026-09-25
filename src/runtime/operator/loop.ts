@@ -6,14 +6,20 @@
  * bugetul, lease-ul pe resursă, acțiunea tipizată și tierul de aprobare.
  * NU execută nimic, NU atinge rețeaua, NU scrie pe disc.
  *
- * Tieruri: `ops.actuate` cere aprobare umană explicită (`approved=true`).
- * Restul tipurilor rulează automat DOAR dacă sunt delegate prin mandat.
+ * Tipurile permise vin NUMAI din mandat (`allowed_actions` minus
+ * `denied_actions`, prin `operatorTypesFromMandate`). Apelantul nu poate lărgi
+ * lista: nu există parametru pentru asta, iar un câmp `allowedOperatorTypes`
+ * strecurat în parametri este ignorat.
+ *
+ * Tieruri: `ops.actuate` cere aprobare umană explicită (`approved=true`) și, în
+ * vocabularul actual al mandatului, nu poate fi delegat deloc.
  */
 
 import { validateMandate } from '../automation/policy';
 import type { ExecutionMandate } from '../automation/contracts';
 import {
   evaluateTypedOperatorAction,
+  operatorTypesFromMandate,
   type OperatorActionType,
 } from './actions';
 import type { ResourceLeaseManager } from './resource-lease';
@@ -32,8 +38,10 @@ export interface OperatorTickParams {
   resource: string;
   owner: string;
   action: unknown;
-  allowedOperatorTypes: readonly OperatorActionType[];
-  /** Aprobare umană pentru `ops.actuate` (Telegram cu expirare). */
+  /**
+   * Aprobare umană pentru `ops.actuate`. Deocamdată un simplu boolean,
+   * nelegat de hash-ul acțiunii, de dispozitiv sau de o expirare (Tranșa 2).
+   */
   approved: boolean;
   costSoFarUsd: number;
   leaseManager: ResourceLeaseManager;
@@ -67,7 +75,7 @@ export function runOperatorTick(params: OperatorTickParams): OperatorTickDecisio
   });
   if (claim.outcome === 'busy') return { decision: 'blocked', reason: `resource_busy:${claim.holder}` };
 
-  const evaluation = evaluateTypedOperatorAction(params.action, params.allowedOperatorTypes);
+  const evaluation = evaluateTypedOperatorAction(params.action, operatorTypesFromMandate(params.mandate));
   if (!evaluation.allowed) {
     params.leaseManager.release({ resource: params.resource, owner: params.owner });
     return { decision: 'blocked', reason: evaluation.reason };

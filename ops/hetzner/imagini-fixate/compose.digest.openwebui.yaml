@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "openwebui" (/opt/openwebui).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui@sha256:6a773e5c3a246b65cbe74ce942b294292c0e5f81c138f703d111bc162f7d7c3d   # inainte: ghcr.io/open-webui/open-webui:main

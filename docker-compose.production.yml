@@ -27,6 +27,28 @@
 #   healthcheck and volume is derived from the repository's existing
 #   docker-compose.yml, which was itself verified in the Build Week deploy.
 #
+# Cerința PKI (TLS pentru Qdrant)
+# -------------------------------
+#   Planul de cunoaștere refuză un punct final Qdrant în clar, deci Qdrant
+#   rulează cu TLS. Fișierele de mai jos NU sunt create de nicio rețetă din
+#   depozit; trebuie să existe pe gazdă înainte de `up`:
+#     · /etc/ronor/pki/ca.crt     — certificatul autorității interne (public),
+#                                   montat în runtime ca NODE_EXTRA_CA_CERTS;
+#     · /etc/ronor/pki/qdrant.crt — certificatul serverului Qdrant, emis de
+#                                   autoritatea internă; SAN trebuie să conțină
+#                                   `qdrant` (numele serviciului) și, dacă se
+#                                   folosesc clienți de pe gazdă, `localhost`
+#                                   și `127.0.0.1`;
+#     · /etc/ronor/pki/qdrant.key — cheia privată a serverului Qdrant.
+#   Cheia privată a autorității interne nu se ține în /etc/ronor/pki și nu se
+#   montează în niciun container. Certificatul se emite de operator, cu
+#   autoritatea internă, în afara acestui fișier; la reînnoire se înlocuiesc
+#   qdrant.crt și qdrant.key pe gazdă și se repornește serviciul `qdrant`.
+#   Dacă fișierele lipsesc, Docker creează în locul lor directoare goale, iar
+#   Qdrant nu pornește: verificați-le înainte de `up`.
+#   Clienții de pe gazdă trebuie să folosească https://127.0.0.1:6333 și să
+#   aibă încredere în ca.crt; http:// nu mai funcționează.
+#
 # Prepared by AMB · Mayleven Ecosystem
 # ============================================================================
 
@@ -65,8 +87,9 @@ services:
       # Service discovery inside the compose network. These override any host
       # value in .env.production on purpose: the container cannot reach the
       # host's 127.0.0.1.
-      KNOWLEDGE_QDRANT_ENDPOINT: http://qdrant:6333
-      QDRANT_URL: http://qdrant:6333
+      KNOWLEDGE_QDRANT_ENDPOINT: https://qdrant:6333
+      NODE_EXTRA_CA_CERTS: /etc/ssl/ronor-ca.crt
+      QDRANT_URL: https://qdrant:6333
       # Password is interpolated from REDIS_PASSWORD so the runtime can
       # authenticate. The URL form redis://:password@host is the standard
       # Redis URI scheme; the colon before the password is required when
@@ -81,6 +104,10 @@ services:
       - ronor-data:/app/data
       # Bind-mount: policy changes on the host take effect on next container restart
       - ./src/governance/policies.yaml:/app/src/governance/policies.yaml:ro
+      # Trust anchor for the internal authority that signed the store
+      # certificate. Verification cannot be disabled, so the runtime must
+      # trust the issuer rather than skip the check.
+      - /etc/ronor/pki/ca.crt:/etc/ssl/ronor-ca.crt:ro
     depends_on:
       qdrant:
         condition: service_healthy
@@ -152,6 +179,12 @@ services:
       QDRANT__SERVICE__API_KEY: ${KNOWLEDGE_QDRANT_API_KEY:?KNOWLEDGE_QDRANT_API_KEY must be set}
       QDRANT__LOG_LEVEL: ${QDRANT_LOG_LEVEL:-INFO}
       QDRANT__SERVICE__ENABLE_CORS: "false"
+      # TLS is mandatory for the knowledge plane and not configurable there:
+      # a plaintext endpoint is refused at parse time. Certificate issued by
+      # the internal authority at /etc/ronor/pki, SAN covers the service name.
+      QDRANT__SERVICE__ENABLE_TLS: "true"
+      QDRANT__TLS__CERT: /qdrant/tls/qdrant.crt
+      QDRANT__TLS__KEY: /qdrant/tls/qdrant.key
     ports:
       # 6333 REST, 6334 gRPC — loopback only.
       - "127.0.0.1:6333:6333"
@@ -159,6 +192,11 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
+      # Numai certificatul și cheia serverului, fișier cu fișier. Directorul
+      # /etc/ronor/pki nu se montează întreg: dacă acolo se află și cheia
+      # privată a autorității interne, Qdrant nu trebuie să o vadă.
+      - /etc/ronor/pki/qdrant.crt:/qdrant/tls/qdrant.crt:ro
+      - /etc/ronor/pki/qdrant.key:/qdrant/tls/qdrant.key:ro
     healthcheck:
       # A TCP probe rather than HTTP: the image ships no curl, and with an API
       # key set an unauthenticated HTTP probe returns 401 and reads as
@@ -341,7 +379,9 @@ services:
   # last 90 days; a renewal that runs only on deploy is a certificate that
   # expires during the first quiet month.
   certbot:
-    image: certbot/certbot:latest
+    # Fixat pe o versiune anume: `latest` face ca o reconstrucție de azi și una de
+    # peste șase luni să producă sisteme diferite din aceleași rețete.
+    image: certbot/certbot:v5.8.0
     container_name: ronor-certbot
     profiles: ["edge"]
     volumes:

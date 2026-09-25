@@ -1,0 +1,10 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "cida" (/opt/cida).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  # cida-minio: imagine retrasa din registru (minio/minio sters de pe Docker Hub la 11.09.2026).
+  # Nu se poate trage; se incarca din arhiva docker save (vezi CITESTE.md), apoi up --pull never.
+  cida-minio:
+    image: minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e   # inainte: minio/minio:RELEASE.2025-04-22T22-12-26Z
+  cida-postgres:
+    image: postgres@sha256:ccb771565a9685249a794529986c6f6eb007c676dd4169d84d3f1c46a280e696   # inainte: postgres:17

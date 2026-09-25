@@ -1,0 +1,6 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "qdrant-tls" (/opt/ronor-servicii-restante-declarativ/qdrant-tls).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  qdrant-tls:
+    image: nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752   # inainte: nginx:alpine

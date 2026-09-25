@@ -1,0 +1,18 @@
+# Suprapunere de fixare pe digest pentru proiectul compose "ronor-expansion" (/opt/ronor-expansion).
+# Folosire: docker compose -f docker-compose.yml -f <aceasta-cale> up -d
+# Digest-urile sunt cele care rulau pe gazda secundara la 25 septembrie 2026.
+services:
+  langgraph-postgres:
+    image: postgres@sha256:ccb771565a9685249a794529986c6f6eb007c676dd4169d84d3f1c46a280e696   # inainte: postgres:17
+  langgraph-redis:
+    image: redis@sha256:8e839f5b3738dbc1223ea01d5d3da0da0d750018e1336f45866630a9bf217014   # inainte: redis:7
+  qdrant:
+    image: qdrant/qdrant@sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc   # inainte: qdrant/qdrant:v1.19.0
+  temporal:
+    image: temporalio/auto-setup@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f   # inainte: temporalio/auto-setup:1.29.7
+  temporal-admin-tools:
+    image: temporalio/admin-tools@sha256:4a17b5be706c56a9238fb7b5b32a36966cee14939658b20597837b2443b277c8   # inainte: temporalio/admin-tools:1.29.7-tctl-1.18.4-cli-1.7.2
+  temporal-postgres:
+    image: postgres@sha256:ccb771565a9685249a794529986c6f6eb007c676dd4169d84d3f1c46a280e696   # inainte: postgres:17
+  temporal-ui:
+    image: temporalio/ui@sha256:102edb3cc9a549c8408bb5a867be944f6bc3889479770362e4c4c2067a4b8700   # inainte: temporalio/ui:2.53.1

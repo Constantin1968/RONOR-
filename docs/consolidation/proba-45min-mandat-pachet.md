@@ -24,7 +24,7 @@ max_cost_usd: 5.00                        # plafon agregat real, nu filtru estim
 max_fix_cycles: 1
 policy_version: effect-policy/v1 + test-policy/v1 (hash-uri în receipt)
 test_command_allowlist_id: proba-001-t1   # ex: npm --prefix /work/proba-001 test -- --runInBand
-expires_at: 2026-09-16T12:00:00Z
+expires_at: <EXEMPLU: se completează la emitere, ISO 8601 UTC>   # valoarea inițială 2026-09-16T12:00:00Z a expirat
 issued_by: arhitect (key_id explicit)
 ```
 
@@ -93,7 +93,7 @@ Regula Cap. 23: fără nivel + fără next test, afirmația nu călătorește î
 
 - Nu e certificare de autonomie sigură, suveranitate per-apel, profit BESS sau recuperare integrală (formulări interzise până la porțile G0–G5 verzi).
 - Nu e proba live de 45 min anterioară — aceea rămâne `neobservată` până se prezintă mandatul efectiv + rezervările + raportul din §4.
-- Nu folosește chei reale de furnizori comerciali; furnizorul e simulat sau cu buget real микро dar reconciliat.
+- Nu folosește chei reale de furnizori comerciali; furnizorul e simulat sau cu buget real micro, dar reconciliat.
 
 ## 7. Rulare propusă (operator)
 

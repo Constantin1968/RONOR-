@@ -200,7 +200,7 @@ Owneri pe componente: API+identitate, platformă execuție, verificare, contabil
 | `src/runtime/executor/` (PR #52) | Executorul cu mandat, singura cale de efect pe gazdă. Are o listă albă de acțiuni tipizate: `systemctl` pe unități numite și HTTP GET pe loopback, fără shell. Mandatul de operațiuni include `ops_observe` și `ops_actuate`. STOP-ul e persistent: refuză acțiunile aprobate și oprește acțiunile în curs, care se închid `interrupted`. Jurnalul e per înregistrare, iar reluarea e idempotentă. Cererile venite din memorie sau din model sunt refuzate. Executorul refuză pornirea dacă are acces Docker | F07/F09/F04 din registrul v6 |
 | Teste | 96 de teste pentru poartă (după `f088226`) și 21 pentru executor, inclusiv proba STOP pe un proces real | — |
 
-Utilizare: `runOperatorTick({mandate, objective, workspaceRoot, branch, resource, owner, action, costSoFarUsd, leaseManager, now, approval, approvalSecret, hostId})` → `ready_to_execute` sau `blocked:<motiv>`. Nu mai există parametrul `allowedOperatorTypes`; un câmp cu acest nume e ignorat.
+Utilizare: `runOperatorTick({mandate, objective, workspaceRoot, branch, resource, owner, action, costSoFarUsd, leaseManager, now, approval, approvalKeys, hostId})` → `ready_to_execute` sau `blocked:<motiv>`. Nu mai există parametrul `allowedOperatorTypes`; un câmp cu acest nume e ignorat.
 
 ### 7.2. Ce rămâne (Tranșa 2–3, intenționat neimplementat)
 

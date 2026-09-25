@@ -24,7 +24,7 @@ const decision = runOperatorTick({
   resource: '/work/proba-001', owner: 'operator-1',
   action: { type: 'repo.read', args: { path: 'src/sum.ts' } },
   costSoFarUsd: 0, leaseManager: leases, now: new Date(),
-  // Pentru ops.actuate: approval (semnată), approvalSecret și hostId.
+  // Pentru ops.actuate: approval (semnată Ed25519 de om, cu proveniența în conținutul semnat), approvalKeys (cheile publice ale aprobatorilor) și hostId.
 });
 // { decision: 'ready_to_execute' } sau { decision: 'blocked', reason }
 ```

@@ -14,13 +14,17 @@
  * același deținător, cu adâncime numărată.
  *
  * La deschidere, orice execuție rămasă `admitted` sau `started` al cărei proces
- * nu mai există devine `interrupted`: rezultatul ei e necunoscut și nu se reia
- * automat. O nouă încercare cere o nouă aprobare. Execuțiile unui proces viu
+ * nu mai există se închide: o actuare devine `interrupt_unconfirmed` (efectul
+ * ei în unitate nu a fost confirmat oprit, D1), o observare `interrupted`.
+ * Rezultatul e necunoscut și nu se reia automat. O nouă încercare cere o nouă aprobare. Execuțiile unui proces viu
  * (de exemplu, un `execute` în curs cât timp consola dă STOP) nu sunt atinse.
  */
 import Database from 'better-sqlite3';
 
-export type ExecutionState = 'admitted' | 'started' | 'done' | 'failed' | 'interrupted';
+export type ExecutionState = 'admitted' | 'started' | 'done' | 'failed' | 'interrupted' | 'interrupt_unconfirmed';
+export type FinalState = 'done' | 'failed' | 'interrupted' | 'interrupt_unconfirmed';
+
+const STATE_CHECK = `CHECK (state IN ('admitted','started','done','failed','interrupted','interrupt_unconfirmed'))`;
 
 export interface ExecutionRecord {
   execution_id: string;
@@ -74,7 +78,7 @@ export class ExecutorJournal {
         approval_id TEXT UNIQUE,
         owner TEXT NOT NULL,
         pid INTEGER NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('admitted','started','done','failed','interrupted')),
+        state TEXT NOT NULL ${STATE_CHECK},
         reason TEXT,
         created_at TEXT NOT NULL,
         started_at TEXT,
@@ -103,15 +107,30 @@ export class ExecutorJournal {
         expires_at_ms INTEGER NOT NULL
       );
     `);
+    this.migrateStates();
     const open = this.db.prepare(`SELECT execution_id, pid FROM executions WHERE state IN ('admitted','started')`).all() as Array<{
       execution_id: string;
       pid: number;
     }>;
     const orphan = this.db.prepare(
-      `UPDATE executions SET state = 'interrupted', reason = 'process_restart_outcome_unknown', finished_at = ?
+      `UPDATE executions SET state = CASE action_type WHEN 'ops.actuate' THEN 'interrupt_unconfirmed' ELSE 'interrupted' END,
+         reason = 'process_restart_outcome_unknown', finished_at = ?
        WHERE execution_id = ? AND state IN ('admitted','started')`,
     );
     for (const row of open) if (!processAlive(row.pid)) orphan.run(now().toISOString(), row.execution_id);
+  }
+
+  /** Jurnalele create înainte de `interrupt_unconfirmed` au o constrângere CHECK mai îngustă; se reconstruiește tabela. */
+  private migrateStates(): void {
+    const row = this.db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'executions'`).get() as { sql: string } | undefined;
+    if (!row || row.sql.includes('interrupt_unconfirmed')) return;
+    const migrate = this.db.transaction(() => {
+      this.db.exec(`ALTER TABLE executions RENAME TO executions_v1`);
+      this.db.exec(row.sql.replace(/executions_v1|"executions_v1"/, 'executions').replace(/CHECK \(state IN \([^)]*\)\)/, STATE_CHECK));
+      this.db.exec(`INSERT INTO executions SELECT * FROM executions_v1`);
+      this.db.exec(`DROP TABLE executions_v1`);
+    });
+    migrate();
   }
 
   close(): void {
@@ -178,7 +197,7 @@ export class ExecutorJournal {
   /** Închide o execuție; scrierea e confirmată prin numărul de rânduri schimbate, nu presupusă. */
   finish(
     executionId: string,
-    fields: { state: 'done' | 'failed' | 'interrupted'; reason: string | null; exitCode: number | null; outputSha256: string | null; receipt: string | null; at: Date },
+    fields: { state: FinalState; reason: string | null; exitCode: number | null; outputSha256: string | null; receipt: string | null; at: Date },
   ): void {
     const info = this.db
       .prepare(

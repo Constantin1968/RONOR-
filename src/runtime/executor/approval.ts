@@ -1,22 +1,28 @@
 /**
  * Aprobarea umană pentru `ops.actuate`, legată de acțiunea exactă.
  *
- * Înainte, aprobarea era un boolean (`approved: true`), nelegat de nimic: o
- * aprobare dată pentru „repornește runtime-ul” putea acoperi orice altă
- * actuare. Acum aprobarea este un obiect semnat (HMAC-SHA256, cheie separată
- * de cea a mandatelor) care conține:
+ * Aprobarea este un obiect semnat Ed25519 de omul care aprobă (D3): executorul
+ * are numai cheile publice ale aprobatorilor, deci nu poate produce o aprobare
+ * validă. Conținutul semnat:
  *   - `action_hash`: SHA-256 peste forma canonică a acțiunii (mandat, tip,
  *     argumente tipizate, resursă, gazdă). O schimbare de un octet dă alt hash;
  *   - `mandate_id`: aprobarea nu trece la alt mandat;
+ *   - `origin`: proveniența cererii, declarată de om la aprobare (D4). Cererea
+ *     nu o mai poate declara; o schimbare a ei invalidează semnătura;
  *   - `issued_at` / `expires_at`: fereastră de cel mult `MAX_APPROVAL_TTL_MS`;
- *   - `approval_id`: nonce de unică folosință (executorul îl consumă în jurnal).
+ *   - `approval_id`: nonce de unică folosință (executorul îl consumă în jurnal);
+ *   - `approver_key_id`: amprenta cheii publice cu care se verifică.
  */
 import crypto from 'node:crypto';
-import { canonicalJson, hmacBase64Url, hmacEquals, sha256Hex } from './canonical';
+import { canonicalJson, sha256Hex } from './canonical';
+import { keyId, signDomain, verifyDomain, type PublicKeyring } from './keys';
 
-export const APPROVAL_VERSION = 'ronor-actuation-approval/v1' as const;
+export const APPROVAL_VERSION = 'ronor-actuation-approval/v2' as const;
 /** Cel mult 15 minute între emiterea aprobării și expirarea ei. */
 export const MAX_APPROVAL_TTL_MS = 15 * 60_000;
+
+export type RequestOrigin = 'operator' | 'memory' | 'model' | 'external';
+export const REQUEST_ORIGINS: readonly RequestOrigin[] = ['operator', 'memory', 'model', 'external'];
 
 export interface ActionIdentity {
   host_id: string;
@@ -33,6 +39,7 @@ export interface ActuationApproval {
   action_hash: string;
   approver_key_id: string;
   channel: 'console' | 'telegram';
+  origin: RequestOrigin;
   issued_at: string;
   expires_at: string;
   signature: string;
@@ -62,46 +69,51 @@ function payload(approval: Omit<ActuationApproval, 'signature'>): string {
     action_hash: approval.action_hash,
     approver_key_id: approval.approver_key_id,
     channel: approval.channel,
+    origin: approval.origin,
     issued_at: approval.issued_at,
     expires_at: approval.expires_at,
   });
 }
 
+/** Semnează o aprobare; cere cheia privată a omului care aprobă. */
 export function signActuationApproval(
   fields: {
     mandateId: string;
     actionHash: string;
-    approverKeyId: string;
     channel?: ActuationApproval['channel'];
+    origin?: RequestOrigin;
     ttlMs: number;
     now?: Date;
     approvalId?: string;
   },
-  secret: string,
+  approverPrivateKey: crypto.KeyObject,
 ): ActuationApproval {
   if (!/^[a-f0-9]{64}$/.test(fields.actionHash)) throw new Error('approval_action_hash_invalid');
-  if (!/^key_[a-f0-9]{12}$/.test(fields.approverKeyId)) throw new Error('approval_approver_invalid');
   if (!Number.isFinite(fields.ttlMs) || fields.ttlMs < 1_000 || fields.ttlMs > MAX_APPROVAL_TTL_MS)
     throw new Error('approval_ttl_outside_policy');
+  const origin = fields.origin ?? 'operator';
+  if (!REQUEST_ORIGINS.includes(origin)) throw new Error('approval_origin_invalid');
+  if (approverPrivateKey.type !== 'private') throw new Error('approval_signing_requires_private_key');
   const now = fields.now ?? new Date();
   const unsigned: Omit<ActuationApproval, 'signature'> = {
     version: APPROVAL_VERSION,
     approval_id: fields.approvalId ?? `appr_${crypto.randomBytes(16).toString('hex')}`,
     mandate_id: fields.mandateId,
     action_hash: fields.actionHash,
-    approver_key_id: fields.approverKeyId,
+    approver_key_id: keyId(approverPrivateKey),
     channel: fields.channel ?? 'console',
+    origin,
     issued_at: now.toISOString(),
     expires_at: new Date(now.getTime() + fields.ttlMs).toISOString(),
   };
-  return { ...unsigned, signature: hmacBase64Url(secret, 'approval', payload(unsigned)) };
+  return { ...unsigned, signature: signDomain(APPROVAL_VERSION, payload(unsigned), approverPrivateKey) };
 }
 
 function isApprovalShape(value: unknown): value is ActuationApproval {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const a = value as Record<string, unknown>;
   const keys = Object.keys(a).sort().join(',');
-  if (keys !== 'action_hash,approval_id,approver_key_id,channel,expires_at,issued_at,mandate_id,signature,version') return false;
+  if (keys !== 'action_hash,approval_id,approver_key_id,channel,expires_at,issued_at,mandate_id,origin,signature,version') return false;
   return (
     a.version === APPROVAL_VERSION &&
     typeof a.approval_id === 'string' && /^appr_[a-f0-9]{32}$/.test(a.approval_id) &&
@@ -109,23 +121,28 @@ function isApprovalShape(value: unknown): value is ActuationApproval {
     typeof a.action_hash === 'string' && /^[a-f0-9]{64}$/.test(a.action_hash) &&
     typeof a.approver_key_id === 'string' && /^key_[a-f0-9]{12}$/.test(a.approver_key_id) &&
     (a.channel === 'console' || a.channel === 'telegram') &&
+    typeof a.origin === 'string' && (REQUEST_ORIGINS as readonly string[]).includes(a.origin) &&
     typeof a.issued_at === 'string' && typeof a.expires_at === 'string' &&
     typeof a.signature === 'string'
   );
 }
 
 /**
- * Verifică aprobarea pentru acțiunea exactă. Ordinea contează: forma, apoi
- * semnătura, apoi legăturile (mandat, hash), apoi fereastra de timp.
+ * Verifică aprobarea pentru acțiunea exactă. Ordinea contează: forma, cheia
+ * aprobatorului, semnătura, proveniența, apoi legăturile (mandat, hash), apoi
+ * fereastra de timp. Proveniența se citește numai din conținutul semnat.
  */
 export function verifyActuationApproval(
   approval: unknown,
   expected: { mandateId: string; actionHash: string; now: Date },
-  secret: string,
+  approverKeys: PublicKeyring,
 ): ApprovalCheck {
   if (!isApprovalShape(approval)) return { ok: false, reason: 'approval_malformed' };
   const { signature, ...unsigned } = approval;
-  if (!hmacEquals(secret, 'approval', payload(unsigned), signature)) return { ok: false, reason: 'approval_signature_invalid' };
+  const key = approverKeys.get(approval.approver_key_id);
+  if (!key) return { ok: false, reason: 'approval_approver_unknown' };
+  if (!verifyDomain(APPROVAL_VERSION, payload(unsigned), signature, key)) return { ok: false, reason: 'approval_signature_invalid' };
+  if (approval.origin !== 'operator') return { ok: false, reason: `origin_not_authoritative:${approval.origin}` };
   if (approval.mandate_id !== expected.mandateId) return { ok: false, reason: 'approval_mandate_mismatch' };
   if (approval.action_hash !== expected.actionHash) return { ok: false, reason: 'approval_action_mismatch' };
   const issued = Date.parse(approval.issued_at);

@@ -1,0 +1,7 @@
+# RONOR - suprapunere pentru proiectul compose `app` pe o gazdă fără adresa Tailscale a primarei
+# (gazdă de probă, reconstrucție înainte de alăturarea la tailnet). Postgres ascultă numai pe
+# 127.0.0.1. Folosită la reconstrucția pe probă din 25.09.2026 (docker-compose.proba-porturi.yml).
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:5432:5432"

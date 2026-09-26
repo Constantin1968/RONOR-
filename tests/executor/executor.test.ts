@@ -145,6 +145,10 @@ describe('unitatea fictivă imită systemd: clientul nu e efectul', () => {
     expect(sd.processGroup(unitPid!)).not.toBe(client.pid);
     process.kill(-client.pid!, 'SIGKILL');
     await waitFor(() => sd.markers().some((m) => m.startsWith('final ronor-lent.service')), 6_000);
+    // Ca în systemd, efectul (marcajul final) precede trecerea unității în `inactive`.
+    // Starea se citește după ce unitatea a ieșit din `activating`, nu în intervalul
+    // dintre cele două scrieri (cursă observată pe main la 1db662a, rularea 36177971192).
+    await waitFor(() => sd.state('ronor-lent.service').activeState !== 'activating', 6_000);
     expect(sd.state('ronor-lent.service')).toEqual({ activeState: 'inactive', subState: 'dead' });
   });
 });

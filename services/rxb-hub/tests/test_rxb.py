@@ -112,3 +112,17 @@ def test_limits_and_close_endpoints(client):
     assert r.json()["ro_cumulative"] == "100460.96"
     assert c.post("/api/nominate", headers=h).status_code == 403
     assert c.get("/api/ledger/verify", headers=h).json()["ok"]
+
+
+def test_provision_settlement():
+    from tools.provision import settle_provision
+    assert settle_provision("1600")["state"] == "blocat"
+    s = settle_provision("1600", postponed=True)["split"]
+    assert s["yunex"] == Decimal("800.00") and s["encon"] + s["nrgpath"] == Decimal("800.00")
+    assert settle_provision("1600", cbam_due="1200")["excess_to_brut"] == Decimal("400.00")
+    assert settle_provision("1600", cbam_due="1700")["state"] == "deficit"
+
+
+def test_zero_rights_blocks_nomination():
+    from tools.guard import check_hour
+    assert not check_hour(4, "0", "0", {"ua": "40"})["ok"]

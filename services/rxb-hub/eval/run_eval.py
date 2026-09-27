@@ -17,12 +17,28 @@ from tools.cbc import effective_cbc  # noqa: E402
 from tools.limits import below_breakeven, floor_ok, verdict  # noqa: E402
 from tools.money import D  # noqa: E402
 from tools.unknown import is_unknown  # noqa: E402
+from tools.guard import check_hour  # noqa: E402
+from tools.provision import provision_for  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def check_guard(c: dict) -> list[tuple[str, bool, str]]:
+    res = []
+    for h in c["hours"]:
+        r = check_hour(h["hour"], h["rights"], h["nominate"], h["prices"], set(h.get("suspect", [])),
+                       h.get("needs_intraday", False), h.get("md_leg_rights"))
+        res.append((h["name"], r["ok"] == h["ok"], r.get("reason", "nominalizabil")))
+    e = c["expect_expected_provision"]
+    got = provision_for("UA-RO", "UA", e["mwh"])
+    res.append(("provizion așteptat 28.09", got == D(e["provision"]), str(got)))
+    return res
+
+
 def check_file(path: str) -> list[tuple[str, bool, str]]:
     c = json.load(open(path, encoding="utf-8"))
+    if "hours" in c:
+        return check_guard(c)
     res = []
     k = c["int7_excluded"]
     v = verdict(k["sell"], k["cost"], k["cbc"])

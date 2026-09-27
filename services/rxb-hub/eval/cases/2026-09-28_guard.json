@@ -1,0 +1,12 @@
+{
+  "_source": "Raport detaliat RXB-Hub 27.09.2026, secțiunea 4: nominalizările finale pentru 28.09",
+  "expect_expected_provision": {"mwh": "135", "provision": "5400.00"},
+  "hours": [
+    {"name": "UA-RO h1 nominalizat", "hour": 1, "rights": "15", "nominate": "15", "prices": {"ua": "29", "ro": "163"}, "ok": true},
+    {"name": "UA-RO h12 cu 0,20 -> unknown", "hour": 12, "rights": "15", "nominate": "15", "prices": {"ua": "0.20", "ro": "20"}, "ok": false},
+    {"name": "UA-RO h16 cu 1,70 suspect", "hour": 16, "rights": "15", "nominate": "15", "prices": {"ua": "1.70", "ro": "90"}, "suspect": ["ua"], "ok": false},
+    {"name": "h20 fără intraday", "hour": 20, "rights": "15", "nominate": "15", "prices": {"ua": "244", "ro": "342"}, "needs_intraday": true, "ok": false},
+    {"name": "UA-MD-RO h2 cu MD pierdut", "hour": 2, "rights": "15", "nominate": "15", "prices": {"ua": "40", "ro": "170"}, "md_leg_rights": "0", "ok": false},
+    {"name": "nominalizare peste drepturi", "hour": 3, "rights": "15", "nominate": "20", "prices": {"ua": "40", "ro": "170"}, "ok": false}
+  ]
+}

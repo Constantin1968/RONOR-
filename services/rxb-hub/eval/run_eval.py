@@ -35,10 +35,26 @@ def check_guard(c: dict) -> list[tuple[str, bool, str]]:
     return res
 
 
+def check_month(c: dict) -> list[tuple[str, bool, str]]:
+    from tools.split import split_for
+    res = []
+    total = sum((D(v) for v in c["month_table"].values()), D(0))
+    res.append(("suma tabelului lunii", total == D(c["month_total"]), str(total)))
+    parties: dict = {}
+    for r in c["today"]:
+        for k, v in split_for(r["route"], D(r["ro_slice"]) * 2)["split"].items():
+            parties[k] = parties.get(k, D(0)) + v
+    bad = {k: str(parties.get(k)) for k, v in c["expect_today"].items() if parties.get(k) != D(v)}
+    res.append(("împărțirea zilei 28.09", not bad, "exact" if not bad else str(bad)))
+    return res
+
+
 def check_file(path: str) -> list[tuple[str, bool, str]]:
     c = json.load(open(path, encoding="utf-8"))
     if "hours" in c:
         return check_guard(c)
+    if "month_table" in c:
+        return check_month(c)
     res = []
     k = c["int7_excluded"]
     v = verdict(k["sell"], k["cost"], k["cbc"])
@@ -53,6 +69,8 @@ def check_file(path: str) -> list[tuple[str, bool, str]]:
     res.append(("floor-uri bătute", all(hits), f"{sum(hits)}/{len(hits)}"))
     k = c["h1_below_breakeven"]
     res.append(("h1 sub breakeven", below_breakeven(k["cost"], k["breakeven"]), "semnalat"))
+    if "month_table" in c:
+        return check_month(c)
     k = c["close_27_09"]
     d = close_day(k["positions"], k["ro_cumulative_before"])
     exp = k["expect"]

@@ -14,7 +14,7 @@ RXB propune, iar RONOR decide. Nicio cifră nu vine dintr-un model de limbaj. Î
 | Regulă | Unde |
 |---|---|
 | Unde UA e implicat: 50% Yunex, 50% RO; felia RO se împarte 50% Encon, 50% NrgPath | `tools/split.py` |
-| Tranzit prin MD: partea NrgPath se împarte 50/50 cu WattMD (confirmat) | `tools/split.py` |
+| Tranzit prin MD: WATT preia felia RO; Encon Group (Encon + WATT) 50% / NrgPath 50% din felie | `tools/split.py` |
 | RO↔MD pur: 50% WattMD, 50% NrgPath | `tools/split.py` |
 | Provizion CBAM: 40 €/MWh pentru origine UA, 30 €/MWh pentru origine MD, numai la intrarea în RO, în afara P/L | `tools/provision.py` |
 | Limita de cumpărare: `(preț_UA − 0,9 − CBC − 0,5) / 1,01` | `tools/limits.py` |
@@ -38,6 +38,6 @@ Toate rutele cer antetul `X-RONOR-Token`. Dacă tokenul lipsește din configurar
 Comanda de acceptare este `bash ops/doctor.sh`. Etapele A, R, B și C trebuie să treacă toate. Cazurile înghețate sunt în `eval/cases/`.
 
 ## Confirmări (Muse, 27.09.2026)
-1. Tranzitul prin MD: Yunex 50%, Encon 25%, NrgPath 12,5%, WattMD 12,5%. WattMD are o linie distinctă în registru.
+1. Tranzitul prin MD (decizia suveranului, 28.09.2026): Yunex 50%, WATT 25%, NrgPath 25%. WATT este afiliatul Encon, deci Encon Group = Encon + WATT. Înlocuiește varianta 25/12,5/12,5.
 2. Parametrii: tariful este 0,9, spread-ul minim 0,5, iar coeficientul de pierderi 1,01.
 3. Starea prețului se marchează explicit: `real`, `missing`, `substitute` sau `suspect`, cu proveniență. O valoare fără status sau fără proveniență e tratată ca neverificată. Garda blochează orice stare diferită de `real`. Un preț de 0 €, de 0,20 € sau negativ e acceptat dacă e marcat `real`.

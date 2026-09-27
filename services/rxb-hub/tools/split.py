@@ -2,10 +2,11 @@
 
 1. UA implicat oriunde pe rută (UA-RO, RO-UA, UA-MD-RO, RO-MD-UA, UA-MD):
    50% Yunex / 50% felia RO; felia RO -> Encon 50% / NrgPath 50%.
-   Pe tranzit prin MD, partea NrgPath se împarte 50/50 cu WattMD (subJV).
-   CONFIRMAT de Muse pe 27.09.2026: Yunex 50% / Encon 25% / NrgPath 12,5% /
-   WattMD 12,5%. WattMD rămâne linie distinctă de Encon în registru, deși e
-   subsidiara Encon Group (economic, Encon Group = 37,5% pe tranzit MD).
+   Pe tranzit prin MD, WATT (Watt Prime MD) preia felia RO din contractul
+   UA/RO Teams. În RO Team, Encon și WATT sunt aceeași entitate (WATT e
+   afiliatul Encon), deci felia RO se împarte tot 50/50 cu NrgPath:
+   Yunex 50% / WATT 25% / NrgPath 25%. Encon Group = Encon + WATT.
+   Decizia suveranului din 28.09.2026; înlocuiește varianta 25/12,5/12,5.
 2. RO<->MD pur, fără UA: WattMD 50% / NrgPath 50%.
 3. Provizionul CBAM NU intră aici: e separat, în afara P/L (tools/provision.py).
 
@@ -54,8 +55,7 @@ def split_ua_route(brut, md_transit: bool = False) -> dict[str, Decimal]:
     half = Decimal("0.5")
     quarter = Decimal("0.25")
     if md_transit:
-        eighth = Decimal("0.125")
-        shares = {"yunex": half, "encon": quarter, "nrgpath": eighth, "wattmd": eighth}
+        shares = {"yunex": half, "wattmd": quarter, "nrgpath": quarter}
     else:
         shares = {"yunex": half, "encon": quarter, "nrgpath": quarter}
     return _alloc(D(brut), shares)
@@ -72,3 +72,8 @@ def split_for(route: str, brut, origin: str | None = None) -> dict:
     if is_pure_ro_md(route, origin):
         return {"rule": "ro-md-pur", "split": split_pure_md(brut)}
     raise ValueError(f"rută fără regulă de împărțire în canon: {route} (origine {origin})")
+
+
+def encon_group(split: dict) -> Decimal:
+    """Encon Group = Encon + WATT (afiliat)."""
+    return split.get("encon", Decimal(0)) + split.get("wattmd", Decimal(0))

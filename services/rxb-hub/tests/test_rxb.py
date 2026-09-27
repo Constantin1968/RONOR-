@@ -36,8 +36,8 @@ def test_split_ua_sums_exactly():
 
 def test_split_md_transit_and_pure():
     s = split_for("UA-MD-RO", "1000")["split"]
-    assert s == {"yunex": Decimal("500.00"), "encon": Decimal("250.00"),
-                 "nrgpath": Decimal("125.00"), "wattmd": Decimal("125.00")}
+    assert s == {"yunex": Decimal("500.00"), "encon": Decimal("0.00"),
+                 "nrgpath": Decimal("250.00"), "wattmd": Decimal("250.00")}
     assert split_pure_md("155")["wattmd"] + split_pure_md("155")["nrgpath"] == Decimal("155.00")
     assert split_for("MD-RO", "155")["rule"] == "ro-md-pur"
 

@@ -1,12 +1,33 @@
 {
   "_source": "Tabelul P/L septembrie 2026, poza din 27.09.2026 (livrare 28.09); valorile tabelului sunt felia RO",
-  "month_table": {"Ro-Ua": "-233.30", "Ua-Ro": "25213.83", "Ro-Md": "-2988.07", "Ua-Md": "14082.51",
-                  "Md-Ro tranzit": "50052.62", "Md-Ro pur": "12670.75"},
+  "month_table": {
+    "Ro-Ua": "-233.30",
+    "Ua-Ro": "25213.83",
+    "Ro-Md": "-2988.07",
+    "Ua-Md": "14082.51",
+    "Md-Ro tranzit": "50052.62",
+    "Md-Ro pur": "12670.75"
+  },
   "month_total": "98798.34",
   "today": [
-    {"route": "UA-RO", "ro_slice": "1989.23"},
-    {"route": "UA-MD-RO", "ro_slice": "1107.60"},
-    {"route": "RO-UA", "ro_slice": "-0.23"}
+    {
+      "route": "UA-RO",
+      "ro_slice": "1989.23"
+    },
+    {
+      "route": "UA-MD-RO",
+      "ro_slice": "1107.60"
+    },
+    {
+      "route": "RO-UA",
+      "ro_slice": "-0.23"
+    }
   ],
-  "expect_today": {"yunex": "3096.60", "encon": "1548.30", "nrgpath": "1271.40", "wattmd": "276.90"}
+  "expect_today": {
+    "yunex": "3096.60",
+    "encon": "994.50",
+    "nrgpath": "1548.30",
+    "wattmd": "553.80"
+  },
+  "_split_rule": "Tranzit MD: WATT preia felia RO (WATT = afiliat Encon), decizia suveranului 28.09.2026"
 }

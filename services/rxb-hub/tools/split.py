@@ -3,8 +3,9 @@
 1. UA implicat oriunde pe rută (UA-RO, RO-UA, UA-MD-RO, RO-MD-UA, UA-MD):
    50% Yunex / 50% felia RO; felia RO -> Encon 50% / NrgPath 50%.
    Pe tranzit prin MD, partea NrgPath se împarte 50/50 cu WattMD (subJV).
-   DE CONFIRMAT: interpretarea „subJV NrgPath/WattMD 50/50 pe tranzit MD”
-   ca împărțire a părții NrgPath (25% -> 12,5% + 12,5%), Encon neatins.
+   CONFIRMAT de Muse pe 27.09.2026: Yunex 50% / Encon 25% / NrgPath 12,5% /
+   WattMD 12,5%. WattMD rămâne linie distinctă de Encon în registru, deși e
+   subsidiara Encon Group (economic, Encon Group = 37,5% pe tranzit MD).
 2. RO<->MD pur, fără UA: WattMD 50% / NrgPath 50%.
 3. Provizionul CBAM NU intră aici: e separat, în afara P/L (tools/provision.py).
 

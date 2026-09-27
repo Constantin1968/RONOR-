@@ -14,11 +14,11 @@ RXB propune, iar RONOR decide. Nicio cifră nu vine dintr-un model de limbaj. Î
 | Regulă | Unde |
 |---|---|
 | Unde UA e implicat: 50% Yunex, 50% RO; felia RO se împarte 50% Encon, 50% NrgPath | `tools/split.py` |
-| Tranzit prin MD: partea NrgPath se împarte 50/50 cu WattMD (de confirmat) | `tools/split.py` |
+| Tranzit prin MD: partea NrgPath se împarte 50/50 cu WattMD (confirmat) | `tools/split.py` |
 | RO↔MD pur: 50% WattMD, 50% NrgPath | `tools/split.py` |
 | Provizion CBAM: 40 €/MWh pentru origine UA, 30 €/MWh pentru origine MD, numai la intrarea în RO, în afara P/L | `tools/provision.py` |
 | Limita de cumpărare: `(preț_UA − 0,9 − CBC − 0,5) / 1,01` | `tools/limits.py` |
-| Un picior fără preț este unknown, niciodată 0; 0 € este un preț real | `tools/unknown.py` |
+| Starea explicită a prețului; numai `real` trece de gardă | `tools/unknown.py` |
 | CBC efectiv ponderat pe tranșe; F1 semnalează o plată dublă | `tools/cbc.py` |
 | Registru numai cu adăugare, fiecare rând semnat HMAC și înlănțuit | `ledger/ledger.py` |
 
@@ -37,7 +37,7 @@ Toate rutele cer antetul `X-RONOR-Token`. Dacă tokenul lipsește din configurar
 ## Acceptare
 Comanda de acceptare este `bash ops/doctor.sh`. Etapele A, R, B și C trebuie să treacă toate. Cazurile înghețate sunt în `eval/cases/`.
 
-## De confirmat cu validatorul
-1. Tranzitul prin MD: împărțirea părții NrgPath cu WattMD.
-2. Parametrii 0,9, 0,5 și 1,01: care este tariful, care este spread-ul minim și care este coeficientul de pierderi.
-3. Valoarea-substituent 0,20: dacă un preț real de 0,20 € poate apărea vreodată.
+## Confirmări (Muse, 27.09.2026)
+1. Tranzitul prin MD: Yunex 50%, Encon 25%, NrgPath 12,5%, WattMD 12,5%. WattMD are o linie distinctă în registru.
+2. Parametrii: tariful este 0,9, spread-ul minim 0,5, iar coeficientul de pierderi 1,01.
+3. Starea prețului se marchează explicit: `real`, `missing`, `substitute` sau `suspect`, cu proveniență. O valoare fără status sau fără proveniență e tratată ca neverificată. Garda blochează orice stare diferită de `real`. Un preț de 0 €, de 0,20 € sau negativ e acceptat dacă e marcat `real`.

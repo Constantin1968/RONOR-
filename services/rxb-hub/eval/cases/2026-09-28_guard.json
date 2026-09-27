@@ -1,12 +1,157 @@
 {
   "_source": "Raport detaliat RXB-Hub 27.09.2026, secțiunea 4: nominalizările finale pentru 28.09",
-  "expect_expected_provision": {"mwh": "135", "provision": "5400.00"},
+  "expect_expected_provision": {
+    "mwh": "135",
+    "provision": "5400.00"
+  },
   "hours": [
-    {"name": "UA-RO h1 nominalizat", "hour": 1, "rights": "15", "nominate": "15", "prices": {"ua": "29", "ro": "163"}, "ok": true},
-    {"name": "UA-RO h12 cu 0,20 -> unknown", "hour": 12, "rights": "15", "nominate": "15", "prices": {"ua": "0.20", "ro": "20"}, "ok": false},
-    {"name": "UA-RO h16 cu 1,70 suspect", "hour": 16, "rights": "15", "nominate": "15", "prices": {"ua": "1.70", "ro": "90"}, "suspect": ["ua"], "ok": false},
-    {"name": "h20 fără intraday", "hour": 20, "rights": "15", "nominate": "15", "prices": {"ua": "244", "ro": "342"}, "needs_intraday": true, "ok": false},
-    {"name": "UA-MD-RO h2 cu MD pierdut", "hour": 2, "rights": "15", "nominate": "15", "prices": {"ua": "40", "ro": "170"}, "md_leg_rights": "0", "ok": false},
-    {"name": "nominalizare peste drepturi", "hour": 3, "rights": "15", "nominate": "20", "prices": {"ua": "40", "ro": "170"}, "ok": false}
+    {
+      "name": "UA-RO h1 nominalizat",
+      "hour": 1,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "29",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "163",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "ok": true
+    },
+    {
+      "name": "UA-RO h12 cu 0,20 -> unknown",
+      "hour": 12,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "0.20",
+          "status": "substitute",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "20",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "ok": false
+    },
+    {
+      "name": "UA-RO h16 cu 1,70 suspect",
+      "hour": 16,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "1.70",
+          "status": "suspect",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "90",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "suspect": [
+        "ua"
+      ],
+      "ok": false
+    },
+    {
+      "name": "h20 fără intraday",
+      "hour": 20,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "244",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "342",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "needs_intraday": true,
+      "ok": false
+    },
+    {
+      "name": "UA-MD-RO h2 cu MD pierdut",
+      "hour": 2,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "40",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "170",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "md_leg_rights": "0",
+      "ok": false
+    },
+    {
+      "name": "nominalizare peste drepturi",
+      "hour": 3,
+      "rights": "15",
+      "nominate": "20",
+      "prices": {
+        "ua": {
+          "value": "40",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        },
+        "ro": {
+          "value": "170",
+          "status": "real",
+          "source": "raport Muse 27.09, forecast 28.09"
+        }
+      },
+      "ok": false
+    },
+    {
+      "name": "preț fără status -> blocat",
+      "hour": 6,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": "60"
+      },
+      "ok": false
+    },
+    {
+      "name": "0,20 marcat real -> nominalizabil",
+      "hour": 14,
+      "rights": "15",
+      "nominate": "15",
+      "prices": {
+        "ua": {
+          "value": "0.20",
+          "status": "real",
+          "source": "exemplu"
+        },
+        "ro": {
+          "value": "20",
+          "status": "real",
+          "source": "exemplu"
+        }
+      },
+      "ok": true
+    }
   ]
 }

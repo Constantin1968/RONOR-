@@ -77,7 +77,7 @@ class LimitsIn(BaseModel):
     day: str
     route: str = "UA-RO"
     origin: str = "UA"
-    forecast_ua: dict[int, Optional[str]]
+    forecast_ua: dict[int, Optional[dict]]
     cbc: dict[int, Optional[str]]
     ntc: dict[int, Optional[str]] = Field(default_factory=dict)
 

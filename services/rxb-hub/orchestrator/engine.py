@@ -11,21 +11,24 @@ from tools.limits import COEF_PIERDERI, SPREAD_MIN, TARIF, brut_mwh, buy_limit_r
 from tools.money import D, eur
 from tools.provision import provision_for
 from tools.split import split_for
-from tools.unknown import is_unknown
+from tools.unknown import normalize
 
 
 def limits_table(forecast_ua: dict, cbc: dict, ntc: dict | None = None,
                  origin: str = "UA", route: str = "UA-RO") -> list[dict]:
-    """forecast_ua, cbc, ntc: {oră: valoare}. Oră fără preț sau fără CBC -> unknown."""
+    """forecast_ua: {oră: {value, status, source}}; cbc, ntc: {oră: valoare}. Status != real sau CBC lipsă -> unknown."""
     out = []
     for h in range(1, 25):
         p, c = forecast_ua.get(h), cbc.get(h)
         cap = (ntc or {}).get(h)
         row = {"hour": h, "ntc_mw": None if cap is None else D(cap)}
-        if is_unknown(p) or c is None:
-            row.update(mode="unknown", reason="preț sau CBC lipsă")
+        n = normalize(p)
+        if n["status"] != "real" or c is None:
+            row.update(mode="unknown", price_status=n["status"],
+                       reason="CBC lipsă" if n["status"] == "real" else f"preț {n['status']}")
         else:
-            row.update(mode="ok", buy_limit=buy_limit_ro(p, c),
+            row.update(mode="ok", price_status="real", source=n["source"],
+                       buy_limit=buy_limit_ro(n["value"], c),
                        provision_mwh=provision_for(route, origin, 1))
         out.append(row)
     return out

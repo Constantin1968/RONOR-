@@ -10,7 +10,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from tools.money import D, eur
-from tools.unknown import is_unknown
+from tools.unknown import normalize
 
 
 def effective_cbc(tranches: list[tuple]) -> Decimal | None:
@@ -19,10 +19,11 @@ def effective_cbc(tranches: list[tuple]) -> Decimal | None:
     total_cost = Decimal(0)
     for mw, price in tranches:
         # CBC 0 € e real; doar lipsa prețului sau un substituent îl face unknown.
-        if price is None or (isinstance(price, str) and is_unknown(price)):
+        n = normalize(price) if isinstance(price, dict) else {"value": price, "status": "real" if price not in (None, "") else "missing"}
+        if n["status"] != "real":
             return None
         total_mw += D(mw)
-        total_cost += D(mw) * D(price)
+        total_cost += D(mw) * D(n["value"])
     if total_mw == 0:
         return None
     return eur(total_cost / total_mw)

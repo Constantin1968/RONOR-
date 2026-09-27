@@ -13,16 +13,18 @@ from tools.cbc import effective_cbc, f1_double_pay  # noqa: E402
 from tools.limits import buy_limit_ro, verdict  # noqa: E402
 from tools.provision import provision_for  # noqa: E402
 from tools.split import split_for, split_pure_md, split_ua_route  # noqa: E402
-from tools.unknown import is_unknown  # noqa: E402
+from tools.unknown import real, status_of  # noqa: E402
 
 
-def test_zero_is_a_real_price():
-    assert not is_unknown(0) and not is_unknown("0")
+def test_price_status_is_explicit():
+    assert status_of(real("0", "OPCOM")) == "real"
+    assert status_of(real("0.20", "OPCOM")) == "real"
+    assert status_of(real("-5", "OPCOM")) == "real"
+    assert status_of({"value": "0.20", "status": "substitute", "source": "foaie"}) == "substitute"
+    assert status_of({"value": "55", "status": "real"}) == "unverified"   # fără proveniență
+    assert status_of("55") == "unverified"                                   # fără status
+    assert status_of(None) == "missing"
     assert effective_cbc([("10", "0")]) == Decimal("0.00")
-
-
-def test_missing_is_unknown():
-    assert is_unknown(None) and is_unknown("") and is_unknown("0.20")
     assert effective_cbc([("30", "0.99"), ("10", None)]) is None
 
 
@@ -102,7 +104,7 @@ def test_auth_fail_closed(client, monkeypatch):
 def test_limits_and_close_endpoints(client):
     c, _ = client
     h = {"X-RONOR-Token": "t0k", "X-Operator-Who": "test"}
-    r = c.post("/rxb/limits", headers=h, json={"day": "2026-09-28", "forecast_ua": {"4": "166.43", "5": None},
+    r = c.post("/rxb/limits", headers=h, json={"day": "2026-09-28", "forecast_ua": {"4": {"value": "166.43", "status": "real", "source": "t"}, "5": None},
                                               "cbc": {"4": "0.74"}})
     t = {row["hour"]: row for row in r.json()["table"]}
     assert r.status_code == 200 and t[4]["buy_limit"] == "162.66" and t[5]["mode"] == "unknown"

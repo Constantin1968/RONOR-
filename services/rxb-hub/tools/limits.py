@@ -1,8 +1,8 @@
 """Limite și spread, după canonul v0.1.0.
 
 limită_cumpărare_RO(h) = (preț_UA(h) − tarif − CBC(h) − spread_min) / coef_pierderi
-Parametrii (0,9 / 0,5 / 1,01) sunt cei din pachetul Muse și stau în config,
-nu în cod, ca să poată fi versionați.
+Parametrii confirmați de Muse pe 27.09.2026: tarif 0,9, spread minim 0,5,
+coeficient de pierderi 1,01.
 """
 from __future__ import annotations
 

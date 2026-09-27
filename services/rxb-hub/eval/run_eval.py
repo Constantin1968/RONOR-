@@ -16,7 +16,7 @@ from orchestrator.engine import close_day  # noqa: E402
 from tools.cbc import effective_cbc  # noqa: E402
 from tools.limits import below_breakeven, floor_ok, verdict  # noqa: E402
 from tools.money import D  # noqa: E402
-from tools.unknown import is_unknown  # noqa: E402
+from tools.unknown import status_of  # noqa: E402
 from tools.guard import check_hour  # noqa: E402
 from tools.provision import provision_for  # noqa: E402
 
@@ -47,8 +47,8 @@ def check_file(path: str) -> list[tuple[str, bool, str]]:
     e = effective_cbc([tuple(t) for t in k["tranches"]])
     res.append(("int4 CBC efectiv", e == D(k["expect"]), str(e)))
     k = c["h10_placeholder"]
-    ok = is_unknown(k["first"]) and not is_unknown(k["then"])
-    res.append(("h10 substituent -> unknown", ok, f"{k['first']} -> {k['then']}"))
+    ok = status_of(k["first"]) == "substitute" and status_of(k["then"]) == "real" and status_of(k["real_020"]) == "real"
+    res.append(("h10 substituent marcat -> blocat; 0,20 real -> acceptat", ok, f"{k['first']} -> {k['then']}"))
     hits = [floor_ok(s, f) for s, f in c["floors"]]
     res.append(("floor-uri bătute", all(hits), f"{sum(hits)}/{len(hits)}"))
     k = c["h1_below_breakeven"]

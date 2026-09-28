@@ -40,3 +40,8 @@ def f1_double_pay(rows: list[dict]) -> list[tuple]:
         key = (r["day"], int(r["hour"]), r["route"], r.get("rights_code"))
         seen[key].add(D(r["cbc_price"]))
     return [k[:3] for k, prices in seen.items() if len(prices) > 1]
+
+
+# CBC UA-MD pe trepte, confirmat de Muse pe 28.09.2026 (EUR/MWh, nu spread, nu MW).
+CBC_UA_MD_2026_09_29 = {"step1": {"price": Decimal("32.88"), "mw": 20},
+                        "step2": {"price": Decimal("8.88"), "mw": 30}}

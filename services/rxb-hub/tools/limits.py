@@ -44,3 +44,33 @@ def floor_ok(sale_price, floor) -> bool:
 def below_breakeven(cost, breakeven) -> bool:
     """Costul acoperit sub breakeven închide riscul overnight (cazul h1)."""
     return D(cost) < D(breakeven)
+
+
+def sell_floor_ro(price_ua, cbc, tarif=TARIF, spread_min=SPREAD_MIN, coef=COEF_PIERDERI) -> Decimal:
+    """Pragul de vânzare în RO pentru importul UA-RO (înghețat cu Muse pe 28.09.2026).
+
+    prag_vânzare(h) = (preț_UA(h) + CBC(h) + tarif + spread_min) × coef_pierderi.
+    Oglinda exactă a limitei de cumpărare ar fi preț_UA × coef + CBC + tarif + spread;
+    varianta Muse aplică coeficientul și pe CBC și tarif, deci e mai strictă
+    cu 0,01 × (CBC + 1,4) €/MWh. Se păstrează varianta mai strictă.
+    """
+    return eur((D(price_ua) + D(cbc) + D(tarif) + D(spread_min)) * D(coef))
+
+
+def check_bid(side: str, price, floor=None) -> dict:
+    """Verifică o ofertă înainte de nominalizare.
+
+    - cumpărare la -2 (sau mai jos) = frână: acceptată, se execută practic niciodată;
+    - vânzare sub prag = semnal roșu, fără nominalizare; o vânzare la -2 e interzisă
+      pentru că se execută la orice preț >= -2.
+    """
+    p = D(price)
+    if side == "buy":
+        return {"ok": True, "flag": "frana" if p <= D("-2") else None}
+    if side != "sell":
+        return {"ok": False, "flag": "rosu", "reason": f"direcție necunoscută: {side}"}
+    if floor is None:
+        return {"ok": False, "flag": "rosu", "reason": "vânzare fără prag calculat (lipsesc UA sau CBC)"}
+    if p < D(floor):
+        return {"ok": False, "flag": "rosu", "reason": f"vânzare la {p} sub pragul {D(floor)}"}
+    return {"ok": True, "flag": None}

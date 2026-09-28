@@ -128,3 +128,17 @@ def test_provision_settlement():
 def test_zero_rights_blocks_nomination():
     from tools.guard import check_hour
     assert not check_hour(4, "0", "0", {"ua": "40"})["ok"]
+
+
+def test_sell_floor_and_bid_rules():
+    from tools.limits import sell_floor_ro, check_bid
+    from tools.cbc import CBC_UA_MD_2026_09_29, effective_cbc
+    f = sell_floor_ro("100", "11.6")
+    assert f == Decimal("114.13")  # (100 + 11,6 + 0,9 + 0,5) × 1,01
+    assert check_bid("buy", "-2")["flag"] == "frana"
+    assert check_bid("sell", "-2", f)["flag"] == "rosu"
+    assert check_bid("sell", "114.12", f)["ok"] is False
+    assert check_bid("sell", "114.13", f)["ok"] is True
+    assert check_bid("sell", "150")["ok"] is False  # fără prag nu se nominalizează
+    c = CBC_UA_MD_2026_09_29
+    assert effective_cbc([(c["step1"]["mw"], c["step1"]["price"]), (c["step2"]["mw"], c["step2"]["price"])]) == Decimal("18.48")

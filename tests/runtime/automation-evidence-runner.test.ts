@@ -43,4 +43,20 @@ describe('isolated automation evidence runner', () => {
     await expect(createHttpPostExecutionVerifier({ baseUrl: 'http://automation-evidence-runner:3005', token: 'runner-token', fetcher }).attest()).resolves.toBeUndefined();
     expect((fetcher.mock.calls[0][1] as RequestInit).headers).toEqual({ authorization: 'Bearer runner-token' });
   });
+  it('lets the external acceptance gate turn a passing test run into a failure, never the reverse', async () => {
+    const run = jest.fn(() => ({ passed: true, claims: ['tests:pass'], artifact: report }));
+    const verdict = (passed: boolean) => ({ passed, violations: passed ? [] : ['tests/acceptance/x.test.ts'], base_commit: 'f'.repeat(40),
+      suite_tree: 'e'.repeat(40), changed_paths: 1, receipt_sha256: 'd'.repeat(64),
+      claims: [passed ? 'acceptance_gate:passed' : 'acceptance_gate:violated'] });
+    const make = (passed: boolean, testsPass = true) => createEvidenceRunnerApp({ token: 'runner-token', workspaceRoot: '/workspace/project',
+      artifacts: { collect: jest.fn(() => [diff, status]), verify: jest.fn(), read: jest.fn(), recordTestReport: jest.fn() },
+      tests: { run: testsPass ? run : jest.fn(() => ({ passed: false, claims: ['tests:fail'], artifact: report })) },
+      acceptance: { evaluate: jest.fn(() => verdict(passed)) } });
+    const send = (app: ReturnType<typeof make>, runTests = true) => request(app).post('/v1/verify').set('Authorization', 'Bearer runner-token')
+      .send({ run_id: 'run-1', assignment_id: 'task-1', run_tests: runTests });
+    expect((await send(make(true))).body).toMatchObject({ passed: true, claims: ['tests:pass', 'acceptance_gate:passed'] });
+    expect((await send(make(false))).body).toMatchObject({ passed: false, claims: ['tests:pass', 'acceptance_gate:violated'] });
+    expect((await send(make(true, false))).body.passed).toBe(false);
+    expect((await send(make(false), false)).body.passed).toBe(false);
+  });
 });

@@ -1,5 +1,6 @@
 import type { AutomationAction } from './contracts';
 import { relativeEscapeIsSearchPattern } from './workspace-escape';
+import { relativeEscapeIsContainedImport, workspaceFileDepth } from './module-specifier-escape';
 import type { EffectDiagnostics, EffectRule, MatchLocus } from './effect-diagnostics';
 export type { EffectDiagnostics, MatchLocus } from './effect-diagnostics';
 
@@ -22,6 +23,10 @@ export type { EffectDiagnostics, MatchLocus } from './effect-diagnostics';
  * harmless and must not become an allowance without a deliberate decision and
  * a containment argument that does not exist yet. Recording where the match sat
  * supplies the evidence for that decision without pre-empting it.
+ *
+ * One such decision has been taken (28 September 2026): a relative module
+ * import inside a file of the workspace that provably resolves inside it. Its
+ * containment argument is in module-specifier-escape.ts; nothing else changed.
  */
 export interface EffectDecision { allowed: boolean; reason: string; diagnostics?: EffectDiagnostics; }
 
@@ -103,6 +108,11 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
   });
   if (actions.length < 1) return { allowed: false, reason: 'pending_action_missing', diagnostics: diagnose(null, 0, null) };
   const parts = segments(actions);
+  // The file a single pending write targets. With more than one action the
+  // content cannot be tied to one file, so no content allowance applies.
+  const only = actions.length === 1 ? actions[0] as Record<string, unknown> : null;
+  const inner = only && only.action && typeof only.action === 'object' ? only.action as Record<string, unknown> : only;
+  const targetDepth = inner ? workspaceFileDepth(inner.path) : null;
   const text = parts.map((part) => part.text).join('\n');
   if (text.length > 128_000) return { allowed: false, reason: 'pending_action_oversized', diagnostics: diagnose(null, text.length, null) };
 
@@ -136,8 +146,11 @@ export function evaluateOpenHandsEffects(events: unknown, allowedActions: Automa
       // therefore outside every token. The traversal itself is what must be located.
       const traversal = match.index + match[0].indexOf('..');
       const segment = segmentAt(parts, traversal);
-      const exempt = locus === 'command' && segment !== null
-        && relativeEscapeIsSearchPattern(segment.text, segment.offset);
+      const exempt = segment !== null && (
+        (locus === 'command' && relativeEscapeIsSearchPattern(segment.text, segment.offset))
+        // One deliberate content allowance, with its containment argument in
+        // module-specifier-escape.ts: a relative import that stays in the workspace.
+        || (locus === 'content' && relativeEscapeIsContainedImport(segment.text, segment.offset, targetDepth)));
       if (!exempt) {
         return { allowed: false, reason, diagnostics: diagnose(reason, text.length, match.index, locus) };
       }

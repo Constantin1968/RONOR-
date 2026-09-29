@@ -61,7 +61,15 @@ const CONTAINER_WORKSPACE = '/workspace/project';
 const EVENTS_PATH = '/events/search';
 /** Consecutive-free bound on re-evaluations after the pending tip moved. */
 const MAX_TIP_CHANGES = 5;
-const LATEST_EVENTS = `${EVENTS_PATH}?limit=100&sort_order=TIMESTAMP_DESC`;
+/**
+ * Page sizes tried, in order, when a page of events exceeds the response bound.
+ * Host evidence (29.09.2026, run_f9dfe522b45f5adb4f4d): observations carrying
+ * whole file contents made one 100-event page exceed 256 KiB and ended the run.
+ * The byte bound per response is unchanged; only the page gets smaller.
+ */
+const EVENT_PAGE_SIZES = [100, 50, 25, 10] as const;
+/** Page budget for the pending-branch walk: 32 pages of 100, kept as an item budget. */
+const MAX_PENDING_EVENTS = 3200;
 
 export class NativeOpenHandsError extends Error {}
 
@@ -178,7 +186,7 @@ export function createNativeOpenHandsClient(config: {
   const terminationDetail = async (conversationId: string | null, signal: AbortSignal): Promise<string | null> => {
     if (!conversationId) return null;
     try {
-      const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, signal);
+      const events = await latestEvents(conversationId, undefined, signal);
       const list = Array.isArray(events) ? events
         : (Array.isArray(events.items) ? events.items : (Array.isArray(events.results) ? events.results : []));
       // Latest first: the failure that stopped the run, not an earlier recovered one.
@@ -205,6 +213,19 @@ export function createNativeOpenHandsClient(config: {
     const raw = await response.text();
     if (new TextEncoder().encode(raw).byteLength > MAX_NATIVE_RESPONSE_BYTES) throw new NativeOpenHandsError('openhands_response_too_large');
     try { return object(JSON.parse(raw)); } catch (error) { if (error instanceof NativeOpenHandsError) throw error; throw new NativeOpenHandsError('openhands_invalid_response'); }
+  };
+
+  /** One descending page of events, shrinking the page only on an oversized response. */
+  const latestEvents = async (conversationId: string, pageId: string | undefined, signal?: AbortSignal): Promise<Record<string, unknown>> => {
+    for (let index = 0; ; index += 1) {
+      const size = EVENT_PAGE_SIZES[index];
+      try {
+        return await call(`/api/conversations/${conversationId}${EVENTS_PATH}?limit=${size}&sort_order=TIMESTAMP_DESC${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, signal);
+      } catch (error) {
+        const oversized = error instanceof NativeOpenHandsError && error.message === 'openhands_response_too_large';
+        if (!oversized || index === EVENT_PAGE_SIZES.length - 1) throw error;
+      }
+    }
   };
 
   return {
@@ -394,8 +415,10 @@ export function createNativeOpenHandsClient(config: {
           const cursors = new Set<string>();
           let pageId: string | undefined;
           let decision: EffectDecision = { allowed:false, reason:'pending_branch_incomplete' };
-          for (let page = 0; page < 32; page += 1) {
-            const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, executionSignal);
+          // Bounded by items, not pages, so a smaller page never shortens the walk.
+          const maxPages = Math.ceil(MAX_PENDING_EVENTS / EVENT_PAGE_SIZES[EVENT_PAGE_SIZES.length - 1]);
+          for (let page = 0; page < maxPages && items.length < MAX_PENDING_EVENTS; page += 1) {
+            const events = await latestEvents(conversationId, pageId, executionSignal);
             if (!Array.isArray(events.items) || events.items.length > 100) {
               decision = { allowed:false, reason:'pending_page_invalid' }; break;
             }
@@ -441,7 +464,7 @@ export function createNativeOpenHandsClient(config: {
           return finish(false, detail ? `openhands_terminated_${status}_${detail}` : `openhands_terminated_${status}`);
         }
         if (['finished', 'complete', 'completed'].includes(status)) {
-          const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, executionSignal);
+          const events = await latestEvents(conversationId, undefined, executionSignal);
           const serialized = JSON.stringify(events);
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
           return {

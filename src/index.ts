@@ -34,6 +34,7 @@ import { modelExchangeRouter } from './api/model-exchange-router';
 import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
+import { assertMi9EnforcementAllowed } from './governance/mi9-enforcement';
 import { getDb, countRecords } from './audit/hash-chain';
 import { raporteazaPersistenta, persistentaEsteObligatorie } from './persistence/audit-mirror';
 import { compuneSauDegradat, masoaraSauNecunoscut } from './health/protejare';
@@ -68,6 +69,12 @@ async function bootstrap(): Promise<void> {
   logger.info('║  RONOR — Model Exchange & Governance Spine       ║');
   logger.info('║  for Energy Operations · Ma11AI Mayleven         ║');
   logger.info('╚══════════════════════════════════════════════════╝');
+
+  // Governance debt 3: MI9_ENFORCE=off makes the orchestrator record verdicts
+  // without enforcing them (src/orchestrator.ts, MI9 GATE). That is acceptable
+  // while the gate is being observed, never in production — so refuse the boot
+  // here rather than start a server whose constitutional gate is disarmed.
+  assertMi9EnforcementAllowed(process.env);
 
   // OPENAI_API_KEY is recommended but not required — the decision loop
   // falls back to a deterministic proposer when it is absent, so judges can

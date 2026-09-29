@@ -59,6 +59,8 @@ export function pauseConfirmWindowFromEnv(value: string | undefined): number {
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
 const EVENTS_PATH = '/events/search';
+/** Consecutive-free bound on re-evaluations after the pending tip moved. */
+const MAX_TIP_CHANGES = 5;
 const LATEST_EVENTS = `${EVENTS_PATH}?limit=100&sort_order=TIMESTAMP_DESC`;
 
 export class NativeOpenHandsError extends Error {}
@@ -257,8 +259,15 @@ export function createNativeOpenHandsClient(config: {
       // pause as failed and then replaced the real stop reason with
       // 'openhands_pause_unconfirmed', sending the operator after the wrong
       // cause. Re-poll for a bounded window instead of demanding instant proof.
-      const SETTLED = ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
-      const pauseAndAccount = async (): Promise<boolean> => {
+      // 'waiting_for_confirmation' is settled for the purpose of a pause: under the
+      // AlwaysConfirm policy the agent executes nothing until RONOR confirms, and
+      // RONOR never confirms after asking for a pause. On the host (29.09.2026,
+      // run_092829ca3043768cf371) a conversation blocked on confirmation never
+      // reported 'paused', so a quiescent run was reported as unconfirmed.
+      const SETTLED = ['paused', 'waiting_for_confirmation', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
+      // `rejectedTip`: after RONOR rejected the action at this tip the agent resumes,
+      // so the same tip still blocked on confirmation is not yet quiescent.
+      const pauseAndAccount = async (rejectedTip?: unknown): Promise<boolean> => {
         if (!conversationId) return false;
         const gapMs = Math.max(0, config.pauseConfirmIntervalMs ?? PAUSE_CONFIRMATION.intervalMs);
         const attempts = Math.max(1, config.pauseConfirmAttempts ?? Math.ceil(pauseWindowMs / Math.max(1, gapMs)) + 1);
@@ -274,7 +283,9 @@ export function createNativeOpenHandsClient(config: {
             }
             final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
             cost = executionCost(final);
-            if (SETTLED.includes(String(final.execution_status).toLowerCase())) return true;
+            const settledStatus = String(final.execution_status).toLowerCase();
+            const stillOnRejected = settledStatus === 'waiting_for_confirmation' && rejectedTip !== undefined && final.leaf_event_id === rejectedTip;
+            if (SETTLED.includes(settledStatus) && !stillOnRejected) return true;
           }
           // Window exhausted: keep whatever cost the last read produced so the
           // caller can still account an unsettled conversation honestly.
@@ -365,6 +376,7 @@ export function createNativeOpenHandsClient(config: {
         // pre-run status for a short window. Treating that as termination hides the
         // real failure, which only arrives later as a conversation error event.
         let startupWindow = Math.max(0, config.startupPolls ?? 10);
+        let tipChanges = 0;
         for (let poll = 0; poll < maxPolls; poll += 1) {
           if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
           const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
@@ -396,6 +408,16 @@ export function createNativeOpenHandsClient(config: {
           }
           if (decision.allowed) {
             const current = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
+            // Still blocked on confirmation but on a different tip: nothing was
+            // approved, so re-read and re-evaluate from scratch on the next poll
+            // instead of stopping the run. Bounded, so a tip that never settles
+            // still ends the run with the original reason.
+            if (current.execution_status === 'waiting_for_confirmation' && current.leaf_event_id !== state.leaf_event_id &&
+                tipChanges < MAX_TIP_CHANGES) {
+              tipChanges += 1;
+              await waitForNextPoll();
+              continue;
+            }
             if (current.execution_status !== 'waiting_for_confirmation' || current.leaf_event_id !== state.leaf_event_id) {
               const paused = await pauseAndAccount();
               return finish(false, paused ? 'openhands_pending_state_changed' : 'openhands_pause_unconfirmed');
@@ -407,7 +429,7 @@ export function createNativeOpenHandsClient(config: {
             accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
           }, executionSignal);
           if (!decision.allowed) {
-            const paused = await pauseAndAccount();
+            const paused = await pauseAndAccount(state.leaf_event_id);
             return finish(false, paused ? `openhands_action_refused_${decision.reason}` : 'openhands_pause_unconfirmed');
           }
           continue;

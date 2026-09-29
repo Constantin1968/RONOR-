@@ -48,6 +48,7 @@ import { RSentinelPlane } from './planes/r-sentinel';
 import { RKnowledgePlane } from './planes/r-knowledge';
 import { createKnowledgeRouter } from './api/knowledge-router';
 import { RONOROrchestrator } from './orchestrator';
+import { assertMi9EnforcementAllowed } from './governance/mi9-enforcement';
 // ── Runtime Active (L0–L7) ──────────────────────────────────────────────────
 import { createRuntimeRouter } from './runtime/api/routes';
 import {
@@ -77,6 +78,11 @@ async function bootstrap(): Promise<void> {
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('OPENAI_API_KEY not set — frontier-model proposer will fall back to deterministic policy.');
   }
+
+  // 0. MI9 enforcement. Checked before the gate is armed and before any listener
+  //    opens: a production instance booted with the constitutional gate disarmed
+  //    would record verdicts it never enforces. Refuse to start at all.
+  assertMi9EnforcementAllowed(process.env);
 
   // Boot governance + audit primitives first so they are ready before the
   // first decision request lands.

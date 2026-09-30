@@ -87,9 +87,49 @@ describe('OpenHands real pagination regression', () => {
       reads+=1;
       return json({execution_status:paused?'paused':'waiting_for_confirmation',leaf_event_id:reads===1?'pending-now':'different',cost_usd:0.1});
     });
-    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
-    expect(result).toMatchObject({ok:false,summary:'openhands_pending_state_changed'});
-    expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation'))).toBe(false);
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,pollIntervalMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    expect(result).toMatchObject({ok:false});
+    expect(result.summary).not.toBe('openhands_pause_unconfirmed');
+    // A moved tip may be re-evaluated and refused; it is never approved.
+    expect(fetcher.mock.calls.some(([url,init])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation')&&JSON.parse(String(init.body)).accept===true)).toBe(false);
+  });
+
+  // Host evidence, 29.09.2026 (run_092829ca3043768cf371): the tip moved once
+  // between the two reads and the run was stopped although nothing was pending
+  // that the policy refused. A moved tip is now re-read and re-evaluated.
+  it('re-evaluates a tip that moved once, and approves only the re-read pending set',async()=>{
+    let reads=0;
+    const fetcher=jest.fn().mockImplementation((input:URL,_init:RequestInit)=>{
+      const url=new URL(input);
+      if(url.pathname==='/api/conversations')return json({id});
+      if(url.pathname.endsWith('/events/respond_to_confirmation'))return json({accepted:true});
+      if(url.pathname.endsWith('/events'))return json({accepted:true});
+      if(url.pathname.endsWith('/events/search'))return json({items:[action(reads<2?'pending-now':'pending-next','git status')]});
+      if(url.pathname.endsWith('/pause'))return json({ok:true});
+      reads+=1;
+      if(reads>=5)return json({execution_status:'finished',leaf_event_id:'pending-next',cost_usd:0.1});
+      return json({execution_status:'waiting_for_confirmation',leaf_event_id:reads===1?'pending-now':'pending-next',cost_usd:0.1});
+    });
+    await createNativeOpenHandsClient({pauseConfirmWindowMs:0,pollIntervalMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    const confirmations=fetcher.mock.calls.filter(([url])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation'));
+    expect(confirmations).toHaveLength(1);
+    expect(JSON.parse(String(confirmations[0][1].body))).toMatchObject({accept:true});
+    expect(reads).toBeGreaterThanOrEqual(3);
+  });
+
+  it('treats a conversation blocked on confirmation as settled after a pause, so the real reason survives',async()=>{
+    const fetcher=jest.fn().mockImplementation((input:URL,_init:RequestInit)=>{
+      const url=new URL(input);
+      if(url.pathname==='/api/conversations')return json({id});
+      if(url.pathname.endsWith('/events'))return json({accepted:true});
+      if(url.pathname.endsWith('/events/search'))return json({items:[action('pending-now','git status')]});
+      if(url.pathname.endsWith('/pause'))return json({ok:true});
+      return json({execution_status:'waiting_for_confirmation',leaf_event_id:'moving-'+Math.random(),cost_usd:0.1});
+    });
+    const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,pollIntervalMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher}).execute(envelope);
+    expect(result.summary).not.toBe('openhands_pause_unconfirmed');
+    // A moved tip may be re-evaluated and refused; it is never approved.
+    expect(fetcher.mock.calls.some(([url,init])=>new URL(url).pathname.endsWith('/events/respond_to_confirmation')&&JSON.parse(String(init.body)).accept===true)).toBe(false);
   });
 
   it('refuses a repeating incomplete cursor without an unbounded retry',async()=>{

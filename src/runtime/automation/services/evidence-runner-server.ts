@@ -3,6 +3,7 @@ import { createAllowlistedTestExecutor, parseAllowedTestCommands } from '../test
 import { requiredSecret } from './secret-files';
 import { createEvidenceRunnerApp } from './evidence-runner';
 import { createBoundedTestExecutor } from '../bounded-test-executor';
+import { evaluateAcceptanceGate, parseProtectedPaths } from '../acceptance-gate';
 
 // The only writable path in this container is the ephemeral scratch mount.
 const TEST_SCRATCH_DIR = '/tmp';
@@ -29,6 +30,20 @@ const testConfig = {
 };
 const tests = createAllowlistedTestExecutor(testConfig);
 const boundedTests = createBoundedTestExecutor(testConfig);
-const app = createEvidenceRunnerApp({ token: requiredSecret('RONOR_EVIDENCE_RUNNER_TOKEN'), workspaceRoot, artifacts, tests, boundedTests });
+// External acceptance gate (M1). Enabled by pointing RONOR_ACCEPTANCE_RECEIPT_ROOT at a
+// directory outside the workspace. When enabled it is fail-closed: the base commit must be
+// pinned and the host test allowlist must contain the acceptance suite under the id "acceptance".
+const receiptRoot = process.env.RONOR_ACCEPTANCE_RECEIPT_ROOT;
+let acceptance: Parameters<typeof createEvidenceRunnerApp>[0]['acceptance'];
+if (receiptRoot) {
+  const pinnedBase = process.env.RONOR_AUTOMATION_EXPECTED_HEAD ?? '';
+  if (!/^[a-f0-9]{40}$/.test(pinnedBase)) throw new Error('acceptance_requires_pinned_base_commit');
+  if (!commands.some(c => c.id === 'acceptance')) throw new Error('acceptance_suite_not_in_test_allowlist');
+  if (receiptRoot === workspaceRoot || receiptRoot.startsWith(`${workspaceRoot}/`)) throw new Error('acceptance_receipts_inside_workspace');
+  const protectedPaths = parseProtectedPaths(process.env.RONOR_ACCEPTANCE_PROTECTED_PATHS_JSON);
+  acceptance = { evaluate: (root, runId, assignmentId, baseCommit) => evaluateAcceptanceGate(root, runId, assignmentId,
+    { baseCommit: baseCommit ?? pinnedBase, protectedPaths, receiptRoot, suitePath: 'tests/acceptance' }) };
+}
+const app = createEvidenceRunnerApp({ token: requiredSecret('RONOR_EVIDENCE_RUNNER_TOKEN'), workspaceRoot, artifacts, tests, boundedTests, acceptance });
 const port = Number(process.env.RONOR_EVIDENCE_RUNNER_PORT ?? 3005);
 app.listen(port, '0.0.0.0', () => process.stdout.write(`RONOR evidence runner listening on 0.0.0.0:${port}\n`));

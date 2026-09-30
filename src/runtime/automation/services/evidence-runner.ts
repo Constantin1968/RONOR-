@@ -4,18 +4,23 @@ import type { WorkspaceArtifactCollector } from '../artifacts';
 import type { TestExecutor } from '../test-executor';
 import type { BoundedTestExecutor } from '../bounded-test-executor';
 import { EXISTING_ASSIGNMENT, inspectExistingCommit, validCommitPins } from '../existing-commit-workspace';
+import type { AcceptanceVerdict } from '../acceptance-gate';
+
+/** Optional external acceptance gate. When configured it can only turn a pass into a failure. */
+export interface AcceptanceGate { evaluate(workspaceRoot: string, runId: string, assignmentId: string, baseCommit?: string): AcceptanceVerdict; }
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 
 export function createEvidenceRunnerApp(config: {
   token: string; workspaceRoot: string; artifacts: WorkspaceArtifactCollector; tests: TestExecutor;
-  boundedTests?: BoundedTestExecutor;
+  boundedTests?: BoundedTestExecutor; acceptance?: AcceptanceGate;
 }) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '8kb' })); app.use(createServiceRateLimit());
   const authorised = (header: string | undefined) => header === `Bearer ${config.token}`;
   app.get('/health', (req, res) => authorised(req.header('authorization'))
     ? res.json({ ok: true, protocol: 'ronor-evidence-runner/v1', service_id: 'automation-evidence-runner',
-      capabilities: ['git-evidence', 'allowlisted-tests', ...(config.boundedTests && config.artifacts.collectCommitRange ? ['verify-existing'] : [])],
+      capabilities: ['git-evidence', 'allowlisted-tests', ...(config.boundedTests && config.artifacts.collectCommitRange ? ['verify-existing'] : []),
+        ...(config.acceptance ? ['acceptance-gate'] : [])],
       // Whether a bounded test is still executing inside the worktree. The flag
       // clears only after that execution has actually terminated, so a caller
       // holding an admission barrier for a cancelled run can learn from here
@@ -50,8 +55,10 @@ export function createEvidenceRunnerApp(config: {
       if (control.signal.aborted || Date.now() >= deadline || before.diff_sha256 !== after.diff_sha256)
         throw new Error('existing_verification_interrupted');
       config.artifacts.verify([...artifacts, result.artifact]);
-      res.status(result.passed ? 200 : 422).json({
-        ok: result.passed, passed: result.passed, claims: result.claims, artifacts: [...artifacts, result.artifact],
+      const gate = config.acceptance?.evaluate(config.workspaceRoot, body.run_id, EXISTING_ASSIGNMENT, body.base_commit);
+      const passed = result.passed && (gate ? gate.passed : true);
+      res.status(passed ? 200 : 422).json({
+        ok: passed, passed, claims: [...result.claims, ...(gate?.claims ?? [])].slice(0, 100), artifacts: [...artifacts, result.artifact],
       });
     } catch { if (!res.destroyed) res.status(422).json({ ok: false, error: 'existing_verification_failed' }); }
     finally { clearTimeout(timer); res.removeListener('close', disconnected); existingBusy = false; }
@@ -65,9 +72,14 @@ export function createEvidenceRunnerApp(config: {
     }
     try {
       const artifacts = config.artifacts.collect(config.workspaceRoot, runId, assignmentId);
-      if (!runTests) { res.json({ ok: true, passed: true, claims: [], artifacts }); return; }
+      const gate = config.acceptance?.evaluate(config.workspaceRoot, runId, assignmentId);
+      if (!runTests) {
+        const passed = gate ? gate.passed : true;
+        res.json({ ok: passed, passed, claims: gate?.claims ?? [], artifacts }); return;
+      }
       const tests = config.tests.run(config.workspaceRoot, runId, assignmentId);
-      res.json({ ok: tests.passed, passed: tests.passed, claims: tests.claims, artifacts: [...artifacts, tests.artifact] });
+      const passed = tests.passed && (gate ? gate.passed : true);
+      res.json({ ok: passed, passed, claims: [...tests.claims, ...(gate?.claims ?? [])].slice(0, 100), artifacts: [...artifacts, tests.artifact] });
     } catch { res.status(422).json({ ok: false, error: 'evidence_verification_failed' }); }
   });
   return app;

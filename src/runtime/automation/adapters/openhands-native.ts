@@ -59,7 +59,17 @@ export function pauseConfirmWindowFromEnv(value: string | undefined): number {
 const MAX_NATIVE_RESPONSE_BYTES = 256 * 1024;
 const CONTAINER_WORKSPACE = '/workspace/project';
 const EVENTS_PATH = '/events/search';
-const LATEST_EVENTS = `${EVENTS_PATH}?limit=100&sort_order=TIMESTAMP_DESC`;
+/** Consecutive-free bound on re-evaluations after the pending tip moved. */
+const MAX_TIP_CHANGES = 5;
+/**
+ * Page sizes tried, in order, when a page of events exceeds the response bound.
+ * Host evidence (29.09.2026, run_f9dfe522b45f5adb4f4d): observations carrying
+ * whole file contents made one 100-event page exceed 256 KiB and ended the run.
+ * The byte bound per response is unchanged; only the page gets smaller.
+ */
+const EVENT_PAGE_SIZES = [100, 50, 25, 10] as const;
+/** Page budget for the pending-branch walk: 32 pages of 100, kept as an item budget. */
+const MAX_PENDING_EVENTS = 3200;
 
 export class NativeOpenHandsError extends Error {}
 
@@ -176,7 +186,7 @@ export function createNativeOpenHandsClient(config: {
   const terminationDetail = async (conversationId: string | null, signal: AbortSignal): Promise<string | null> => {
     if (!conversationId) return null;
     try {
-      const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, signal);
+      const events = await latestEvents(conversationId, undefined, signal);
       const list = Array.isArray(events) ? events
         : (Array.isArray(events.items) ? events.items : (Array.isArray(events.results) ? events.results : []));
       // Latest first: the failure that stopped the run, not an earlier recovered one.
@@ -203,6 +213,19 @@ export function createNativeOpenHandsClient(config: {
     const raw = await response.text();
     if (new TextEncoder().encode(raw).byteLength > MAX_NATIVE_RESPONSE_BYTES) throw new NativeOpenHandsError('openhands_response_too_large');
     try { return object(JSON.parse(raw)); } catch (error) { if (error instanceof NativeOpenHandsError) throw error; throw new NativeOpenHandsError('openhands_invalid_response'); }
+  };
+
+  /** One descending page of events, shrinking the page only on an oversized response. */
+  const latestEvents = async (conversationId: string, pageId: string | undefined, signal?: AbortSignal): Promise<Record<string, unknown>> => {
+    for (let index = 0; ; index += 1) {
+      const size = EVENT_PAGE_SIZES[index];
+      try {
+        return await call(`/api/conversations/${conversationId}${EVENTS_PATH}?limit=${size}&sort_order=TIMESTAMP_DESC${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, signal);
+      } catch (error) {
+        const oversized = error instanceof NativeOpenHandsError && error.message === 'openhands_response_too_large';
+        if (!oversized || index === EVENT_PAGE_SIZES.length - 1) throw error;
+      }
+    }
   };
 
   return {
@@ -257,8 +280,15 @@ export function createNativeOpenHandsClient(config: {
       // pause as failed and then replaced the real stop reason with
       // 'openhands_pause_unconfirmed', sending the operator after the wrong
       // cause. Re-poll for a bounded window instead of demanding instant proof.
-      const SETTLED = ['paused', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
-      const pauseAndAccount = async (): Promise<boolean> => {
+      // 'waiting_for_confirmation' is settled for the purpose of a pause: under the
+      // AlwaysConfirm policy the agent executes nothing until RONOR confirms, and
+      // RONOR never confirms after asking for a pause. On the host (29.09.2026,
+      // run_092829ca3043768cf371) a conversation blocked on confirmation never
+      // reported 'paused', so a quiescent run was reported as unconfirmed.
+      const SETTLED = ['paused', 'waiting_for_confirmation', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
+      // `rejectedTip`: after RONOR rejected the action at this tip the agent resumes,
+      // so the same tip still blocked on confirmation is not yet quiescent.
+      const pauseAndAccount = async (rejectedTip?: unknown): Promise<boolean> => {
         if (!conversationId) return false;
         const gapMs = Math.max(0, config.pauseConfirmIntervalMs ?? PAUSE_CONFIRMATION.intervalMs);
         const attempts = Math.max(1, config.pauseConfirmAttempts ?? Math.ceil(pauseWindowMs / Math.max(1, gapMs)) + 1);
@@ -274,7 +304,9 @@ export function createNativeOpenHandsClient(config: {
             }
             final = await call(`/api/conversations/${conversationId}`, 'GET', undefined, AbortSignal.timeout(4_000));
             cost = executionCost(final);
-            if (SETTLED.includes(String(final.execution_status).toLowerCase())) return true;
+            const settledStatus = String(final.execution_status).toLowerCase();
+            const stillOnRejected = settledStatus === 'waiting_for_confirmation' && rejectedTip !== undefined && final.leaf_event_id === rejectedTip;
+            if (SETTLED.includes(settledStatus) && !stillOnRejected) return true;
           }
           // Window exhausted: keep whatever cost the last read produced so the
           // caller can still account an unsettled conversation honestly.
@@ -365,6 +397,7 @@ export function createNativeOpenHandsClient(config: {
         // pre-run status for a short window. Treating that as termination hides the
         // real failure, which only arrives later as a conversation error event.
         let startupWindow = Math.max(0, config.startupPolls ?? 10);
+        let tipChanges = 0;
         for (let poll = 0; poll < maxPolls; poll += 1) {
           if (executionSignal.aborted) throw new NativeOpenHandsError('openhands_cancelled');
           const state = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
@@ -382,8 +415,10 @@ export function createNativeOpenHandsClient(config: {
           const cursors = new Set<string>();
           let pageId: string | undefined;
           let decision: EffectDecision = { allowed:false, reason:'pending_branch_incomplete' };
-          for (let page = 0; page < 32; page += 1) {
-            const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}${pageId ? `&page_id=${encodeURIComponent(pageId)}` : ''}`, 'GET', undefined, executionSignal);
+          // Bounded by items, not pages, so a smaller page never shortens the walk.
+          const maxPages = Math.ceil(MAX_PENDING_EVENTS / EVENT_PAGE_SIZES[EVENT_PAGE_SIZES.length - 1]);
+          for (let page = 0; page < maxPages && items.length < MAX_PENDING_EVENTS; page += 1) {
+            const events = await latestEvents(conversationId, pageId, executionSignal);
             if (!Array.isArray(events.items) || events.items.length > 100) {
               decision = { allowed:false, reason:'pending_page_invalid' }; break;
             }
@@ -396,6 +431,16 @@ export function createNativeOpenHandsClient(config: {
           }
           if (decision.allowed) {
             const current = await call(`/api/conversations/${conversationId}`, 'GET', undefined, executionSignal);
+            // Still blocked on confirmation but on a different tip: nothing was
+            // approved, so re-read and re-evaluate from scratch on the next poll
+            // instead of stopping the run. Bounded, so a tip that never settles
+            // still ends the run with the original reason.
+            if (current.execution_status === 'waiting_for_confirmation' && current.leaf_event_id !== state.leaf_event_id &&
+                tipChanges < MAX_TIP_CHANGES) {
+              tipChanges += 1;
+              await waitForNextPoll();
+              continue;
+            }
             if (current.execution_status !== 'waiting_for_confirmation' || current.leaf_event_id !== state.leaf_event_id) {
               const paused = await pauseAndAccount();
               return finish(false, paused ? 'openhands_pending_state_changed' : 'openhands_pause_unconfirmed');
@@ -407,7 +452,7 @@ export function createNativeOpenHandsClient(config: {
             accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
           }, executionSignal);
           if (!decision.allowed) {
-            const paused = await pauseAndAccount();
+            const paused = await pauseAndAccount(state.leaf_event_id);
             return finish(false, paused ? `openhands_action_refused_${decision.reason}` : 'openhands_pause_unconfirmed');
           }
           continue;
@@ -419,7 +464,7 @@ export function createNativeOpenHandsClient(config: {
           return finish(false, detail ? `openhands_terminated_${status}_${detail}` : `openhands_terminated_${status}`);
         }
         if (['finished', 'complete', 'completed'].includes(status)) {
-          const events = await call(`/api/conversations/${conversationId}${LATEST_EVENTS}`, 'GET', undefined, executionSignal);
+          const events = await latestEvents(conversationId, undefined, executionSignal);
           const serialized = JSON.stringify(events);
           const digest = crypto.createHash('sha256').update(serialized).digest('hex');
           return {

@@ -1,4 +1,4 @@
-import { createOpenAIResponsesCodexEvaluator, parseVerdictText } from '../../src/runtime/automation/services/codex-evaluator';
+import { codexUsageDiagnostic, createOpenAIResponsesCodexEvaluator, parseVerdictText } from '../../src/runtime/automation/services/codex-evaluator';
 
 const ok = { verdict: 'pass', summary: 'ok', evidence: ['tests:pass'] };
 const reply = (body: Record<string, unknown>) => jest.fn(() => Promise.resolve(new Response(JSON.stringify({
@@ -24,11 +24,11 @@ describe('Codex verdict parsing (run_2cf9b7123d32b93f4d91, 30.09.2026)', () => {
       .rejects.toThrow('codex_api_output_invalid');
   });
 
-  it('asks for 8192 output tokens', async () => {
+  it('asks for 32768 output tokens', async () => {
     const f = reply({ output: msg(JSON.stringify(ok)) });
     await make(f).evaluate({ missionId: 'm', claims: [], materials: [] });
     const [, init] = f.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(JSON.parse(String(init.body)).max_output_tokens).toBe(8192);
+    expect(JSON.parse(String(init.body)).max_output_tokens).toBe(32768);
   });
 
   it('names a verdict cut by the output budget without echoing its content', async () => {
@@ -42,5 +42,14 @@ describe('Codex verdict parsing (run_2cf9b7123d32b93f4d91, 30.09.2026)', () => {
   it('keeps not_json for complete responses that are not JSON', async () => {
     await expect(make(reply({ status: 'completed', output: msg('PASS') })).evaluate({ missionId: 'm', claims: [], materials: [] }))
       .rejects.toThrow('codex_api_output_not_json');
+  });
+
+  it('logs usage and reasoning tokens without any model text', () => {
+    const line = codexUsageDiagnostic({ status: 'incomplete', usage: { input_tokens: 9000, output_tokens: 8192,
+      output_tokens_details: { reasoning_tokens: 8000 } }, output: msg('SECRET-FRAGMENT') }, 15);
+    expect(JSON.parse(line)).toEqual({ event: 'codex_usage', status: 'incomplete', max_output_tokens: 32768,
+      input_tokens: 9000, output_tokens: 8192, reasoning_tokens: 8000, text_chars: 15 });
+    expect(line).not.toContain('SECRET');
+    expect(JSON.parse(codexUsageDiagnostic({ status: 'x y<script>', usage: 'bad' }, null))).toMatchObject({ status: null, reasoning_tokens: null });
   });
 });

@@ -24,7 +24,8 @@ describe('OpenAI Responses Codex evaluator', () => {
 
   it.each([
     'FAIL: no independent evidence was supplied.',
-    '```json\n{"verdict":"pass","summary":"ok","evidence":[]}\n```',
+    'Here it is:\n```json\n{"verdict":"pass","summary":"ok","evidence":[]}\n```',
+    '```json\n{"verdict":"pass","summary":"ok","evidence":[]}\n```\n```json\n{}\n```',
     '{"verdict":"pass","summary":"ok","evidence":[]} trailing prose',
   ])('refuses unstructured output without leaking it in the error: %s', async text => {
     const evaluator = createOpenAIResponsesCodexEvaluator({

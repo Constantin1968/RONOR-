@@ -34,6 +34,7 @@ import { modelExchangeRouter } from './api/model-exchange-router';
 import { createSentinelRouter } from './api/sentinel-router';
 import { initModelExchange } from './model-exchange/orchestrator';
 import { loadPolicy } from './governance/mi9-gate';
+import { assertMi9EnforcementAllowed } from './governance/mi9-enforcement';
 import { getDb, countRecords } from './audit/hash-chain';
 import { raporteazaPersistenta, persistentaEsteObligatorie } from './persistence/audit-mirror';
 import { compuneSauDegradat, masoaraSauNecunoscut } from './health/protejare';
@@ -75,6 +76,11 @@ async function bootstrap(): Promise<void> {
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('OPENAI_API_KEY not set — frontier-model proposer will fall back to deterministic policy.');
   }
+
+  // MI9 enforcement cannot be disarmed by configuration in production: refuse to
+  // boot at all rather than start a governed-by-name-only runtime. Checked here,
+  // before anything listens, so the refusal is visible in the boot log.
+  assertMi9EnforcementAllowed(process.env);
 
   // Boot governance + audit primitives first so they are ready before the
   // first decision request lands.

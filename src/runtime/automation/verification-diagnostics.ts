@@ -28,6 +28,7 @@ const CODE_CATEGORIES: Record<string, VerificationFailureCategory> = {
   codex_api_usage_invalid: 'service',
   codex_api_output_missing: 'service',
   codex_api_output_not_json: 'service',
+  codex_api_output_truncated: 'service',
   codex_api_output_invalid: 'service',
   codex_api_timeout: 'service',
   codex_api_unavailable: 'service',

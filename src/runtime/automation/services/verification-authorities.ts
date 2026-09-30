@@ -9,7 +9,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const KINDS = new Set(['git_diff', 'git_status', 'test_report', 'event_log']);
 const SAFE_CODEX_EVALUATOR_FAILURE_CODES = new Set([
   'codex_api_response_too_large', 'codex_api_usage_missing', 'codex_api_usage_invalid',
-  'codex_api_output_missing', 'codex_api_output_not_json', 'codex_api_output_invalid',
+  'codex_api_output_missing', 'codex_api_output_not_json', 'codex_api_output_truncated', 'codex_api_output_invalid',
   'codex_api_timeout', 'codex_api_unavailable',
 ]);
 

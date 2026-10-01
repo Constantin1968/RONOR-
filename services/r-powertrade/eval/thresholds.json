@@ -1,0 +1,8 @@
+{
+  "_note": "Pragurile Muse v0.1.0. Cazurile înghețate trebuie să treacă toate (1.0).",
+  "frozen_cases_pass_rate": 1.0,
+  "floor_hit_rate": 1.0,
+  "cbc_mape": 0.15,
+  "pl_vs_perfect": 0.75,
+  "false_cbc_rate": 0.0
+}

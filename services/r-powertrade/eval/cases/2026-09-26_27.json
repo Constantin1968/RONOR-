@@ -1,0 +1,97 @@
+{
+  "_source": "Export consolidat v0.1, 27.09.2026, și închiderea Muse din dimineața de 27.09.2026",
+  "int7_excluded": {
+    "sell": "161",
+    "cost": "168",
+    "cbc": "0",
+    "expect": "exclude"
+  },
+  "int4_cbc_effective": {
+    "tranches": [
+      [
+        "30",
+        "0.99"
+      ],
+      [
+        "10",
+        "0"
+      ]
+    ],
+    "expect": "0.74"
+  },
+  "h10_placeholder": {
+    "first": {
+      "value": "0.20",
+      "status": "substitute",
+      "source": "foaia operatorului 26.09"
+    },
+    "then": {
+      "value": "55.12",
+      "status": "real",
+      "source": "Yunex 26.09 h10"
+    },
+    "real_020": {
+      "value": "0.20",
+      "status": "real",
+      "source": "exemplu: preț real 0,20 €"
+    }
+  },
+  "floors": [
+    [
+      "197",
+      "179"
+    ],
+    [
+      "207",
+      "203"
+    ],
+    [
+      "198",
+      "187"
+    ],
+    [
+      "148",
+      "82"
+    ],
+    [
+      "90",
+      "42"
+    ]
+  ],
+  "h1_below_breakeven": {
+    "cost": "145.77",
+    "breakeven": "163"
+  },
+  "close_27_09": {
+    "ro_cumulative_before": "95038.62",
+    "positions": [
+      {
+        "route": "UA-MD-RO",
+        "origin": "UA",
+        "volume_mwh": "40",
+        "sell": "164",
+        "cost": "22.01",
+        "cbc": "0.74"
+      },
+      {
+        "route": "UA-MD-RO",
+        "origin": "UA",
+        "volume_mwh": "42",
+        "sell": "148",
+        "cost": "21.89",
+        "cbc": "0.67"
+      }
+    ],
+    "expect": {
+      "brut": "10844.68",
+      "provision_outside_pl": "3280.00",
+      "ro_slice": "5422.34",
+      "yunex": "5422.34",
+      "encon": "0.00",
+      "nrgpath": "2711.17",
+      "ro_cumulative": "100460.96",
+      "wattmd": "2711.17"
+    },
+    "_route_note": "int4/int5 sunt pe UA-MD-RO (nominalizarea 27/32/30/40/42 int1-5 din 26.09)"
+  }
+}

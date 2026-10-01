@@ -289,56 +289,35 @@ services:
           memory: 256M
 
   # --------------------------------------------------------------------------
-  # Energy Trading Arm — the crossborder electricity module
+  # R-PowerTrade — brațul de trading energetic transfrontalier (Etapa 1, Shadow)
   # --------------------------------------------------------------------------
-  #
-  # Runs the Muse-authored energy_trading Python package (handover v0.2.0,
-  # 127 pytest cases green) as a permanent RONOR service on the internal docker
-  # network. Reachable only from the compose network at http://energy-trading-arm:8000.
-  # All calls are authenticated with X-RONOR-Token (value from ET_API_TOKEN).
-  #
-  # Profile `energy-trading`, because the arm is not needed on droplets that do
-  # not host trading operations. Enabled with:
-  #
-  #   docker compose -f docker-compose.production.yml --profile energy-trading up -d
-  #
-  # or via ./deploy/deploy.sh --with-energy-trading.
-  energy-trading-arm:
+  # Specificația: exportul Muse v0.1 din 27.09.2026. Serviciul anterior
+  # energy-trading-arm este arhivat în arhiva/energy-trading-arm-fe8119b/.
+  # Alias-ul de rețea energy-trading-arm păstrează adresa folosită de bot.
+  # Activare: docker compose -f docker-compose.production.yml --profile energy-trading up -d
+  r-powertrade:
     build:
-      context: ./services/energy-trading-arm
+      context: ./services/r-powertrade
       dockerfile: Dockerfile
-    image: ronor-energy-trading-arm:${RONOR_ENERGY_TRADING_VERSION:-0.2.0}
-    container_name: ronor-energy-trading-arm
+    image: ronor-r-powertrade:${RONOR_POWERTRADE_VERSION:-0.1.0}
+    container_name: ronor-r-powertrade
     profiles: ["energy-trading"]
-    env_file:
-      - .env.production
     environment:
-      # The arm is a self-contained FastAPI service. It stores data in mounted
-      # volumes, not in ephemeral container state, so scheduled jobs survive
-      # a container restart. Timezone stays Europe/Bucharest to match the
-      # operator sheets Muse designed the twin around.
-      ET_TIMEZONE: Europe/Bucharest
-      ET_HOME_ZONE: RO
-      ET_DATA_DIR: /app/data
-      ET_STATE_DIR: /app/state
-      ET_SCHEDULER_ENABLED: "true"
-      # The runtime bridges here through the internal docker DNS, not the
-      # public internet. The token is required and validated by every
-      # authenticated route on the FastAPI side (X-RONOR-Token header).
+      POWERTRADE_STAGE: shadow
+      POWERTRADE_TOKEN: ${ET_API_TOKEN:?ET_API_TOKEN obligatoriu}
+      POWERTRADE_LEDGER_HMAC_KEY: ${TRADING_LEDGER_HMAC_KEY:?TRADING_LEDGER_HMAC_KEY obligatoriu}
+      POWERTRADE_LEDGER_PATH: /app/state/powertrade-ledger.db
+    networks:
+      default:
+        aliases: [energy-trading-arm]
     volumes:
-      - energy-trading-data:/app/data
-      - energy-trading-state:/app/state
+      - r-powertrade-state:/app/state
     restart: unless-stopped
     logging: *default-logging
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
 
   # --------------------------------------------------------------------------
   # Nginx — TLS termination and the only public listener
@@ -402,8 +381,9 @@ volumes:
   redis-data:
   certbot-conf:
   certbot-www:
-  energy-trading-data:
-  energy-trading-state:
+  energy-trading-data:    # volumul serviciului arhivat, păstrat neatins
+  energy-trading-state:   # volumul serviciului arhivat, păstrat neatins
+  r-powertrade-state:
 
 networks:
   default:

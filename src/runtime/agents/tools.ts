@@ -296,15 +296,19 @@ const webFetchTool: ToolDescriptor = {
 
 export function stripHtml(html: string): string {
   return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    // End tags may carry whitespace or junk before '>' (`</script >`, `</script\t\nfoo>`);
+    // browsers still close the element, so the filter must too.
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\b[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    // &amp; is decoded last: decoding it first would turn `&amp;lt;` into `&lt;` and
+    // then into `<`, unescaping the same text twice.
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }

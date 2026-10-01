@@ -35,16 +35,28 @@ function inside(candidate: string, root: string): boolean {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
+export class WorkspaceOutsideApprovedRootError extends Error {
+  constructor() { super('workspace_outside_approved_root'); this.name = 'WorkspaceOutsideApprovedRootError'; }
+}
+
 export function inspectAutomationWorkspace(workspaceRoot: string, approvedRoot: string): WorkspaceSnapshot {
-  const canonicalPath = realpathSync.native(path.resolve(workspaceRoot));
-  const canonicalApprovedRoot = realpathSync.native(path.resolve(approvedRoot));
+  // The approved root is operator configuration; the workspace path arrives with a
+  // request. Bound the requested path lexically against the approved root BEFORE it
+  // touches the filesystem (realpath, lstat, git), so a path outside the root is never
+  // resolved, probed or executed against. The canonical check after resolution still
+  // applies in validateWorkspaceSnapshot, which also catches symlinks inside the root.
+  const resolvedApprovedRoot = path.resolve(approvedRoot);
+  const canonicalApprovedRoot = realpathSync.native(resolvedApprovedRoot);
+  const requestedPath = path.resolve(workspaceRoot);
+  if (!inside(requestedPath, resolvedApprovedRoot) && !inside(requestedPath, canonicalApprovedRoot)) throw new WorkspaceOutsideApprovedRootError();
+  const canonicalPath = realpathSync.native(requestedPath);
   const top = realpathSync.native(git(canonicalPath, ['rev-parse', '--show-toplevel']));
   let origin: string | null = null;
   try { origin = git(canonicalPath, ['remote', 'get-url', 'origin']); } catch { origin = null; }
   return {
     canonical_path: canonicalPath,
     canonical_approved_root: canonicalApprovedRoot,
-    is_link: lstatSync(path.resolve(workspaceRoot)).isSymbolicLink(),
+    is_link: lstatSync(requestedPath).isSymbolicLink(),
     is_git_worktree: git(canonicalPath, ['rev-parse', '--is-inside-work-tree']) === 'true',
     git_toplevel: top,
     branch: git(canonicalPath, ['branch', '--show-current']),
@@ -68,7 +80,7 @@ export function validateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, policy: W
 
 export function inspectAndValidateWorkspace(workspaceRoot: string, policy: WorkspacePolicy): WorkspaceVerdict {
   try { return validateWorkspaceSnapshot(inspectAutomationWorkspace(workspaceRoot, policy.approved_root), policy); }
-  catch { return { valid: false, reason: 'workspace_inspection_failed' }; }
+  catch (error) { return { valid: false, reason: error instanceof WorkspaceOutsideApprovedRootError ? 'workspace_outside_approved_root' : 'workspace_inspection_failed' }; }
 }
 
 /** A narrowly scoped legacy recovery: tracked, unstaged changes only. */

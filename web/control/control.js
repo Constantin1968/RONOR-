@@ -1,7 +1,9 @@
 (function () {
   'use strict';
   var root = '/api/runtime/control';
-  var state = { key: sessionStorage.getItem('ronor.control.key') || '', missionId: null, runId: null, poll: null };
+  try { sessionStorage.removeItem('ronor.control.key'); } catch (e) { /* purge a key stored by an earlier version */ }
+  // The key is held in memory only; browser storage is readable by any script on the origin.
+  var state = { key: '', missionId: null, runId: null, poll: null };
   var terminal = ['complete', 'blocked', 'failed', 'cancelled'];
   function el(id) { return document.getElementById(id); }
   function node(tag, text, cls) { var n = document.createElement(tag); if (text) n.textContent = text; if (cls) n.className = cls; return n; }
@@ -37,8 +39,8 @@
     catch (err) { el('sessionState').textContent = 'ACCES RESPINS'; el('result').textContent = err.message; }
   }
   el('cancelRun').addEventListener('click', async function () { if (!state.runId || !state.missionId || !window.confirm('Anulezi runul activ? Modificările locale deja produse nu sunt rollback automat.')) return; try { await api('/automation/runs/' + encodeURIComponent(state.runId) + '/cancel', { method: 'POST', body: JSON.stringify({ mission_id: state.missionId }) }); el('cancelRun').textContent = 'Anulare solicitată'; el('cancelRun').disabled = true; await loadMission(state.missionId); } catch (err) { el('result').textContent = 'EROARE: ' + err.message; } });
-  el('connect').addEventListener('click', function () { state.key = el('apiKey').value.trim(); sessionStorage.setItem('ronor.control.key', state.key); refresh(); });
-  el('forget').addEventListener('click', function () { state.key = ''; sessionStorage.removeItem('ronor.control.key'); el('apiKey').value = ''; el('sessionState').textContent = 'NEAUTENTIFICAT'; stopPolling(); });
+  el('connect').addEventListener('click', function () { state.key = el('apiKey').value.trim(); refresh(); });
+  el('forget').addEventListener('click', function () { state.key = ''; el('apiKey').value = ''; el('sessionState').textContent = 'NEAUTENTIFICAT'; stopPolling(); });
   el('refresh').addEventListener('click', refresh); document.querySelectorAll('nav button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
   el('delegateForm').addEventListener('submit', async function (ev) {
     ev.preventDefault();

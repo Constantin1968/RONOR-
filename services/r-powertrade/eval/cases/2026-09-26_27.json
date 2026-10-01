@@ -87,11 +87,12 @@
       "provision_outside_pl": "3280.00",
       "ro_slice": "5422.34",
       "yunex": "5422.34",
-      "encon": "0.00",
+      "encon": "2711.17",
       "nrgpath": "2711.17",
       "ro_cumulative": "100460.96",
-      "wattmd": "2711.17"
+      "wattmd": "0.00"
     },
-    "_route_note": "int4/int5 sunt pe UA-MD-RO (nominalizarea 27/32/30/40/42 int1-5 din 26.09)"
+    "_route_note": "int4/int5 sunt pe UA-MD-RO (nominalizarea 27/32/30/40/42 int1-5 din 26.09)",
+    "_split_change": "01.10.2026: partea Watt scoasă de pe tranzit. Înainte: wattmd 2711.17, encon 0.00 (regula din 28.09). Acum: encon 2711.17, wattmd 0.00, conform raportului Muse 01.10 §2 (tranzit Encon 2.711,17 / NrgPath 2.711,17). Totalurile brut, felie RO și cumul nu se schimbă."
   }
 }

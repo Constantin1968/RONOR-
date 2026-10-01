@@ -1,0 +1,177 @@
+{
+  "_source": "Raportul Muse versiunea a patra, 01.10.2026 ora 13:15, potențialul pentru 02.10 cu marjă de criză 1,0; cifre verificate aritmetic în firul de verificare",
+  "_status": "calculat condiționat: marjele derivă din prețuri UA cu status suspect (125,21 și 78,87). Cazul fixează aritmetica plafonului, a costului scufundat și a provizionului, NU susține nominalizarea.",
+  "potential_rows": [
+    {
+      "hour": 2,
+      "route": "UA-MD",
+      "origin": "UA",
+      "rights_mw": "20",
+      "margin_mwh": "36.17",
+      "cbc": "0"
+    },
+    {
+      "hour": 3,
+      "route": "UA-MD",
+      "origin": "UA",
+      "rights_mw": "20",
+      "margin_mwh": "36.17",
+      "cbc": "0"
+    },
+    {
+      "hour": 4,
+      "route": "UA-MD",
+      "origin": "UA",
+      "rights_mw": "20",
+      "margin_mwh": "36.17",
+      "cbc": "0"
+    },
+    {
+      "hour": 1,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "11",
+      "margin_mwh": "44.80",
+      "cbc": "6.88"
+    },
+    {
+      "hour": 2,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "11",
+      "margin_mwh": "60.47",
+      "cbc": "6.88"
+    },
+    {
+      "hour": 3,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "11",
+      "margin_mwh": "60.47",
+      "cbc": "6.88"
+    },
+    {
+      "hour": 4,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "11",
+      "margin_mwh": "60.47",
+      "cbc": "6.88"
+    },
+    {
+      "hour": 5,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "11",
+      "margin_mwh": "44.80",
+      "cbc": "6.88"
+    },
+    {
+      "hour": 6,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "51",
+      "margin_mwh": "66.34",
+      "cbc": "0.28"
+    },
+    {
+      "hour": 7,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "51",
+      "margin_mwh": "65.60",
+      "cbc": "0.28"
+    },
+    {
+      "hour": 8,
+      "route": "UA-MD-RO",
+      "origin": "UA",
+      "rights_mw": "21",
+      "margin_mwh": "63.69",
+      "cbc": "2.88"
+    }
+  ],
+  "expect_rule_in_force": {
+    "gross": "5624.12",
+    "sunk_cbc": "94.80",
+    "net": "5529.32",
+    "provision_outside_pl": "3120.00",
+    "ro_slice_gross": "2812.06"
+  },
+  "expect_strict_8": {
+    "gross": "4601.20",
+    "sunk_cbc": "164.72",
+    "net": "4436.48",
+    "provision_outside_pl": "2560.00",
+    "ro_slice_gross": "2300.60"
+  },
+  "expect_uncapped_gross": "13217.74",
+  "crisis_hours": [
+    {
+      "name": "h8 cu 21 MW peste plafonul obligatoriu 8",
+      "hour": 8,
+      "nominate": "21",
+      "ok": false
+    },
+    {
+      "name": "h8 cu 8 MW în plafon",
+      "hour": 8,
+      "nominate": "8",
+      "ok": true
+    },
+    {
+      "name": "h2 cu 10 MW în plafon",
+      "hour": 2,
+      "nominate": "10",
+      "ok": true
+    },
+    {
+      "name": "h2 cu 20 MW: împărțirea în tranșe nu ocolește plafonul",
+      "hour": 2,
+      "nominate": "20",
+      "ok": false
+    },
+    {
+      "name": "h1 intrazilnic fără câștig confirmat",
+      "hour": 1,
+      "nominate": "6",
+      "intraday": "14",
+      "ok": false
+    },
+    {
+      "name": "h1 intrazilnic după câștig confirmat",
+      "hour": 1,
+      "nominate": "6",
+      "intraday": "4",
+      "da_won": true,
+      "ok": true
+    },
+    {
+      "name": "h19 seara fără aprobare scrisă",
+      "hour": 19,
+      "nominate": "5",
+      "ok": false
+    },
+    {
+      "name": "h19 seara cu aprobare scrisă",
+      "hour": 19,
+      "nominate": "5",
+      "approval": "aprobare scrisă suveran",
+      "ok": true
+    }
+  ],
+  "crisis_floors": [
+    {
+      "name": "prag h6 cu spread 1,0",
+      "ua": "125.21",
+      "cbc": "0.28",
+      "expect": "128.66"
+    },
+    {
+      "name": "prag UA-MD h2-4 cu spread 1,0",
+      "ua": "78.87",
+      "cbc": "0",
+      "expect": "81.58"
+    }
+  ]
+}

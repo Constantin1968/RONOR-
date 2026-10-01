@@ -25,9 +25,10 @@
   ],
   "expect_today": {
     "yunex": "3096.60",
-    "encon": "994.50",
+    "encon": "1548.30",
     "nrgpath": "1548.30",
-    "wattmd": "553.80"
+    "wattmd": "0.00"
   },
-  "_split_rule": "Tranzit MD: WATT preia felia RO (WATT = afiliat Encon), decizia suveranului 28.09.2026"
+  "_split_rule": "Tranzit MD: felia RO pe Encon Group (Encon + WATT), înregistrată pe encon; corecția din 01.10.2026",
+  "_split_change": "01.10.2026: înainte encon 994.50 / wattmd 553.80 (WATT pe tranzit, regula din 28.09); acum encon 1548.30 / wattmd 0.00. Encon Group rămâne 1548.30."
 }

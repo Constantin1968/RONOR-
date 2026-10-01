@@ -4,5 +4,7 @@
   "floor_hit_rate": 1.0,
   "cbc_mape": 0.15,
   "pl_vs_perfect": 0.75,
-  "false_cbc_rate": 0.0
+  "false_cbc_rate": 0.0,
+  "min_history_days": 20,
+  "_note_min_history_days": "Regulă aprobată de suveran pe 02.10.2026: 20 de zile de umbră înainte ca metricile pe istoric să fie evaluate pentru Gated."
 }

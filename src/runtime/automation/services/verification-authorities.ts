@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServiceRateLimit } from './rate-limit';
+import { bearerMatches } from '../secure-io';
 import type { EvidenceArtifact, VerificationEvidence, VerificationVerdict } from '../contracts';
 import type { WorkspaceArtifactCollector } from '../artifacts';
 import { signVerificationReceipt, verifyVerificationReceipt } from '../verification-receipt';
@@ -27,7 +28,7 @@ export interface CodexEvaluationPort {
   evaluate(input: { missionId: string; claims: string[]; materials: VerifiedMaterial[]; budgetToken?: string }): Promise<{ verdict: 'pass' | 'fail'; summary: string; evidence: string[]; cost_usd: number }>;
 }
 
-function authorised(header: string | undefined, token: string): boolean { return header === `Bearer ${token}`; }
+function authorised(header: string | undefined, token: string): boolean { return bearerMatches(header, token); }
 
 function parseEvidence(value: unknown): VerificationEvidence | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

@@ -123,6 +123,9 @@ export type CommandName =
   // enabled, each is gated by the caller's role assignment — an allowed user
   // without a trading role is refused every one of them.
   | 'energy_status'
+  // R-PowerTrade (Etapa 2): propuneri cu răspuns implicit NU și metrici pentru Gated.
+  | 'propunere'
+  | 'metrici'
   | 'energy_report'
   | 'day'
   | 'pl'

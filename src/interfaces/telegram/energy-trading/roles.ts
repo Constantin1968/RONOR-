@@ -85,7 +85,10 @@ export function tradingBucketFor(command: string): TradingCommandBucket | null {
       return 'contribute';
     case 'trade_request':
     case 'history':
+    case 'propunere':   // R-PowerTrade: propunere de nominalizare, implicit NU
       return 'initiate';
+    case 'metrici':     // R-PowerTrade: metricile pe istoric pentru Gated
+      return 'read';
     // /approve and /reject go through settle() rather than this map, because
     // whether they touch a TRADE pending or a general RONOR pending is decided
     // at the approval store, not at parse time.

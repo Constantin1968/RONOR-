@@ -32,6 +32,7 @@
 
 import { createLogger } from '../../../utils/logger';
 import { TradingClient, TradingApiError, TradeShape } from './trading-client';
+import type { PowertradeProposalBody } from './trading-client';
 import type { RoleAssignment } from './roles';
 import { describeRole } from './roles';
 
@@ -693,4 +694,108 @@ export function tradingTrainerOnboarding(userName: string): string {
     '',
     'Când ai nevoie, scrie /help.',
   ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// R-PowerTrade (Etapa 2): propuneri Da/Nu și metrici pentru Gated
+// ---------------------------------------------------------------------------
+//
+// /propunere primește corpul JSON al propunerii, exact cum îl cere
+// /powertrade/propose: {"day": "2026-10-02", "hours": [{"hour": 2, "route": "UA-MD",
+// "rights_mw": "20", "nominate_mw": "10", "prices": {"ua": {"value": "78.87",
+// "status": "real", "source": "..."}}}]}. Nicio cifră nu se extrage din text liber.
+
+export interface PropunereResult {
+  text: string;
+  proposalSeq: number | null;
+  day: string | null;
+  anyEligible: boolean;
+}
+
+export function parsePropunereArgs(argument: string): PowertradeProposalBody | string {
+  const raw = argument.trim();
+  if (!raw) {
+    return 'Folosire: <code>/propunere {"day": "AAAA-LL-ZZ", "hours": [...]}</code>. Corpul este JSON; prețurile au status și proveniență.';
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return 'Propunerea trebuie să fie JSON valid. Nicio cifră nu se deduce din text liber.';
+  }
+  const p = parsed as Partial<PowertradeProposalBody>;
+  if (typeof p.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(p.day)) {
+    return 'Câmpul <code>day</code> lipsește sau nu are forma AAAA-LL-ZZ.';
+  }
+  if (!Array.isArray(p.hours) || p.hours.length === 0) {
+    return 'Câmpul <code>hours</code> lipsește sau e gol.';
+  }
+  return { day: p.day, hours: p.hours, crisis: p.crisis ?? true };
+}
+
+export async function cmdPropunere(ctx: HandlerContext, argument: string): Promise<PropunereResult> {
+  const body = parsePropunereArgs(argument);
+  if (typeof body === 'string') {
+    return { text: `⚠️ ${body}`, proposalSeq: null, day: null, anyEligible: false };
+  }
+  try {
+    const r = await ctx.client.powertradePropose(body, ctx.userName);
+    const anyEligible = r.hours.some((h) => h.eligible);
+    const lines = [
+      `📋 <b>Propunere R-PowerTrade</b> · ${esc(body.day)} · nr. <code>${r.proposal_seq}</code>`,
+      `etapa: <b>${esc(r.stage)}</b> · răspuns implicit: <b>NU</b>`,
+      '',
+      ...r.hours.map((h) =>
+        h.eligible
+          ? `✅ h${h.hour} ${esc(h.route)} ${esc(h.nominate_mw)} MW`
+          : `⛔ h${h.hour} ${esc(h.route)} ${esc(h.nominate_mw)} MW — ${esc(h.reasons.join('; '))}`,
+      ),
+      '',
+      anyEligible
+        ? '<i>Decizia Da/Nu aparține suveranului. Un Da se înregistrează, nu nominalizează.</i>'
+        : '<i>Nicio oră eligibilă: nu se cere decizie.</i>',
+    ];
+    return { text: lines.join('\n'), proposalSeq: r.proposal_seq, day: body.day, anyEligible };
+  } catch (err) {
+    return { text: formatTradingError(err, '/propunere'), proposalSeq: null, day: null, anyEligible: false };
+  }
+}
+
+export async function decidePropunere(
+  client: TradingClient,
+  day: string,
+  proposalSeq: number,
+  decision: 'da' | 'nu',
+  approverName: string,
+  approvalRef: string,
+): Promise<string> {
+  try {
+    const r = await client.powertradeDecide(
+      { day, proposal_seq: proposalSeq, decision, approval_ref: decision === 'da' ? approvalRef : null },
+      approverName,
+    );
+    return `${decision === 'da' ? '✅' : '🚫'} Propunerea <code>${proposalSeq}</code>: <b>${decision.toUpperCase()}</b> înregistrat (registru nr. ${r.ledger_seq}). Nu s-a nominalizat nimic.`;
+  } catch (err) {
+    if (err instanceof TradingApiError && err.status === 403) {
+      return '⏸ Etapa Shadow: deciziile Da/Nu se activează în Gated. Propunerea rămâne înregistrată cu răspunsul implicit NU.';
+    }
+    return formatTradingError(err, 'decizie propunere');
+  }
+}
+
+export async function cmdMetrici(ctx: HandlerContext): Promise<string> {
+  try {
+    const r = await ctx.client.powertradeMetrics();
+    const m = r.metrics;
+    const head = `📈 <b>R-PowerTrade — metrici pentru Gated</b> · etapa <b>${esc(r.stage)}</b>`;
+    if (!m.evaluated) {
+      return `${head}\n\n${esc(m.reason ?? 'neevaluat')}\nVerdict Gated: <b>nu trece</b>.`;
+    }
+    const checks = Object.entries(r.gated_gate.checks ?? {})
+      .map(([k, ok]) => `${ok ? '✅' : '⛔'} ${esc(k)}: ${esc(String(m[k]))}`);
+    return [head, '', `zile de istoric: ${m.days}`, ...checks, '',
+      `Verdict Gated: <b>${r.gated_gate.pass ? 'trece' : 'nu trece'}</b>`].join('\n');
+  } catch (err) {
+    return formatTradingError(err, '/metrici');
+  }
 }

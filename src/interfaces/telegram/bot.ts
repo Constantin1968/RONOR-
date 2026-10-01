@@ -75,6 +75,9 @@ import {
   handleUploadCasePayload,
   cmdHistory,
   tradingTrainerOnboarding,
+  cmdPropunere,
+  decidePropunere,
+  cmdMetrici,
 } from './energy-trading/handlers';
 import type {
   CommandName,
@@ -228,6 +231,8 @@ function parseCommand(text: string): ParsedCommand {
     // than generic ("unknown command").
     'energy_status', 'energy_report', 'day', 'pl', 'brief',
     'trade_request', 'upload_case', 'feedback', 'correct', 'dispute', 'history',
+    // R-PowerTrade (Etapa 2)
+    'propunere', 'metrici',
   ];
   const name: CommandName = (knownCommands.includes(cmd as CommandName) ? cmd : 'unknown') as CommandName;
   return { name, argument, raw: trimmed };
@@ -511,6 +516,8 @@ export class RonorTelegramBot {
       case 'correct':
       case 'dispute':
       case 'history':
+      case 'propunere':
+      case 'metrici':
         await this.cmdTrading(chatId, msg, userId, cmd.name, cmd.argument);
         break;
       default:
@@ -534,6 +541,28 @@ export class RonorTelegramBot {
     data: string,
   ): Promise<void> {
     await this.tg.answerCallbackQuery({ callback_query_id: callbackQueryId });
+
+    // R-PowerTrade: butoanele Da/Nu ale propunerilor. Numai rolul suveran decide;
+    // decizia se înregistrează în registrul serviciului și nu nominalizează nimic.
+    if (data.startsWith('pt_da:') || data.startsWith('pt_nu:')) {
+      const [action, rawSeq, day] = data.split(':');
+      const seq = Number(rawSeq);
+      if (!Number.isInteger(seq) || !day) return;
+      if (!this.config.energyTrading.enabled || this.trading === null) {
+        await this.tg.sendMessage({ chat_id: chatId, text: '⛔ The energy trading arm is not enabled on this bridge.' });
+        return;
+      }
+      if (this.roleOf(userId)?.role !== 'sovereign') {
+        await this.tg.sendMessage({ chat_id: chatId, text: '⛔ Numai rolul suveran decide Da/Nu pe o propunere R-PowerTrade.' });
+        return;
+      }
+      const text = await decidePropunere(
+        this.trading, day, seq, action === 'pt_da' ? 'da' : 'nu', userName,
+        `telegram:${userId}:${callbackQueryId}`,
+      );
+      await this.tg.sendMessage({ chat_id: chatId, text, parse_mode: 'HTML' });
+      return;
+    }
 
     if (!this.config.approverUserIds.has(userId)) {
       await this.tg.sendMessage({
@@ -709,6 +738,31 @@ export class RonorTelegramBot {
       case 'history':
         text = await cmdHistory(ctx, argument);
         break;
+      case 'metrici':
+        text = await cmdMetrici(ctx);
+        break;
+      case 'propunere': {
+        // R-PowerTrade: propunerea se înregistrează cu răspunsul implicit NU.
+        // Butoanele apar doar dacă există ore eligibile; doar suveranul le poate apăsa.
+        const r = await cmdPropunere(ctx, argument);
+        if (r.anyEligible && r.proposalSeq !== null && r.day !== null) {
+          const keyboard = {
+            inline_keyboard: [[
+              { text: 'Nu (implicit)', callback_data: `pt_nu:${r.proposalSeq}:${r.day}` },
+              { text: 'Da', callback_data: `pt_da:${r.proposalSeq}:${r.day}` },
+            ]],
+          };
+          await this.tg.sendMessage({ chat_id: chatId, text: r.text, parse_mode: 'HTML', reply_markup: keyboard });
+          if (this.config.controlChatId && String(chatId) !== this.config.controlChatId) {
+            await this.tg.sendMessage({
+              chat_id: this.config.controlChatId, text: r.text, parse_mode: 'HTML', reply_markup: keyboard,
+            }).catch((e) => logger.warn('control chat notify failed:', e));
+          }
+          return;
+        }
+        text = r.text;
+        break;
+      }
       case 'trade_request': {
         const r = await cmdTradeRequest(ctx, argument);
         text = r.text;
@@ -791,6 +845,8 @@ export class RonorTelegramBot {
             '/pl [day] — proof-of-optimisation summary',
             '/brief &lt;question&gt; — free-form question to the arm',
             '/trade_request corridor=... day=... hour=... volume=... side=... — initiate a trade (requires sovereign co-sign)',
+            '/propunere {JSON} — propunere R-PowerTrade, răspuns implicit NU; Da/Nu doar suveranul',
+            '/metrici — metricile R-PowerTrade pentru trecerea în Gated',
             '/upload_case [day=YYYY-MM-DD] — upload an ops .xlsx/.csv, or paste text (no OCR)',
             '/feedback &lt;text&gt; — record trainer feedback',
             '/correct &lt;text&gt; — record a correction against arm reasoning',

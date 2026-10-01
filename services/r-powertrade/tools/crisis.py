@@ -12,7 +12,7 @@ Propunerea analistului (status: propunere, NEAPROBATĂ): plafon strict 8 MW pe t
 intervalele. Se activează doar cu strict=True și doar ca scenariu.
 
 Împărțirea unei nominalizări în tranșe (de ex. 20 = 10 + 10) NU ocolește plafonul:
-plafonul se aplică pe interval, nu pe tranșă, până la o decizie contrară a suveranului.
+plafonul se aplică pe interval, nu pe tranșă. Regulă aprobată de suveran pe 02.10.2026.
 """
 from __future__ import annotations
 

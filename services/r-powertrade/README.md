@@ -52,4 +52,4 @@ Comanda de acceptare este `bash ops/doctor.sh`. Etapele A, R, B și C trebuie s�
 | Istoricul | `POST /powertrade/outcome` înregistrează rezultatele reale; `GET /powertrade/metrics` calculează `cbc_mape`, `pl_vs_perfect`, `floor_hit_rate`, `false_cbc_rate` și verdictul pentru Gated; sub `min_history_days` metricile sunt „neevaluat” | `eval/history.py` |
 | Cazul 02.10 | reproduce exact potențialul din raportul Muse v4: 5.624,12 (regula în vigoare), 4.601,20 (scenariul 8), 13.217,74 (fără plafon) | `eval/cases/2026-10-02_potential.json` |
 
-`/api/nominate` rămâne 403 în Shadow și în Gated. `min_history_days` (20) este o propunere de construcție, de confirmat.
+`/api/nominate` rămâne 403 în Shadow și în Gated. `min_history_days` = 20 și plafonul pe interval (nu pe tranșă) sunt reguli aprobate de suveran pe 02.10.2026.

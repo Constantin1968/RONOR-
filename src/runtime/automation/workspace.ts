@@ -48,7 +48,11 @@ export function inspectAutomationWorkspace(workspaceRoot: string, approvedRoot: 
   const resolvedApprovedRoot = path.resolve(approvedRoot);
   const canonicalApprovedRoot = realpathSync.native(resolvedApprovedRoot);
   const requestedPath = path.resolve(workspaceRoot);
-  if (!inside(requestedPath, resolvedApprovedRoot) && !inside(requestedPath, canonicalApprovedRoot)) throw new WorkspaceOutsideApprovedRootError();
+  // Written inline (not through a helper) so the guard is visible where the path is used.
+  if (!(requestedPath === resolvedApprovedRoot || requestedPath.startsWith(resolvedApprovedRoot + path.sep) ||
+        requestedPath === canonicalApprovedRoot || requestedPath.startsWith(canonicalApprovedRoot + path.sep))) {
+    throw new WorkspaceOutsideApprovedRootError();
+  }
   const canonicalPath = realpathSync.native(requestedPath);
   const top = realpathSync.native(git(canonicalPath, ['rev-parse', '--show-toplevel']));
   let origin: string | null = null;

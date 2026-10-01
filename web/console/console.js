@@ -173,13 +173,18 @@
 
   // ── Auth ─────────────────────────────────────────────────────────────────
 
+  // The key lives only in memory for the life of the page. Any browser storage,
+  // sessionStorage included, is readable by every script on the origin and is
+  // written to disk by some browsers for session restore. A reload asks for the
+  // key again; that is the intended cost.
   function loadKey() {
+    state.key = null;
     try {
-      state.key = sessionStorage.getItem(KEY_STORAGE);
+      // Purge a key persisted by an earlier version of this console.
+      sessionStorage.removeItem(KEY_STORAGE);
     } catch (e) {
-      state.key = null;
+      /* storage unavailable: nothing to purge */
     }
-    if (state.key) $('apiKey').value = state.key;
     renderAuthBanner();
   }
 
@@ -187,13 +192,6 @@
     var value = $('apiKey').value.trim();
     if (!value) return;
     state.key = value;
-    try {
-      // sessionStorage, not localStorage: a credential that survives the tab is a
-      // credential left behind on a shared machine.
-      sessionStorage.setItem(KEY_STORAGE, value);
-    } catch (e) {
-      /* Private-browsing mode. The key still works for this session in memory. */
-    }
     renderAuthBanner();
     refreshAll();
   }

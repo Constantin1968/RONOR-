@@ -4,6 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSyn
 import path from 'path';
 import type { EvidenceArtifact } from './contracts';
 import { inspectExistingCommit, type CommitPins } from './existing-commit-workspace';
+import { readRegularFileNoFollow } from './secure-io';
 
 const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
@@ -70,20 +71,27 @@ export function createWorkspaceArtifactCollector(artifactRoot: string, options: 
     return { kind, sha256, reference: path.relative(canonicalRoot, destination).split(path.sep).join('/'), bytes: value.byteLength };
   };
 
-  const verify = (artifacts: EvidenceArtifact[]): EvidenceArtifact[] => {
+  // Verification returns the bytes it checked, so a caller that needs the content uses
+  // exactly what was hashed instead of reading the name a second time.
+  const verifyWithContent = (artifacts: EvidenceArtifact[]): Array<{ artifact: EvidenceArtifact; content: Buffer }> => {
     if (artifacts.length > 100) throw new Error('artifact_manifest_too_large');
     return artifacts.map((artifact) => {
       if (!/^[a-f0-9]{64}$/.test(artifact.sha256) || !Number.isSafeInteger(artifact.bytes) || artifact.bytes < 0 ||
           !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/.test(artifact.reference) || artifact.reference.includes('..')) throw new Error('artifact_manifest_invalid');
       const target = path.resolve(canonicalRoot, ...artifact.reference.split('/'));
       const relative = path.relative(canonicalRoot, target);
-      if (relative.startsWith('..') || path.isAbsolute(relative) || lstatSync(target).isSymbolicLink()) throw new Error('artifact_path_escape');
-      const content = readFileSync(target);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('artifact_path_escape');
+      // A final-component symlink is refused by O_NOFOLLOW at open (ELOOP) rather than by a
+      // separate lstat whose answer could be stale by the time the name is read again.
+      let content: Buffer;
+      try { content = readRegularFileNoFollow(target, artifact.bytes); }
+      catch { throw new Error('artifact_path_escape'); }
       if (content.byteLength !== artifact.bytes || digest(content) !== artifact.sha256) throw new Error('artifact_integrity_failed');
       assertNoSecretMaterial(content);
-      return { ...artifact };
+      return { artifact: { ...artifact }, content };
     });
   };
+  const verify = (artifacts: EvidenceArtifact[]): EvidenceArtifact[] => verifyWithContent(artifacts).map((item) => item.artifact);
 
   return {
     collectCommitRange(workspaceRoot, runId, assignmentId, pins) {
@@ -127,9 +135,9 @@ export function createWorkspaceArtifactCollector(artifactRoot: string, options: 
     },
     verify,
     read(artifacts) {
-      const verified = verify(artifacts);
-      if (verified.reduce((total, item) => total + item.bytes, 0) > 4 * 1024 * 1024) throw new Error('artifact_read_budget_exceeded');
-      return verified.map((artifact) => ({ artifact, content: readFileSync(path.resolve(canonicalRoot, ...artifact.reference.split('/')), 'utf8') }));
+      const verified = verifyWithContent(artifacts);
+      if (verified.reduce((total, item) => total + item.artifact.bytes, 0) > 4 * 1024 * 1024) throw new Error('artifact_read_budget_exceeded');
+      return verified.map(({ artifact, content }) => ({ artifact, content: content.toString('utf8') }));
     },
     recordTestReport(runId, assignmentId, report) {
       return persist(runId, assignmentId, 'test-report.json', 'test_report', Buffer.from(JSON.stringify(report), 'utf8'));

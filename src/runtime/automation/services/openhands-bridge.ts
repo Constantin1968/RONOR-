@@ -1,12 +1,13 @@
 import express from 'express';
 import { createServiceRateLimit } from './rate-limit';
 import crypto from 'crypto';
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, opendirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, opendirSync, realpathSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import { isAutomationAction, type AdapterResult, type OpenHandsExecutionEnvelope } from '../contracts';
 import { verifyExecutionCapability } from '../capability';
 import { assertAutomationOutputSafe } from '../output-safety';
 import { verifyModelBudget } from '../model-budget';
+import { bearerMatches, readRegularFileNoFollow } from '../secure-io';
 
 export interface NativeOpenHandsPort {
   execute(envelope: OpenHandsExecutionEnvelope, signal?: AbortSignal): Promise<AdapterResult>;
@@ -48,9 +49,8 @@ export class FileCapabilityNonceStore implements CapabilityNonceStore {
         if (!entry.isFile() || !/^[a-f0-9]{64}\.nonce$/.test(entry.name)) continue;
         const target = path.join(this.root, entry.name);
         try {
-          const metadata = lstatSync(target);
-          if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 256) continue;
-          const stored = JSON.parse(readFileSync(target, 'utf8')) as { expires_at?: unknown };
+          // One open, O_NOFOLLOW, size and type asserted on the descriptor that is read.
+          const stored = JSON.parse(readRegularFileNoFollow(target, 256).toString('utf8')) as { expires_at?: unknown };
           if (typeof stored.expires_at === 'string' && Date.parse(stored.expires_at) <= this.now()) unlinkSync(target);
         } catch { /* malformed or concurrently removed records remain fail-closed */ }
       }
@@ -89,10 +89,6 @@ function parseEnvelope(value: unknown): OpenHandsExecutionEnvelope | null {
   return item as unknown as OpenHandsExecutionEnvelope;
 }
 
-function bearer(value: string | undefined): string | null {
-  const match = /^Bearer ([^\s]+)$/.exec(value ?? '');
-  return match?.[1] ?? null;
-}
 
 export function createOpenHandsBridgeApp(config: {
   capabilityKey: string;
@@ -109,11 +105,11 @@ export function createOpenHandsBridgeApp(config: {
   const active = new Map<string, AbortController>();
   const activeKey = (mandateId: string, assignmentId: string) => `${mandateId}\0${assignmentId}`;
   app.use(express.json({ limit: '32kb' }));
-  app.get('/health', (req, res) => bearer(req.header('authorization')) === config.serviceToken
+  app.get('/health', (req, res) => bearerMatches(req.header('authorization'), config.serviceToken)
     ? res.json({ ok: true, protocol: 'ronor-openhands-bridge/v1', service_id: 'openhands-bridge', capabilities: ['execute', 'cancel'] })
     : res.status(401).json({ ok: false, error: 'unauthorized' }));
   app.post('/v1/cancel', (req, res) => {
-    if (!config.serviceToken || bearer(req.header('authorization')) !== config.serviceToken) {
+    if (!bearerMatches(req.header('authorization'), config.serviceToken)) {
       res.status(401).json({ ok: false, error: 'unauthorized' }); return;
     }
     const token = req.header('x-ronor-capability');
@@ -129,7 +125,7 @@ export function createOpenHandsBridgeApp(config: {
     res.status(202).json({ ok: true, status: 'cancellation_requested' });
   });
   app.post('/v1/execute', async (req, res) => {
-    if (!config.serviceToken || bearer(req.header('authorization')) !== config.serviceToken) {
+    if (!bearerMatches(req.header('authorization'), config.serviceToken)) {
       res.status(401).json({ ok: false, error: 'unauthorized' }); return;
     }
     const token = req.header('x-ronor-capability');

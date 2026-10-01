@@ -4,7 +4,7 @@ import type { NativeOpenHandsPort } from '../services/openhands-bridge';
 import { evaluatePendingOpenHandsActions } from '../pending-openhands-actions';
 import type { EffectDecision } from '../effect-policy';
 import { readEffectDiagnostics, type EffectDiagnostics } from '../effect-diagnostics';
-import { MODEL_RATE_CARD } from '../model-budget';
+import { AUTHOR_RATE_CARD } from '../model-budget';
 
 type Fetcher = typeof fetch;
 /**
@@ -122,9 +122,9 @@ export function nativeOpenHandsCatalogCost(state: Record<string, unknown>): numb
   for (const metric of Object.values(stats.usage_to_metrics)) {
     const input = metric.accumulated_token_usage?.prompt_tokens;
     const output = metric.accumulated_token_usage?.completion_tokens;
-    if (metric.model_name !== `openai/${MODEL_RATE_CARD.model}` || typeof input !== 'number' ||
+    if (metric.model_name !== `openai/${AUTHOR_RATE_CARD.model}` || typeof input !== 'number' ||
         typeof output !== 'number' || !Number.isSafeInteger(input) || input < 0 || !Number.isSafeInteger(output) || output < 0) return null;
-    microUsd += input * MODEL_RATE_CARD.inputMicroUsd + output * MODEL_RATE_CARD.outputMicroUsd;
+    microUsd += input * AUTHOR_RATE_CARD.inputMicroUsd + output * AUTHOR_RATE_CARD.outputMicroUsd;
   }
   return Number.isSafeInteger(microUsd) ? microUsd / 1e6 : null;
 }

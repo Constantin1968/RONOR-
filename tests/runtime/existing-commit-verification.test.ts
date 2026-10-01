@@ -13,7 +13,7 @@ import { createWorkspaceArtifactCollector } from '../../src/runtime/automation/a
 import { inspectExistingCommit } from '../../src/runtime/automation/existing-commit-workspace';
 import { createEvidenceRunnerApp } from '../../src/runtime/automation/services/evidence-runner';
 import { createBoundedTestExecutor } from '../../src/runtime/automation/bounded-test-executor';
-import { MODEL_RATE_CARD, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
+import { VERIFIER_RATE_CARD as MODEL_RATE_CARD, MODEL_RATE_CARD_SET, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
 import { startProtocolFaithfulStack, type ProtocolFaithfulStack } from '../support/protocol-faithful-stack';
 
 // PROTOCOL-FAITHFUL WORKFLOW. There is no transport double and no evaluator
@@ -42,7 +42,7 @@ const admin = crypto.randomBytes(32).toString('hex');
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], {
   encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
 }).trim();
-const spec = () => ({ approved: true, base_commit: base, head_commit: head, max_cost_usd: 1, max_runtime_minutes: 1 });
+const spec = () => ({ approved: true, base_commit: base, head_commit: head, max_cost_usd: 5, max_runtime_minutes: 1 });
 
 beforeEach(async () => {
   closeDb(); resetSchemaGuard(); process.env.AUDIT_DB_PATH = ':memory:';
@@ -351,7 +351,7 @@ it('observes the settled egress ledger for a run that ended without reporting a 
       queried = { id, authorised };
       if (!authorised) return new Response(JSON.stringify({ ok: false }), { status: 401 });
       return new Response(JSON.stringify({ ok: true, protocol: 'ronor-model-egress/v1',
-        rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id, settled_micro_usd: 17284,
+        rate_card: MODEL_RATE_CARD_SET, budget_id: id, settled_micro_usd: 17284,
         settled_reservations: 2, pending_reservations: 1, outstanding_micro_usd: 40000, frozen: true }), { status: 200 });
     }
     return fetcher(input, init);
@@ -475,7 +475,7 @@ it('keeps the barrier after a cancellation while a model dispatch is still unres
   // must stay even though the worktree itself is idle.
   pauseEvidence = true;
   const local = withLedgerController(id => new Response(JSON.stringify({ ok: true,
-    protocol: 'ronor-model-egress/v1', rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id,
+    protocol: 'ronor-model-egress/v1', rate_card: MODEL_RATE_CARD_SET, budget_id: id,
     settled_micro_usd: 4000, settled_reservations: 1, pending_reservations: 1,
     outstanding_micro_usd: 200000, frozen: true }), { status: 200 }));
   try {

@@ -10,7 +10,7 @@ const json = (value: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(value), { status }));
 
 const boundedLlm = {
-  model: 'openai/qwen3.8-max', base_url: 'http://model-egress-proxy:3004/v1',
+  model: 'openai/claude-opus-5-5', base_url: 'http://model-egress-proxy:3004/v1',
   max_input_tokens: CONTEXT_BOUNDS.maxInputTokens, max_message_chars: CONTEXT_BOUNDS.maxMessageChars,
   max_output_tokens: 4096, num_retries: 0, extra_headers: { 'x-ronor-budget': 'test-budget' },
 };
@@ -27,7 +27,7 @@ const state = (status: string, tokens: number) => ({
   workspace: { working_dir: '/workspace/project' },
   confirmation_policy: { kind: 'AlwaysConfirm' },
   stats: { usage_to_metrics: { agent: {
-    model_name: 'openai/qwen3.8-max',
+    model_name: 'openai/claude-opus-5-5',
     accumulated_token_usage: { prompt_tokens: tokens, completion_tokens: 0 },
   } } },
 });
@@ -50,26 +50,26 @@ describe('pause confirmation settles asynchronously', () => {
   it('accepts a pause that settles on a later read instead of demanding instant proof', async () => {
     const fetcher = jest.fn()
       // Startup handshake for a resumed conversation.
-      .mockImplementationOnce(() => json(state('paused', 100_000)))
+      .mockImplementationOnce(() => json(state('paused', 50_000)))
       .mockImplementationOnce(() => json({ success: true }))
-      .mockImplementationOnce(() => json(state('paused', 100_000)))
+      .mockImplementationOnce(() => json(state('paused', 50_000)))
       .mockImplementationOnce(() => json({ success: true }))
       // Deadline reached while the agent is mid-action.
-      .mockImplementationOnce(() => json(state('running', 100_000)))
+      .mockImplementationOnce(() => json(state('running', 50_000)))
       // POST /pause is accepted.
       .mockImplementationOnce(() => json({ success: true }))
       // The status has not settled yet: this is the read the old code trusted.
-      .mockImplementationOnce(() => json(state('running', 110_000)))
-      .mockImplementationOnce(() => json(state('running', 110_000)))
+      .mockImplementationOnce(() => json(state('running', 55_000)))
+      .mockImplementationOnce(() => json(state('running', 55_000)))
       // Third confirmation read: the pause has landed.
-      .mockImplementationOnce(() => json(state('paused', 110_000)))
+      .mockImplementationOnce(() => json(state('paused', 55_000)))
       .mockImplementationOnce(() => json({ items: [] }));
 
     const client = createNativeOpenHandsClient({
       baseUrl: 'https://hands.invalid', sessionApiKey: 'test-session', fetcher,
       pollIntervalMs: 0, pauseConfirmIntervalMs: 0, pauseConfirmWindowMs: 5_000, sleep: async () => undefined,
       maxPolls: 1, catalogAccounting: true,
-      llm: { model: 'openai/qwen3.8-max', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
+      llm: { model: 'openai/claude-opus-5-5', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
     });
 
     const result = await client.execute({

@@ -20,7 +20,7 @@ const json = (value: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(value), { status }));
 
 const boundedLlm = {
-  model: 'openai/qwen3.8-max', base_url: 'http://model-egress-proxy:3004/v1',
+  model: 'openai/claude-opus-5-5', base_url: 'http://model-egress-proxy:3004/v1',
   max_input_tokens: CONTEXT_BOUNDS.maxInputTokens, max_message_chars: CONTEXT_BOUNDS.maxMessageChars,
   max_output_tokens: 4096, num_retries: 0, extra_headers: { 'x-ronor-budget': 'test-budget' },
 };
@@ -37,7 +37,7 @@ const state = (status: string, tokens: number) => ({
   workspace: { working_dir: '/workspace/project' },
   confirmation_policy: { kind: 'AlwaysConfirm' },
   stats: { usage_to_metrics: { agent: {
-    model_name: 'openai/qwen3.8-max',
+    model_name: 'openai/claude-opus-5-5',
     accumulated_token_usage: { prompt_tokens: tokens, completion_tokens: 0 },
   } } },
 });
@@ -48,10 +48,10 @@ function harness(settleAfterMs: number, windowMs?: number) {
   let pauseRequestedAt: number | null = null;
   let confirmationReads = 0;
   const prologue = [
-    () => json(state('paused', 100_000)), () => json({ success: true }),
-    () => json(state('paused', 100_000)), () => json({ success: true }),
+    () => json(state('paused', 50_000)), () => json({ success: true }),
+    () => json(state('paused', 50_000)), () => json({ success: true }),
     // The work loop's single poll: the agent is mid-step.
-    () => json(state('running', 100_000)),
+    () => json(state('running', 50_000)),
   ];
   const fetcher = jest.fn((input: unknown, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -63,7 +63,7 @@ function harness(settleAfterMs: number, windowMs?: number) {
     if (url.pathname === `/api/conversations/${conversationId}`) {
       confirmationReads += 1;
       const settled = pauseRequestedAt !== null && clock - pauseRequestedAt >= settleAfterMs;
-      return json(state(settled ? 'paused' : 'running', 110_000));
+      return json(state(settled ? 'paused' : 'running', 55_000));
     }
     return json({ items: [] });
   });
@@ -73,7 +73,7 @@ function harness(settleAfterMs: number, windowMs?: number) {
     ...(windowMs === undefined ? {} : { pauseConfirmWindowMs: windowMs }),
     now: () => clock,
     sleep: async (ms: number) => { clock += ms; },
-    llm: { model: 'openai/qwen3.8-max', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
+    llm: { model: 'openai/claude-opus-5-5', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
   });
   const envelope: OpenHandsExecutionEnvelope = {
     assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'],

@@ -58,6 +58,62 @@ export class TradingApiError extends Error {
 // fields tolerate arm-side additions without a client rebuild.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// R-PowerTrade (Etapa 2)
+// ---------------------------------------------------------------------------
+
+export interface PowertradePrice {
+  value: string;
+  status: 'real' | 'missing' | 'substitute' | 'suspect';
+  source: string;
+}
+
+export interface PowertradeProposalHour {
+  hour: number;
+  route: string;
+  rights_mw?: string | null;
+  nominate_mw: string;
+  intraday_mw?: string;
+  da_won_confirmed?: boolean;
+  md_leg_rights_mw?: string | null;
+  prices: Record<string, PowertradePrice | null>;
+  written_approval?: string | null;
+}
+
+export interface PowertradeProposalBody {
+  day: string;
+  hours: PowertradeProposalHour[];
+  crisis?: boolean;
+}
+
+export interface PowertradeProposal {
+  kind: 'proposal';
+  stage: string;
+  default_decision: 'nu';
+  proposal_seq: number;
+  hours: Array<{ hour: number; route: string; nominate_mw: string; eligible: boolean; reasons: string[] }>;
+}
+
+export interface PowertradeDecisionBody {
+  day: string;
+  proposal_seq: number;
+  decision: 'da' | 'nu';
+  approval_ref?: string | null;
+}
+
+export interface PowertradeDecision {
+  recorded: boolean;
+  decision: 'da' | 'nu';
+  ledger_seq: number;
+  executes: false;
+}
+
+export interface PowertradeMetrics {
+  stage: string;
+  metrics: { evaluated: boolean; days: number; min_days?: number; reason?: string; [k: string]: unknown };
+  gated_gate: { pass: boolean; reason?: string; checks?: Record<string, boolean> };
+}
+
 export interface HealthResponse {
   status: string;                 // "ok"
   time?: string;
@@ -250,6 +306,23 @@ export class TradingClient {
   // -------------------------------------------------------------------------
   // Public API — one method per Telegram-touched endpoint
   // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
+  // R-PowerTrade (Etapa 2). Rutele noi ale serviciului services/r-powertrade.
+  // Niciuna nu nominalizează: /powertrade/decide doar înregistrează Da/Nu.
+  // -------------------------------------------------------------------------
+
+  powertradePropose(body: PowertradeProposalBody, who: string): Promise<PowertradeProposal> {
+    return this.postJson<PowertradeProposal>('/powertrade/propose', body, { who });
+  }
+
+  powertradeDecide(body: PowertradeDecisionBody, who: string): Promise<PowertradeDecision> {
+    return this.postJson<PowertradeDecision>('/powertrade/decide', body, { who });
+  }
+
+  powertradeMetrics(): Promise<PowertradeMetrics> {
+    return this.get<PowertradeMetrics>('/powertrade/metrics');
+  }
 
   health(): Promise<HealthResponse> {
     return this.get<HealthResponse>('/api/health');

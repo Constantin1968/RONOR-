@@ -1,10 +1,10 @@
-"""RXB-Hub: serviciul brațului de trading din RONOR, Etapa 1 (Light).
+"""R-PowerTrade: serviciul brațului de trading din RONOR, Etapa 1 (Light).
 
-RXB propune, RONOR decide. RXB nu nominalizează și nu execută în Etapa 1:
+R-PowerTrade propune, RONOR decide. R-PowerTrade nu nominalizează și nu execută în Etapa 1:
 /api/nominate răspunde 403 până la trecerea în modul Gated.
 
 Autentificare: antetul X-RONOR-Token, comparat în timp constant. Dacă
-RXB_TOKEN lipsește din mediu, toate rutele autentificate răspund 503
+POWERTRADE_TOKEN lipsește din mediu, toate rutele autentificate răspund 503
 (fail closed), nu se deschid.
 """
 from __future__ import annotations
@@ -23,23 +23,23 @@ from orchestrator.engine import PARAMS, close_day, limits_table
 from tools.cbc import f1_double_pay
 
 VERSION = "0.1.0"
-STAGE = os.environ.get("RXB_STAGE", "shadow")  # shadow | gated | arm
+STAGE = os.environ.get("POWERTRADE_STAGE", "shadow")  # shadow | gated | arm
 
-app = FastAPI(title="RXB-Hub", version=VERSION)
+app = FastAPI(title="R-PowerTrade", version=VERSION)
 _ledger: Ledger | None = None
 
 
 def ledger() -> Ledger:
     global _ledger
     if _ledger is None:
-        _ledger = Ledger(os.environ.get("RXB_LEDGER_PATH", "/app/state/rxb-ledger.db"))
+        _ledger = Ledger(os.environ.get("POWERTRADE_LEDGER_PATH", "/app/state/powertrade-ledger.db"))
     return _ledger
 
 
 def auth(x_ronor_token: Optional[str] = Header(default=None, alias="X-RONOR-Token")) -> None:
-    expected = os.environ.get("RXB_TOKEN", "")
+    expected = os.environ.get("POWERTRADE_TOKEN", "")
     if not expected:
-        raise HTTPException(503, "RXB_TOKEN neconfigurat: serviciul refuză cererile")
+        raise HTTPException(503, "POWERTRADE_TOKEN neconfigurat: serviciul refuză cererile")
     if not x_ronor_token or not hmac.compare_digest(x_ronor_token, expected):
         raise HTTPException(401, "token invalid")
 
@@ -68,11 +68,11 @@ def _ledger_key_missing(_: Request, exc: LedgerKeyMissing):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": VERSION, "stage": STAGE,
-            "ledger_key": bool(os.environ.get("RXB_LEDGER_HMAC_KEY")),
-            "token_configured": bool(os.environ.get("RXB_TOKEN"))}
+            "ledger_key": bool(os.environ.get("POWERTRADE_LEDGER_HMAC_KEY")),
+            "token_configured": bool(os.environ.get("POWERTRADE_TOKEN"))}
 
 
-# ---------------------------------------------------------------- contract RXB
+# ---------------------------------------------------------------- contract R-PowerTrade
 class LimitsIn(BaseModel):
     day: str
     route: str = "UA-RO"
@@ -82,8 +82,8 @@ class LimitsIn(BaseModel):
     ntc: dict[int, Optional[str]] = Field(default_factory=dict)
 
 
-@app.post("/rxb/limits", dependencies=[Depends(auth)])
-def rxb_limits(body: LimitsIn, actor: str = Depends(who)):
+@app.post("/powertrade/limits", dependencies=[Depends(auth)])
+def powertrade_limits(body: LimitsIn, actor: str = Depends(who)):
     cbc = {h: v for h, v in body.cbc.items() if v is not None}
     table = limits_table(body.forecast_ua, cbc, body.ntc, body.origin, body.route)
     row = ledger().append("decision", body.day, {"kind": "limits", "params": PARAMS, "table": table},
@@ -99,8 +99,8 @@ class InputIn(BaseModel):
     source: str = "grup"
 
 
-@app.post("/rxb/forecast", dependencies=[Depends(auth)])
-def rxb_input(body: InputIn, actor: str = Depends(who)):
+@app.post("/powertrade/forecast", dependencies=[Depends(auth)])
+def powertrade_input(body: InputIn, actor: str = Depends(who)):
     if body.kind not in ("ntc", "forecast", "cbc", "sale"):
         raise HTTPException(422, "kind trebuie să fie ntc, forecast, cbc sau sale")
     row = ledger().append("input", body.day, body.model_dump(), actor, route=body.route)
@@ -115,7 +115,7 @@ class DisputeIn(BaseModel):
     corrective_action: Optional[dict] = None
 
 
-@app.post("/rxb/dispute-learn", dependencies=[Depends(auth)])
+@app.post("/powertrade/dispute-learn", dependencies=[Depends(auth)])
 @app.post("/api/dispute", dependencies=[Depends(auth)])
 def dispute(body: DisputeIn, actor: str = Depends(who)):
     # Textul motivului nu este parsat niciodată în cifre (Decizia 1 Muse).
@@ -148,8 +148,8 @@ class CloseIn(BaseModel):
     cbc_payments: list[dict] = Field(default_factory=list)
 
 
-@app.post("/rxb/close", dependencies=[Depends(auth)])
-def rxb_close(body: CloseIn, actor: str = Depends(who)):
+@app.post("/powertrade/close", dependencies=[Depends(auth)])
+def powertrade_close(body: CloseIn, actor: str = Depends(who)):
     dup = f1_double_pay(body.cbc_payments)
     if dup:
         raise HTTPException(409, f"F1: posibilă plată dublă CBC pe {dup}")
@@ -162,7 +162,7 @@ def rxb_close(body: CloseIn, actor: str = Depends(who)):
 @app.post("/api/nominate", dependencies=[Depends(auth)])
 def nominate():
     if STAGE != "arm":
-        raise HTTPException(403, f"etapa {STAGE}: RXB nu nominalizează; decizia rămâne la RONOR și la operator")
+        raise HTTPException(403, f"etapa {STAGE}: R-PowerTrade nu nominalizează; decizia rămâne la RONOR și la operator")
     raise HTTPException(501, "nominalizarea automată nu e implementată")
 
 
@@ -182,7 +182,7 @@ _NOT_IN_STAGE_1 = ("/api/run", "/api/settle", "/api/operator", "/api/ronor", "/a
 
 def _stage1_stub(path: str):
     def handler():
-        raise HTTPException(501, f"{path}: nu face parte din Etapa 1 RXB-Hub; folosește /rxb/limits, /rxb/close, /rxb/forecast")
+        raise HTTPException(501, f"{path}: nu face parte din Etapa 1 R-PowerTrade; folosește /powertrade/limits, /powertrade/close, /powertrade/forecast")
     return handler
 
 

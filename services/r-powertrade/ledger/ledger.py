@@ -1,9 +1,9 @@
-"""Registrul RXB: numai adăugare, fiecare rând semnat HMAC-SHA256 și înlănțuit.
+"""Registrul R-PowerTrade: numai adăugare, fiecare rând semnat HMAC-SHA256 și înlănțuit.
 
 - Fără UPDATE, fără DELETE: o corecție este un rând nou.
 - Fiecare rând poartă semnătura propriului conținut canonic și hash-ul
   rândului anterior; verify() detectează orice modificare sau ștergere.
-- Cheia vine din RXB_LEDGER_HMAC_KEY. Fără cheie, scrierea refuză (fail closed).
+- Cheia vine din POWERTRADE_LEDGER_HMAC_KEY. Fără cheie, scrierea refuză (fail closed).
 - Stocare: SQLite în volumul de stare (Etapa 1). Postgres în Etapa 2, aceeași schemă.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS rxb_ledger (
+CREATE TABLE IF NOT EXISTS powertrade_ledger (
   seq        INTEGER PRIMARY KEY AUTOINCREMENT,
   kind       TEXT NOT NULL,          -- decision | rights | money | dispute | input
   day        TEXT NOT NULL,
@@ -31,9 +31,9 @@ CREATE TABLE IF NOT EXISTS rxb_ledger (
   prev_hash  TEXT NOT NULL,
   sig        TEXT NOT NULL
 );
-CREATE TRIGGER IF NOT EXISTS rxb_ledger_no_update BEFORE UPDATE ON rxb_ledger
+CREATE TRIGGER IF NOT EXISTS powertrade_ledger_no_update BEFORE UPDATE ON powertrade_ledger
 BEGIN SELECT RAISE(ABORT, 'registru numai adaugare'); END;
-CREATE TRIGGER IF NOT EXISTS rxb_ledger_no_delete BEFORE DELETE ON rxb_ledger
+CREATE TRIGGER IF NOT EXISTS powertrade_ledger_no_delete BEFORE DELETE ON powertrade_ledger
 BEGIN SELECT RAISE(ABORT, 'registru numai adaugare'); END;
 """
 
@@ -55,9 +55,9 @@ class LedgerKeyMissing(RuntimeError):
 class Ledger:
     def __init__(self, path: str, key: bytes | None = None, key_id: str | None = None):
         self.path = path
-        k = key if key is not None else os.environ.get("RXB_LEDGER_HMAC_KEY", "").encode()
+        k = key if key is not None else os.environ.get("POWERTRADE_LEDGER_HMAC_KEY", "").encode()
         self.key = k or None
-        self.key_id = key_id or os.environ.get("RXB_LEDGER_KEY_ID", "k1")
+        self.key_id = key_id or os.environ.get("POWERTRADE_LEDGER_KEY_ID", "k1")
         self._lock = threading.Lock()
         if path != ":memory:":
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -75,16 +75,16 @@ class Ledger:
     def append(self, kind: str, day: str, payload: dict, actor: str,
                hour: int | None = None, route: str | None = None) -> dict:
         if not self.key:
-            raise LedgerKeyMissing("RXB_LEDGER_HMAC_KEY lipsește: registrul refuză scrierea")
+            raise LedgerKeyMissing("POWERTRADE_LEDGER_HMAC_KEY lipsește: registrul refuză scrierea")
         with self._lock:
-            last = self.db.execute("SELECT sig FROM rxb_ledger ORDER BY seq DESC LIMIT 1").fetchone()
+            last = self.db.execute("SELECT sig FROM powertrade_ledger ORDER BY seq DESC LIMIT 1").fetchone()
             row = {"kind": kind, "day": day, "hour": hour, "route": route,
                    "payload": _canon(payload), "actor": actor,
                    "created_at": datetime.now(timezone.utc).isoformat(),
                    "key_id": self.key_id, "prev_hash": last[0] if last else GENESIS}
             row["sig"] = self._sign(self._body(row))
             cur = self.db.execute(
-                "INSERT INTO rxb_ledger(kind,day,hour,route,payload,actor,created_at,key_id,prev_hash,sig)"
+                "INSERT INTO powertrade_ledger(kind,day,hour,route,payload,actor,created_at,key_id,prev_hash,sig)"
                 " VALUES(?,?,?,?,?,?,?,?,?,?)",
                 tuple(row[k] for k in ("kind", "day", "hour", "route", "payload", "actor",
                                        "created_at", "key_id", "prev_hash", "sig")))
@@ -93,7 +93,7 @@ class Ledger:
             return row
 
     def rows(self, kind: str | None = None, day: str | None = None) -> list[dict]:
-        q = "SELECT seq,kind,day,hour,route,payload,actor,created_at,key_id,prev_hash,sig FROM rxb_ledger"
+        q = "SELECT seq,kind,day,hour,route,payload,actor,created_at,key_id,prev_hash,sig FROM powertrade_ledger"
         cond, args = [], []
         if kind:
             cond.append("kind=?"); args.append(kind)

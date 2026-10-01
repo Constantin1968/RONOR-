@@ -1,4 +1,4 @@
-"""Garda de nominalizare (rxb-nomination-guard), după regulile din 27–28.09.2026.
+"""Garda de nominalizare (powertrade-nomination-guard), după regulile din 27–28.09.2026.
 
 O oră NU se nominalizează dacă:
 - nu există drepturi sau MW nominalizați > MW deținuți (zero fără drepturi);

@@ -289,29 +289,29 @@ services:
           memory: 256M
 
   # --------------------------------------------------------------------------
-  # RXB-Hub — brațul de trading energetic transfrontalier (Etapa 1, Shadow)
+  # R-PowerTrade — brațul de trading energetic transfrontalier (Etapa 1, Shadow)
   # --------------------------------------------------------------------------
   # Specificația: exportul Muse v0.1 din 27.09.2026. Serviciul anterior
   # energy-trading-arm este arhivat în arhiva/energy-trading-arm-fe8119b/.
   # Alias-ul de rețea energy-trading-arm păstrează adresa folosită de bot.
   # Activare: docker compose -f docker-compose.production.yml --profile energy-trading up -d
-  rxb-hub:
+  r-powertrade:
     build:
-      context: ./services/rxb-hub
+      context: ./services/r-powertrade
       dockerfile: Dockerfile
-    image: ronor-rxb-hub:${RONOR_RXB_VERSION:-0.1.0}
-    container_name: ronor-rxb-hub
+    image: ronor-r-powertrade:${RONOR_POWERTRADE_VERSION:-0.1.0}
+    container_name: ronor-r-powertrade
     profiles: ["energy-trading"]
     environment:
-      RXB_STAGE: shadow
-      RXB_TOKEN: ${ET_API_TOKEN:?ET_API_TOKEN obligatoriu}
-      RXB_LEDGER_HMAC_KEY: ${TRADING_LEDGER_HMAC_KEY:?TRADING_LEDGER_HMAC_KEY obligatoriu}
-      RXB_LEDGER_PATH: /app/state/rxb-ledger.db
+      POWERTRADE_STAGE: shadow
+      POWERTRADE_TOKEN: ${ET_API_TOKEN:?ET_API_TOKEN obligatoriu}
+      POWERTRADE_LEDGER_HMAC_KEY: ${TRADING_LEDGER_HMAC_KEY:?TRADING_LEDGER_HMAC_KEY obligatoriu}
+      POWERTRADE_LEDGER_PATH: /app/state/powertrade-ledger.db
     networks:
       default:
         aliases: [energy-trading-arm]
     volumes:
-      - rxb-hub-state:/app/state
+      - r-powertrade-state:/app/state
     restart: unless-stopped
     logging: *default-logging
     deploy:
@@ -383,7 +383,7 @@ volumes:
   certbot-www:
   energy-trading-data:    # volumul serviciului arhivat, păstrat neatins
   energy-trading-state:   # volumul serviciului arhivat, păstrat neatins
-  rxb-hub-state:
+  r-powertrade-state:
 
 networks:
   default:

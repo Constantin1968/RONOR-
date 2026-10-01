@@ -1,12 +1,12 @@
-# RXB-Hub: brațul de trading energetic transfrontalier al RONOR
+# R-PowerTrade: brațul de trading energetic transfrontalier al RONOR
 
 Specificația este exportul consolidat v0.1 din 27.09.2026, lucrat cu Muse. Constructorul lucrează în cadrul RONOR. Serviciul anterior, `energy-trading-arm`, a fost mutat intact în `arhiva/energy-trading-arm-fe8119b/`.
 
 ## Principiu
-RXB propune, iar RONOR decide. Nicio cifră nu vine dintr-un model de limbaj. În Etapa 1, RXB nu nominalizează și nu execută.
+R-PowerTrade propune, iar RONOR decide. Nicio cifră nu vine dintr-un model de limbaj. În Etapa 1, R-PowerTrade nu nominalizează și nu execută.
 
 ## Etape
-- **Shadow (acum).** RXB calculează limitele și închiderea zilei și le scrie în registru. Operatorul decide în afara sistemului.
+- **Shadow (acum).** R-PowerTrade calculează limitele și închiderea zilei și le scrie în registru. Operatorul decide în afara sistemului.
 - **Gated.** Pentru a trece aici, trebuie ca `pl_vs_perfect` și `cbc_mape` să fie evaluate pe istoric, iar botul trebuie să afișeze butoanele Da/Nu, cu Nu ca răspuns implicit.
 - **Arm.** Numai cu aprobare explicită a suveranului.
 
@@ -27,10 +27,10 @@ Toate rutele cer antetul `X-RONOR-Token`. Dacă tokenul lipsește din configurar
 
 | Rută | Rol |
 |---|---|
-| `POST /rxb/limits` | Tabelul limită/oră din forecast, CBC și NTC |
-| `POST /rxb/forecast` | Înregistrează intrările postate în grup: NTC, forecast, CBC, vânzări |
-| `POST /rxb/close` | Închiderea zilei: brut, provizion, împărțire, cumul RO |
-| `POST /rxb/dispute-learn`, `POST /api/dispute` | Disputele; textul nu este parsat în cifre |
+| `POST /powertrade/limits` | Tabelul limită/oră din forecast, CBC și NTC |
+| `POST /powertrade/forecast` | Înregistrează intrările postate în grup: NTC, forecast, CBC, vânzări |
+| `POST /powertrade/close` | Închiderea zilei: brut, provizion, împărțire, cumul RO |
+| `POST /powertrade/dispute-learn`, `POST /api/dispute` | Disputele; textul nu este parsat în cifre |
 | `GET /api/ledger/verify` | Verificarea lanțului HMAC |
 | `POST /api/nominate` | Răspunde 403 cât timp etapa nu este Arm |
 

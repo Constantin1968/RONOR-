@@ -207,11 +207,11 @@ jobs:
           path: evidence/knowledge/
           if-no-files-found: warn
 
-  rxb-hub-doctor:
+  r-powertrade-doctor:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: services/rxb-hub
+        working-directory: services/r-powertrade
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

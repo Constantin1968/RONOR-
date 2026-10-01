@@ -66,13 +66,13 @@ def test_ledger_append_only_and_tamper(tmp_path):
     lg.append("money", "2026-09-27", {"brut": Decimal("2.00")}, "t")
     assert lg.verify()["ok"]
     with pytest.raises(Exception):
-        lg.db.execute("UPDATE rxb_ledger SET payload='x'")
+        lg.db.execute("UPDATE powertrade_ledger SET payload='x'")
     with pytest.raises(Exception):
-        lg.db.execute("DELETE FROM rxb_ledger")
+        lg.db.execute("DELETE FROM powertrade_ledger")
 
 
 def test_ledger_refuses_without_key(tmp_path, monkeypatch):
-    monkeypatch.delenv("RXB_LEDGER_HMAC_KEY", raising=False)
+    monkeypatch.delenv("POWERTRADE_LEDGER_HMAC_KEY", raising=False)
     lg = Ledger(str(tmp_path / "l.db"))
     with pytest.raises(LedgerKeyMissing):
         lg.append("money", "d", {}, "t")
@@ -85,9 +85,9 @@ def test_frozen_cases_pass():
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("RXB_TOKEN", "t0k")
-    monkeypatch.setenv("RXB_LEDGER_HMAC_KEY", "k")
-    monkeypatch.setenv("RXB_LEDGER_PATH", str(tmp_path / "l.db"))
+    monkeypatch.setenv("POWERTRADE_TOKEN", "t0k")
+    monkeypatch.setenv("POWERTRADE_LEDGER_HMAC_KEY", "k")
+    monkeypatch.setenv("POWERTRADE_LEDGER_PATH", str(tmp_path / "l.db"))
     import api
     api._ledger = None
     from fastapi.testclient import TestClient
@@ -96,19 +96,19 @@ def client(tmp_path, monkeypatch):
 
 def test_auth_fail_closed(client, monkeypatch):
     c, _ = client
-    assert c.post("/rxb/limits", json={}).status_code == 401
-    monkeypatch.delenv("RXB_TOKEN")
-    assert c.post("/rxb/limits", json={}).status_code == 503
+    assert c.post("/powertrade/limits", json={}).status_code == 401
+    monkeypatch.delenv("POWERTRADE_TOKEN")
+    assert c.post("/powertrade/limits", json={}).status_code == 503
 
 
 def test_limits_and_close_endpoints(client):
     c, _ = client
     h = {"X-RONOR-Token": "t0k", "X-Operator-Who": "test"}
-    r = c.post("/rxb/limits", headers=h, json={"day": "2026-09-28", "forecast_ua": {"4": {"value": "166.43", "status": "real", "source": "t"}, "5": None},
+    r = c.post("/powertrade/limits", headers=h, json={"day": "2026-09-28", "forecast_ua": {"4": {"value": "166.43", "status": "real", "source": "t"}, "5": None},
                                               "cbc": {"4": "0.74"}})
     t = {row["hour"]: row for row in r.json()["table"]}
     assert r.status_code == 200 and t[4]["buy_limit"] == "162.66" and t[5]["mode"] == "unknown"
-    r = c.post("/rxb/close", headers=h, json={"day": "2026-09-27", "ro_cumulative_before": "95038.62", "positions": [
+    r = c.post("/powertrade/close", headers=h, json={"day": "2026-09-27", "ro_cumulative_before": "95038.62", "positions": [
         {"route": "UA-RO", "origin": "UA", "volume_mwh": "40", "sell": "164", "cost": "22.01", "cbc": "0.74"},
         {"route": "UA-RO", "origin": "UA", "volume_mwh": "42", "sell": "148", "cost": "21.89", "cbc": "0.67"}]})
     assert r.json()["ro_cumulative"] == "100460.96"

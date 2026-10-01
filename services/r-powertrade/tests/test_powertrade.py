@@ -36,8 +36,9 @@ def test_split_ua_sums_exactly():
 
 def test_split_md_transit_and_pure():
     s = split_for("UA-MD-RO", "1000")["split"]
-    assert s == {"yunex": Decimal("500.00"), "encon": Decimal("0.00"),
-                 "nrgpath": Decimal("250.00"), "wattmd": Decimal("250.00")}
+    # Corecția din 01.10.2026: pe tranzit, felia RO e pe Encon Group, nu pe WATT.
+    assert s == {"yunex": Decimal("500.00"), "encon": Decimal("250.00"),
+                 "nrgpath": Decimal("250.00"), "wattmd": Decimal("0.00")}
     assert split_pure_md("155")["wattmd"] + split_pure_md("155")["nrgpath"] == Decimal("155.00")
     assert split_for("MD-RO", "155")["rule"] == "ro-md-pur"
 
@@ -142,3 +143,69 @@ def test_sell_floor_and_bid_rules():
     assert check_bid("sell", "150")["ok"] is False  # fără prag nu se nominalizează
     c = CBC_UA_MD_2026_09_29
     assert effective_cbc([(c["step1"]["mw"], c["step1"]["price"]), (c["step2"]["mw"], c["step2"]["price"])]) == Decimal("18.48")
+
+
+# ---------------------------------------------------------------- Etapa 2
+def test_crisis_caps_and_rules():
+    from tools.crisis import cap_for, check_crisis, md_closure_locked
+    assert cap_for(8) == Decimal("8") and cap_for(16) == Decimal("8") and cap_for(3) == Decimal("10")
+    assert cap_for(3, strict=True) == Decimal("8")
+    assert not check_crisis(3, "11")["ok"]
+    assert not check_crisis(19, "5")["ok"] and check_crisis(19, "5", written_approval="ok")["ok"]
+    assert not check_crisis(2, "5", intraday_mw="9")["ok"]
+    assert md_closure_locked("14:16") and not md_closure_locked("14:14")
+
+
+def test_potential_sunk_cost_and_provision():
+    from tools.potential import potential
+    p = potential([{"hour": 8, "route": "UA-MD-RO", "origin": "UA", "rights_mw": "21",
+                    "margin_mwh": "63.69", "cbc": "2.88"}])
+    assert p["gross"] == Decimal("509.52") and p["sunk_cbc"] == Decimal("37.44")
+    assert p["provision_outside_pl"] == Decimal("320.00")
+    assert potential([{"hour": 3, "route": "RO-UA", "origin": "RO", "rights_mw": "5",
+                       "margin_mwh": "1", "cbc": "0"}])["provision_outside_pl"] == Decimal("0.00")
+
+
+def test_history_metrics_unevaluated_then_gate():
+    from eval.history import gate, metrics
+    th = {"cbc_mape": 0.15, "pl_vs_perfect": 0.75, "floor_hit_rate": 1.0, "false_cbc_rate": 0.0}
+    rows = [{"day": "d1", "cbc_pred": "1.0", "cbc_actual": "1.1", "pl_realised": "80", "pl_perfect": "100",
+             "sale": "150", "floor": "140", "rights_mw": "10"}]
+    m = metrics(rows, min_days=2)
+    assert m["evaluated"] is False and gate(m, th)["pass"] is False
+    rows.append({**rows[0], "day": "d2", "cbc_actual": "0"})
+    m = metrics(rows, min_days=2)
+    assert m["evaluated"] and m["cbc_zero_actual_excluded"] == 1
+    assert m["pl_vs_perfect"] == Decimal("0.8000") and gate(m, th)["pass"] is True
+
+
+def test_stage2_endpoints_shadow(client):
+    c, _ = client
+    h = {"X-RONOR-Token": "t0k", "X-Operator-Who": "test"}
+    r = c.post("/powertrade/potential", headers=h, json={"day": "2026-10-02", "rows": [
+        {"hour": 8, "route": "UA-MD-RO", "rights_mw": "21", "margin_mwh": "63.69", "cbc": "2.88"}]})
+    assert r.status_code == 200 and r.json()["gross"] == "509.52" and r.json()["supports_nomination"] is False
+    real_p = {"value": "100", "status": "real", "source": "t"}
+    r = c.post("/powertrade/propose", headers=h, json={"day": "2026-10-02", "hours": [
+        {"hour": 2, "route": "UA-MD", "rights_mw": "20", "nominate_mw": "20", "prices": {"ua": real_p}},
+        {"hour": 3, "route": "UA-MD", "rights_mw": "20", "nominate_mw": "10", "prices": {"ua": real_p}},
+        {"hour": 4, "route": "UA-MD", "rights_mw": "20", "nominate_mw": "10", "prices": {}}]})
+    j = r.json()
+    assert j["default_decision"] == "nu"
+    assert [x["eligible"] for x in j["hours"]] == [False, True, False]
+    assert c.post("/powertrade/decide", headers=h, json={"day": "2026-10-02", "proposal_seq": j["proposal_seq"],
+                                                          "decision": "da"}).status_code == 403
+    assert c.get("/powertrade/metrics", headers=h).json()["gated_gate"]["pass"] is False
+    assert c.post("/api/nominate", headers=h).status_code == 403
+
+
+def test_stage2_decide_in_gated(client, monkeypatch):
+    c, api = client
+    monkeypatch.setattr(api, "STAGE", "gated")
+    h = {"X-RONOR-Token": "t0k", "X-Operator-Who": "test"}
+    seq = c.post("/powertrade/propose", headers=h, json={"day": "d", "hours": []}).json()["proposal_seq"]
+    assert c.post("/powertrade/decide", headers=h, json={"day": "d", "proposal_seq": seq, "decision": "da"}).status_code == 422
+    r = c.post("/powertrade/decide", headers=h, json={"day": "d", "proposal_seq": seq, "decision": "da",
+                                                       "approval_ref": "scris"})
+    assert r.status_code == 200 and r.json()["executes"] is False
+    assert c.post("/api/nominate", headers=h).status_code == 403

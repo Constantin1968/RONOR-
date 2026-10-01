@@ -49,8 +49,31 @@ def check_month(c: dict) -> list[tuple[str, bool, str]]:
     return res
 
 
+def check_potential(c: dict) -> list[tuple[str, bool, str]]:
+    from tools.crisis import SPREAD_MIN_CRISIS, check_crisis
+    from tools.limits import sell_floor_ro
+    from tools.potential import potential
+    res = []
+    for label, kw, exp in (("regula în vigoare", {"strict": False}, c["expect_rule_in_force"]),
+                           ("propunere 8 strict", {"strict": True}, c["expect_strict_8"])):
+        p = potential(c["potential_rows"], crisis=True, **kw)
+        bad = {k: str(p[k]) for k, v in exp.items() if p[k] != D(v)}
+        res.append((f"potențial 02.10, {label}", not bad, "exact" if not bad else json.dumps(bad)))
+    u = potential(c["potential_rows"], crisis=False)
+    res.append(("potențial 02.10 fără plafon", u["gross"] == D(c["expect_uncapped_gross"]), str(u["gross"])))
+    for h in c["crisis_hours"]:
+        r = check_crisis(h["hour"], h["nominate"], h.get("intraday", "0"), h.get("da_won", False), h.get("approval"))
+        res.append((h["name"], r["ok"] == h["ok"], "; ".join(r["violations"]) or "în regulă"))
+    for f in c["crisis_floors"]:
+        got = sell_floor_ro(f["ua"], f["cbc"], spread_min=SPREAD_MIN_CRISIS)
+        res.append((f["name"], got == D(f["expect"]), str(got)))
+    return res
+
+
 def check_file(path: str) -> list[tuple[str, bool, str]]:
     c = json.load(open(path, encoding="utf-8"))
+    if "potential_rows" in c:
+        return check_potential(c)
     if "hours" in c:
         return check_guard(c)
     if "month_table" in c:

@@ -1,13 +1,13 @@
 """Împărțirea banilor, după canonul v0.1.0.
 
 1. UA implicat oriunde pe rută (UA-RO, RO-UA, UA-MD-RO, RO-MD-UA, UA-MD):
-   50% Yunex / 50% felia RO; felia RO -> Encon 50% / NrgPath 50%.
-   Pe tranzit prin MD, WATT (Watt Prime MD) preia felia RO din contractul
-   UA/RO Teams. În RO Team, Encon și WATT sunt aceeași entitate (WATT e
-   afiliatul Encon), deci felia RO se împarte tot 50/50 cu NrgPath:
-   Yunex 50% / WATT 25% / NrgPath 25%. Encon Group = Encon + WATT.
-   Decizia suveranului din 28.09.2026; înlocuiește varianta 25/12,5/12,5.
-2. RO<->MD pur, fără UA: WattMD 50% / NrgPath 50%.
+   50% Yunex / 50% felia RO; felia RO -> Encon Group 50% / NrgPath 50%,
+   adică Yunex 50% / Encon Group 25% / NrgPath 25%, INCLUSIV pe tranzitul
+   prin MD. Encon Group = Encon + WATT (WATT e afiliatul Encon și e în
+   interiorul grupului); felia Encon Group se înregistrează pe „encon”.
+   Corecția din 01.10.2026 („scos partea Watt de pe tranzit”) înlocuiește
+   atribuirea pe WATT din 28.09.2026. Totalul Encon Group nu se schimbă.
+2. RO<->MD pur, fără UA: WattMD 50% / NrgPath 50%. Este singura linie WATT separată.
 3. Provizionul CBAM NU intră aici: e separat, în afara P/L (tools/provision.py).
 
 Pierderile se împart după aceleași cote. Suma cotelor este exact brutul;
@@ -54,10 +54,9 @@ def _alloc(total: Decimal, shares: dict[str, Decimal]) -> dict[str, Decimal]:
 def split_ua_route(brut, md_transit: bool = False) -> dict[str, Decimal]:
     half = Decimal("0.5")
     quarter = Decimal("0.25")
-    if md_transit:
-        shares = {"yunex": half, "wattmd": quarter, "nrgpath": quarter}
-    else:
-        shares = {"yunex": half, "encon": quarter, "nrgpath": quarter}
+    # md_transit se păstrează în semnătură pentru trasabilitate; cotele sunt
+    # aceleași pe tranzit și pe rutele directe (corecția din 01.10.2026).
+    shares = {"yunex": half, "encon": quarter, "nrgpath": quarter}
     return _alloc(D(brut), shares)
 
 

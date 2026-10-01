@@ -21,8 +21,11 @@ from pydantic import BaseModel, Field
 from ledger.ledger import Ledger, LedgerKeyMissing
 from orchestrator.engine import PARAMS, close_day, limits_table
 from tools.cbc import f1_double_pay
+from tools.crisis import check_crisis
+from tools.guard import check_hour
+from tools.potential import potential
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 STAGE = os.environ.get("POWERTRADE_STAGE", "shadow")  # shadow | gated | arm
 
 app = FastAPI(title="R-PowerTrade", version=VERSION)
@@ -156,6 +159,119 @@ def powertrade_close(body: CloseIn, actor: str = Depends(who)):
     result = close_day([p.model_dump() for p in body.positions], body.ro_cumulative_before)
     row = ledger().append("money", body.day, jsonable(result), actor)
     return jsonable({**result, "ledger_seq": row["seq"]})
+
+
+# ---------------------------------------------------------------- Etapa 2: potențial, propuneri, istoric
+class PotentialRow(BaseModel):
+    hour: int
+    route: str
+    origin: str = "UA"
+    rights_mw: str
+    margin_mwh: str
+    cbc: str
+
+
+class PotentialIn(BaseModel):
+    day: str
+    rows: list[PotentialRow]
+    crisis: bool = True
+    strict: bool = False
+    inputs_status: str = "suspect"  # statusul cel mai slab al intrărilor din care s-au calculat marjele
+
+
+@app.post("/powertrade/potential", dependencies=[Depends(auth)])
+def powertrade_potential(body: PotentialIn, actor: str = Depends(who)):
+    result = potential([r.model_dump() for r in body.rows], body.crisis, body.strict)
+    result["supports_nomination"] = body.inputs_status == "real"
+    row = ledger().append("decision", body.day, {"kind": "potential", **jsonable(result),
+                                                 "inputs_status": body.inputs_status}, actor)
+    return jsonable({**result, "ledger_seq": row["seq"]})
+
+
+class ProposalHour(BaseModel):
+    hour: int
+    route: str
+    rights_mw: Optional[str] = None
+    nominate_mw: str
+    intraday_mw: str = "0"
+    da_won_confirmed: bool = False
+    md_leg_rights_mw: Optional[str] = None
+    prices: dict[str, Optional[dict]] = Field(default_factory=dict)
+    written_approval: Optional[str] = None
+
+
+class ProposalIn(BaseModel):
+    day: str
+    hours: list[ProposalHour]
+    crisis: bool = True
+
+
+@app.post("/powertrade/propose", dependencies=[Depends(auth)])
+def powertrade_propose(body: ProposalIn, actor: str = Depends(who)):
+    """Propunere de nominalizare. Răspunsul implicit este NU; propunerea nu execută nimic."""
+    checked = []
+    for h in body.hours:
+        g = check_hour(h.hour, h.rights_mw, h.nominate_mw, h.prices, set(),
+                       needs_intraday=False, md_leg_rights_mw=h.md_leg_rights_mw)
+        c = check_crisis(h.hour, h.nominate_mw, h.intraday_mw, h.da_won_confirmed,
+                         h.written_approval) if body.crisis else {"ok": True, "violations": []}
+        reasons = ([] if g["ok"] else [g["reason"]]) + c["violations"]
+        if not h.prices:
+            reasons.append("fără prețuri: nu se nominalizează pe necunoscut")
+        checked.append({"hour": h.hour, "route": h.route, "nominate_mw": h.nominate_mw,
+                        "eligible": not reasons, "reasons": reasons})
+    payload = {"kind": "proposal", "stage": STAGE, "default_decision": "nu", "hours": checked}
+    row = ledger().append("proposal", body.day, payload, actor)
+    return jsonable({**payload, "proposal_seq": row["seq"]})
+
+
+class DecisionIn(BaseModel):
+    day: str
+    proposal_seq: int
+    decision: str  # da | nu
+    approval_ref: Optional[str] = None
+
+
+@app.post("/powertrade/decide", dependencies=[Depends(auth)])
+def powertrade_decide(body: DecisionIn, actor: str = Depends(who)):
+    """Înregistrează Da/Nu pe o propunere. Nu nominalizează: nominalizarea rămâne separată."""
+    if STAGE == "shadow":
+        raise HTTPException(403, "etapa shadow: deciziile Da/Nu se activează în Gated")
+    if body.decision not in ("da", "nu"):
+        raise HTTPException(422, "decizia trebuie să fie da sau nu")
+    if body.decision == "da" and not (body.approval_ref or "").strip():
+        raise HTTPException(422, "un Da cere referința aprobării scrise")
+    props = [r for r in ledger().rows("proposal") if r["seq"] == body.proposal_seq]
+    if not props:
+        raise HTTPException(404, "propunere inexistentă")
+    row = ledger().append("approval", body.day, body.model_dump(), actor)
+    return {"recorded": True, "decision": body.decision, "ledger_seq": row["seq"], "executes": False}
+
+
+class OutcomeIn(BaseModel):
+    day: str
+    rows: list[dict]
+
+
+@app.post("/powertrade/outcome", dependencies=[Depends(auth)])
+def powertrade_outcome(body: OutcomeIn, actor: str = Depends(who)):
+    """Rezultatele reale pe rută și oră, pentru metricile pe istoric."""
+    row = ledger().append("outcome", body.day, {"rows": body.rows}, actor)
+    return {"recorded": True, "rows": len(body.rows), "ledger_seq": row["seq"]}
+
+
+@app.get("/powertrade/metrics", dependencies=[Depends(auth)])
+def powertrade_metrics():
+    import json
+    import os as _os
+    from eval.history import gate, metrics
+    th = json.load(open(_os.path.join(_os.path.dirname(__file__), "eval", "thresholds.json"), encoding="utf-8"))
+    outcomes = []
+    for r in ledger().rows("outcome"):
+        for o in json.loads(r["payload"])["rows"]:
+            outcomes.append({"day": r["day"], **o})
+    m = metrics(outcomes, int(th.get("min_history_days", 20)))
+    return jsonable({"metrics": m, "gated_gate": gate(m, th), "stage": STAGE})
 
 
 # ---------------------------------------------------------------- compatibilitate cu botul RONOR

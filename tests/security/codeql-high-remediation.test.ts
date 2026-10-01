@@ -3,6 +3,7 @@
  * Each probe fails on the unremediated code and passes on the remediation.
  */
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from 'fs';
+import { execFileSync } from 'child_process';
 import os from 'os';
 import path from 'path';
 import { bearerMatches, readRegularFileNoFollow } from '../../src/runtime/automation/secure-io';
@@ -79,5 +80,15 @@ describe('inspectAndValidateWorkspace (js/path-injection #19)', () => {
       approved_root: root, branch_prefix: 'automation/', require_clean: false,
     });
     expect(verdict.reason).toBe('workspace_outside_approved_root');
+  });
+  it('still detects a workspace that is itself a link, and admits the real directory', () => {
+    const repo = path.join(root, 'repo');
+    mkdirSync(repo);
+    execFileSync('git', ['-C', repo, 'init', '-q', '-b', 'automation/probe']);
+    execFileSync('git', ['-C', repo, '-c', 'user.name=p', '-c', 'user.email=p@p', 'commit', '-q', '--allow-empty', '-m', 'p']);
+    symlinkSync(repo, path.join(root, 'link'));
+    const policy = { approved_root: root, branch_prefix: 'automation/', require_clean: false };
+    expect(inspectAndValidateWorkspace(path.join(root, 'link'), policy).reason).toBe('workspace_link_refused');
+    expect(inspectAndValidateWorkspace(repo, policy)).toMatchObject({ valid: true, reason: null });
   });
 });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { lstatSync, realpathSync } from 'fs';
+import { realpathSync } from 'fs';
 import path from 'path';
 import { branchMatchesPolicy } from './policy';
 import crypto from 'node:crypto';
@@ -54,13 +54,17 @@ export function inspectAutomationWorkspace(workspaceRoot: string, approvedRoot: 
     throw new WorkspaceOutsideApprovedRootError();
   }
   const canonicalPath = realpathSync.native(requestedPath);
+  // The final component is a link exactly when resolving it changes it relative to its
+  // already-canonical parent. This answers the same question as lstat().isSymbolicLink()
+  // from the two resolutions above, without probing the request-derived name again.
+  const isLink = path.join(realpathSync.native(path.dirname(requestedPath)), path.basename(requestedPath)) !== canonicalPath;
   const top = realpathSync.native(git(canonicalPath, ['rev-parse', '--show-toplevel']));
   let origin: string | null = null;
   try { origin = git(canonicalPath, ['remote', 'get-url', 'origin']); } catch { origin = null; }
   return {
     canonical_path: canonicalPath,
     canonical_approved_root: canonicalApprovedRoot,
-    is_link: lstatSync(requestedPath).isSymbolicLink(),
+    is_link: isLink,
     is_git_worktree: git(canonicalPath, ['rev-parse', '--is-inside-work-tree']) === 'true',
     git_toplevel: top,
     branch: git(canonicalPath, ['branch', '--show-current']),

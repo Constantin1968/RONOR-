@@ -1,0 +1,33 @@
+# TARGET MANIFEST — daily operational and portfolio briefing.
+app: portfolio-intelligence
+
+services:
+  intelligence-api:
+    image: REPLACE_WITH_PORTFOLIO_INTELLIGENCE_IMAGE
+    port: 8080
+    env:
+      APP_ENV: production
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      intelligence-data: /data
+
+  morning-briefing:
+    image: REPLACE_WITH_PORTFOLIO_INTELLIGENCE_IMAGE
+    command:
+      - sh
+      - -lc
+      - REPLACE_WITH_MORNING_BRIEFING_COMMAND
+    cron: "0 6 * * *"
+    env:
+      TZ: Europe/Bucharest
+    volumes:
+      intelligence-data: /data
+
+volumes:
+  intelligence-data:
+    size: 20Gi

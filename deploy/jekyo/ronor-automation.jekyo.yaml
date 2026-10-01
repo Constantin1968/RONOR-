@@ -1,0 +1,74 @@
+# TARGET MANIFEST — reconcile actual images, commands and secrets before deployment.
+app: ronor-automation
+
+services:
+  automation-runtime:
+    image: REPLACE_WITH_AUTOMATION_RUNTIME_IMAGE
+    env:
+      NODE_ENV: production
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      automation-state: /data
+      ronor-evidence: /app/evidence
+
+  evidence-runner:
+    image: REPLACE_WITH_EVIDENCE_RUNNER_IMAGE
+    env:
+      TZ: Europe/Bucharest
+    volumes:
+      ronor-evidence: /app/evidence
+
+  openhands-bridge:
+    image: REPLACE_WITH_OPENHANDS_BRIDGE_IMAGE
+    port: 3000
+    env:
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  codex-verifier:
+    image: REPLACE_WITH_CODEX_VERIFIER_IMAGE
+    env:
+      TZ: Europe/Bucharest
+    volumes:
+      ronor-evidence: /app/evidence
+
+  opening-audit:
+    image: REPLACE_WITH_AUTOMATION_RUNTIME_IMAGE
+    command:
+      - sh
+      - -lc
+      - REPLACE_WITH_OPENING_AUDIT_COMMAND
+    cron: "0 7 * * *"
+    env:
+      TZ: Europe/Bucharest
+    volumes:
+      automation-state: /data
+      ronor-evidence: /app/evidence
+
+  closing-audit:
+    image: REPLACE_WITH_AUTOMATION_RUNTIME_IMAGE
+    command:
+      - sh
+      - -lc
+      - REPLACE_WITH_CLOSING_AUDIT_COMMAND
+    cron: "45 23 * * *"
+    env:
+      TZ: Europe/Bucharest
+    volumes:
+      automation-state: /data
+      ronor-evidence: /app/evidence
+
+volumes:
+  automation-state:
+    size: REPLACE_AFTER_LIVE_INVENTORY
+  ronor-evidence:
+    size: REPLACE_AFTER_LIVE_INVENTORY

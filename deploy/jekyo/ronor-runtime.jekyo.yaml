@@ -1,0 +1,64 @@
+# TARGET MANIFEST — reconcile against the live RONOR node before deployment.
+# No production hostname or secret is intentionally committed.
+app: ronor-runtime
+
+services:
+  controller:
+    image: REPLACE_WITH_RONOR_CONTROLLER_IMAGE
+    port: 8080
+    env:
+      NODE_ENV: production
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    volumes:
+      ronor-config: /app/config
+      ronor-evidence: /app/evidence
+
+  langgraph:
+    image: REPLACE_WITH_LANGGRAPH_IMAGE
+    port: 8123
+    env:
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    volumes:
+      ronor-state: /data
+
+  model-egress-proxy:
+    image: REPLACE_WITH_MODEL_EGRESS_PROXY_IMAGE
+    port: 8090
+    env:
+      TZ: Europe/Bucharest
+    health:
+      path: /health
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:REPLACE_WITH_PINNED_VERSION
+    port: 6333
+    health:
+      path: /healthz
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    volumes:
+      qdrant-storage: /qdrant/storage
+
+volumes:
+  qdrant-storage:
+    size: REPLACE_AFTER_LIVE_INVENTORY
+  ronor-config:
+    size: REPLACE_AFTER_LIVE_INVENTORY
+  ronor-evidence:
+    size: REPLACE_AFTER_LIVE_INVENTORY
+  ronor-state:
+    size: REPLACE_AFTER_LIVE_INVENTORY

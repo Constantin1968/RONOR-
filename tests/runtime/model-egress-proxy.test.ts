@@ -62,7 +62,7 @@ describe('automation model egress proxy', () => {
 describe('production model budget enforcement', () => {
   const key = 'budget-key-for-proxy-tests-32-bytes';
   const mandate = {mission_id:'m-proxy',max_cost_usd:1,expires_at:new Date(Date.now()+600000).toISOString()} as ExecutionMandate;
-  const payload = {model:'qwen3.8-max',messages:[{role:'user',content:'test'}]};
+  const payload = {model:'anthropic-claude-opus-5.5',messages:[{role:'user',content:'test'}]};
   const signed = (spent = 0, role: 'author'|'verifier' = 'author') => signModelBudget(mandate,{run_id:'r-proxy',accounted_cost_usd:spent},role,key);
   it('refuses missing, mismatched-role and exhausted budget authorizations before upstream access', async () => {
     const ledger = new ModelBudgetLedger(':memory:'); const fetcher = jest.fn();
@@ -80,7 +80,7 @@ describe('production model budget enforcement', () => {
     const proof = signBudgetQuery('r-proxy',key);
     const ok = await request(app).get('/budget/r-proxy').set('x-ronor-budget-query',proof);
     expect(ok.status).toBe(200);
-    expect(ok.body).toMatchObject({ok:true,budget_id:'r-proxy',settled_micro_usd:260,settled_reservations:1,pending_reservations:0,frozen:false});
+    expect(ok.body).toMatchObject({ok:true,budget_id:'r-proxy',settled_micro_usd:700,settled_reservations:1,pending_reservations:0,frozen:false});
     // A client credential is not a settlement authority, and a settlement proof
     // is not a client credential.
     expect((await request(app).get('/budget/r-proxy')).status).toBe(401);
@@ -97,10 +97,10 @@ describe('production model budget enforcement', () => {
     const fetcher = jest.fn(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
     const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
     const r = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed(0.2)).send(payload);
-    expect(r.status).toBe(200); expect(r.headers['x-ronor-accounted-micro-usd']).toBe('260');
-    const second = await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed(0,'verifier')).send({model:'qwen3.8-max',input:'verify'});
+    expect(r.status).toBe(200); expect(r.headers['x-ronor-accounted-micro-usd']).toBe('700');
+    const second = await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed(0,'verifier')).send({model:'openai-gpt-6-1-sol',input:'verify'});
     expect(second.status).toBe(200);
-    expect(ledger.snapshot('r-proxy')?.spent).toBe(200520);
+    expect(ledger.snapshot('r-proxy')?.spent).toBe(201100);
     expect(JSON.stringify(fetcher.mock.calls)).not.toContain('x-ronor-budget');
     ledger.close();
   });
@@ -133,7 +133,7 @@ describe('production model budget enforcement', () => {
     fetcher.mockImplementation(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
     const recovered = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
     expect(recovered.status).toBe(200);
-    expect(recovered.headers['x-ronor-accounted-micro-usd']).toBe('260');
+    expect(recovered.headers['x-ronor-accounted-micro-usd']).toBe('700');
     ledger.close();
   });
 

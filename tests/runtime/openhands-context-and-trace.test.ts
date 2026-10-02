@@ -13,7 +13,7 @@ describe('bounded context and pre-inference trace barrier',()=>{
       return json({execution_status:'finished',cost_usd:0});
     });
     await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,
-      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}}).execute(envelope);
+      llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}}).execute(envelope);
     expect(payload.agent.condenser.llm).toEqual({...payload.agent.llm,usage_id:'condenser'});
     expect(payload.agent.llm.extra_headers['x-ronor-budget']).toBe('test-budget');
     expect(payload.agent.llm.max_output_tokens).toBe(4096);
@@ -22,8 +22,8 @@ describe('bounded context and pre-inference trace barrier',()=>{
     expect(payload.autotitle).toBe(false);
     // A smaller configured condensation threshold is not permission to bypass
     // the unchanged hard guard. A huge request must still be refused.
-    const tooLarge=Buffer.from(JSON.stringify({model:MODEL_RATE_CARD.model,messages:[{role:'user',content:'x'.repeat(250000)}]}));
-    expect(()=>reserveModelRequest('/v1/chat/completions',tooLarge)).toThrow('budget_context_too_large');
+    const tooLarge=Buffer.from(JSON.stringify({model:MODEL_RATE_CARD.author.model,messages:[{role:'user',content:'x'.repeat(250000)}]}));
+    expect(()=>reserveModelRequest('/v1/chat/completions',tooLarge,'author')).toThrow('budget_context_too_large');
   });
   it('persists the conversation before sending a runnable message',async()=>{
     const calls:string[]=[];
@@ -49,14 +49,14 @@ describe('bounded context and pre-inference trace barrier',()=>{
   });
   it('refuses to resume a legacy condenser even when the agent budget header was renewed',async()=>{
     const state={execution_status:'paused',
-      agent:{llm:{model:'openai/qwen3.8-max',extra_headers:{'x-ronor-budget':'test-budget'}},
+      agent:{llm:{model:'openai/anthropic-claude-opus-5.5',extra_headers:{'x-ronor-budget':'test-budget'}},
         condenser:{kind:'LLMSummarizingCondenser',max_size:240,max_tokens:null}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
     const fetcher=jest.fn().mockImplementation((url:URL)=>json(url.pathname.endsWith('/switch_llm')?{ok:true}:state));
     const result=await createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test',fetcher,catalogAccounting:true,
-      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}})
-      .execute({...envelope,resume:{conversation_id:id,accounted_cost_usd:0.2}});
+      llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}})
+      .execute({...envelope,resume:{conversation_id:id,accounted_cost_usd:0.5}});
     expect(result).toMatchObject({ok:false,summary:'openhands_resume_context_unverified'});
     expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/run'))).toBe(false);
   });

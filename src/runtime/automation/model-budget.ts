@@ -3,16 +3,30 @@ import Database from 'better-sqlite3';
 import type { ExecutionMandate } from './contracts';
 
 // Catalog accounting, NOT an invoice. Cache/promotion discounts are deliberately
-// not credited to the execution budget. No explicit-cache creation is admitted.
-// https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max
+// not credited to the execution budget. Rates are integer micro-USD per token.
+// One gateway (DigitalOcean serverless inference), two models, one per role:
+// the author and the verifier come from different model vendors.
+// https://docs.digitalocean.com/products/inference/details/pricing/
+//  - Claude Opus 5.5: input 4, 5-minute cache write 5, 1-hour cache write 8,
+//    output 20 USD/MTok. Every input token is charged at the 5-minute cache-write
+//    rate (an upper bound on input and cache reads); tokens the provider reports
+//    as 1-hour cache writes are surcharged to 8.
+//  - GPT-6.1 Sol (<= 272K context): input 2, cache write 2.5, output 10 USD/MTok.
+//    2.5 is not an integer micro-USD rate, so input is charged at 3 (upper bound).
+//    The reservation bound (250 000 bytes) keeps every admitted request under 272K.
+export interface ModelRate { model: string; inputMicroUsd: number; outputMicroUsd: number; inputReserveMicroUsd: number; cacheWrite1hMicroUsd?: number }
 export const MODEL_RATE_CARD = {
-  id: 'dashscope-intl-qwen3.8-max-20260902',
-  model: 'qwen3.8-max', inputMicroUsd: 2, outputMicroUsd: 6,
-} as const;
+  id: 'do-inference-opus5.5-author-gpt6.1sol-verifier-20261002',
+  gatewayHost: 'inference.do-ai.run',
+  author: { model: 'anthropic-claude-opus-5.5', inputMicroUsd: 5, outputMicroUsd: 20, inputReserveMicroUsd: 8, cacheWrite1hMicroUsd: 8 },
+  verifier: { model: 'openai-gpt-6-1-sol', inputMicroUsd: 3, outputMicroUsd: 10, inputReserveMicroUsd: 3 },
+} as const satisfies { id: string; gatewayHost: string; author: ModelRate; verifier: ModelRate };
+export type ModelRole = 'author' | 'verifier';
+export const rateFor = (role: ModelRole): ModelRate => MODEL_RATE_CARD[role];
 export interface ModelBudgetContext { run_id: string; accounted_cost_usd: number; }
 export interface ModelBudgetClaims {
   audience: 'ronor-model-egress/v1'; budget_id: string; mission_id: string;
-  role: 'author' | 'verifier'; ceiling_micro_usd: number; prior_micro_usd: number;
+  role: ModelRole; ceiling_micro_usd: number; prior_micro_usd: number;
   expires_at: string; rate_card: typeof MODEL_RATE_CARD.id;
 }
 export class ModelBudgetError extends Error {}
@@ -194,10 +208,11 @@ export interface ReservedModelRequest { payload: Record<string, unknown>; inputB
  * JSON bytes plus a deliberately generous template allowance bound admitted
  * application payloads. Any provider overrun is recorded and freezes the budget.
  * A provider-side billing cap is still needed for an unconditional invoice cap. */
-export function reserveModelRequest(path: string, body: Buffer): ReservedModelRequest {
+export function reserveModelRequest(path: string, body: Buffer, role: ModelRole): ReservedModelRequest {
+  const rate = rateFor(role);
   let payload: Record<string, unknown>;
   try { payload = JSON.parse(body.toString()); } catch { throw new ModelBudgetError('budget_payload_invalid'); }
-  if (!payload || Array.isArray(payload) || payload.model !== MODEL_RATE_CARD.model ||
+  if (!payload || Array.isArray(payload) || payload.model !== rate.model ||
       payload.stream === true || payload.previous_response_id || payload.conversation ||
       payload.background === true || payload.n !== undefined && payload.n !== 1)
     throw new ModelBudgetError('budget_payload_unsupported');
@@ -242,15 +257,26 @@ export function reserveModelRequest(path: string, body: Buffer): ReservedModelRe
   const inputBound = body.byteLength + 8192 + (messages + tools.length) * 1024;
   if (inputBound > 250_000) throw new ModelBudgetError('budget_context_too_large');
   return { payload, inputBound, outputBound,
-    reserveMicroUsd: inputBound * MODEL_RATE_CARD.inputMicroUsd + outputBound * MODEL_RATE_CARD.outputMicroUsd };
+    reserveMicroUsd: inputBound * rate.inputReserveMicroUsd + outputBound * rate.outputMicroUsd };
 }
-export function modelResponseCharge(body: Buffer): number | null {
+export function modelResponseCharge(body: Buffer, role: ModelRole): number | null {
+  const rate = rateFor(role);
   try {
-    const value = JSON.parse(body.toString()) as { usage?: Record<string,unknown> };
+    const value = JSON.parse(body.toString()) as { model?: unknown; usage?: Record<string,unknown> };
+    // A completed response names the model that served it; any other model is
+    // not covered by this rate card and is reported as unknown usage.
+    if (value.model !== undefined && value.model !== rate.model) return null;
     const input = value.usage?.input_tokens ?? value.usage?.prompt_tokens;
     const output = value.usage?.output_tokens ?? value.usage?.completion_tokens;
     if (!integer(input) || !integer(output)) return null;
-    const result = input * MODEL_RATE_CARD.inputMicroUsd + output * MODEL_RATE_CARD.outputMicroUsd;
+    let result = input * rate.inputMicroUsd + output * rate.outputMicroUsd;
+    const creation = value.usage?.cache_creation as Record<string, unknown> | undefined;
+    const longCache = creation?.ephemeral_1h_input_tokens ?? 0;
+    if (!integer(longCache) || longCache > input) return null;
+    if (longCache) {
+      if (rate.cacheWrite1hMicroUsd === undefined) return null;
+      result += longCache * (rate.cacheWrite1hMicroUsd - rate.inputMicroUsd);
+    }
     return integer(result) ? result : null;
   } catch { return null; }
 }

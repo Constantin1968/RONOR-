@@ -4,7 +4,9 @@ import { ensureRuntimeLedgerSchema } from '../ledgers/schema';
 import { appendMissionFabricEvent, getMissionFabric, verifyMissionFabric } from '../mission/store';
 import { getEffectiveAutomationMandate, mandateFingerprint } from './run-lease';
 import { signMandateAuthority } from './mandate-issuer';
-import { MODEL_RATE_CARD } from './model-budget';
+// Legacy reconciliation settles runs paused under the former single-model card;
+// it must keep pricing them at the rate they were dispatched under.
+const LEGACY_RATE_CARD = { model: 'qwen3.8-max', inputMicroUsd: 2, outputMicroUsd: 6 } as const;
 import { inspectAndValidateWorkspace, recoveryWorkspaceDigests } from './workspace';
 import type { ExecutionMandate } from './contracts';
 
@@ -28,13 +30,13 @@ export function reconcileLegacyAuthorFailure(params:{
   const proofKeys=['source','run_id','mission_id','conversation_id','model','status','input_tokens','output_tokens','cache_read_tokens','checked_at'];
   if(!params.approved || !proof || Object.keys(proof).some(k=>!proofKeys.includes(k)) ||
       proof.source!=='operator-read-openhands-native'||proof.run_id!==params.runId ||
-      proof.model!==`openai/${MODEL_RATE_CARD.model}`||proof.status!=='paused' ||
+      proof.model!==`openai/${LEGACY_RATE_CARD.model}`||proof.status!=='paused' ||
       !/^[a-f0-9-]{36}$/.test(proof.conversation_id) ||
       !/^[a-f0-9]{64}$/.test(params.expectedPatchDigest) ||
       ![proof.input_tokens,proof.output_tokens,proof.cache_read_tokens].every(v=>Number.isSafeInteger(v)&&v>=0) ||
       proof.cache_read_tokens>proof.input_tokens ||
       !Number.isFinite(Date.parse(proof.checked_at)) || Math.abs(now.getTime()-Date.parse(proof.checked_at))>300000) fail();
-  const cost=(proof.input_tokens*MODEL_RATE_CARD.inputMicroUsd+proof.output_tokens*MODEL_RATE_CARD.outputMicroUsd)/1e6;
+  const cost=(proof.input_tokens*LEGACY_RATE_CARD.inputMicroUsd+proof.output_tokens*LEGACY_RATE_CARD.outputMicroUsd)/1e6;
   if(!Number.isFinite(cost)||cost<=0) fail();
   const db=getDb();
   return db.transaction(()=>{

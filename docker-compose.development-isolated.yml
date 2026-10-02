@@ -101,5 +101,7 @@ secrets:
     file: ${RONOR_AUTOMATION_SECRET_DIR}/assurance_receipt_public_key
   evidence_runner_token:
     file: ${RONOR_AUTOMATION_SECRET_DIR}/evidence_runner_token
-  model_gateway_upstream_token:
-    file: /srv/ronor/automation/secrets/model_gateway_upstream_token
+  model_author_upstream_token:
+    file: /srv/ronor/automation/secrets/model_author_upstream_token
+  model_verifier_upstream_token:
+    file: /srv/ronor/automation/secrets/model_verifier_upstream_token

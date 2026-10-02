@@ -3,17 +3,43 @@ import Database from 'better-sqlite3';
 import type { ExecutionMandate } from './contracts';
 
 // Catalog accounting, NOT an invoice. Cache/promotion discounts are deliberately
-// not credited to the execution budget. No explicit-cache creation is admitted.
-// https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max
-export const MODEL_RATE_CARD = {
+// not credited to the execution budget. No explicit-cache creation is admitted:
+// prompt-cache markers are stripped before dispatch, so a cache write can never
+// be billed above the catalog input price.
+// Each role has its own provider and its own card, so the author and the
+// independent verifier never share a model family.
+export interface ModelRateCard {
+  readonly id: string; readonly role: 'author' | 'verifier'; readonly host: string;
+  readonly model: string; readonly inputMicroUsd: number; readonly outputMicroUsd: number;
+  /** Hard output ceiling enforced by the egress proxy for one dispatch. */
+  readonly maxOutputTokens: number;
+}
+// https://platform.claude.com/docs/en/models/opus-5-5/overview  ($4 / $20 per MTok)
+export const AUTHOR_RATE_CARD: ModelRateCard = Object.freeze({
+  id: 'anthropic-claude-opus-5-5-20260922', role: 'author', host: 'api.anthropic.com',
+  model: 'claude-opus-5-5', inputMicroUsd: 4, outputMicroUsd: 20, maxOutputTokens: 8192,
+});
+// https://developers.openai.com/api/docs/models/gpt-6-astra  ($10 / $50 per MTok,
+// below the 272K-token long-context threshold; admitted context is bounded below it).
+export const VERIFIER_RATE_CARD: ModelRateCard = Object.freeze({
+  id: 'openai-gpt-6-astra-20261001', role: 'verifier', host: 'api.openai.com',
+  model: 'gpt-6-astra', inputMicroUsd: 10, outputMicroUsd: 50, maxOutputTokens: 32768,
+});
+/** Identifier of the admitted pair of cards; every budgeted service must carry it. */
+export const MODEL_RATE_CARD_SET = 'ronor-rate-cards-20261001';
+/** Historical card, kept only to reconcile runs that were accounted on it. */
+export const LEGACY_QWEN_RATE_CARD = Object.freeze({
   id: 'dashscope-intl-qwen3.8-max-20260902',
   model: 'qwen3.8-max', inputMicroUsd: 2, outputMicroUsd: 6,
-} as const;
+});
+export function rateCardFor(role: 'author' | 'verifier'): ModelRateCard {
+  return role === 'author' ? AUTHOR_RATE_CARD : VERIFIER_RATE_CARD;
+}
 export interface ModelBudgetContext { run_id: string; accounted_cost_usd: number; }
 export interface ModelBudgetClaims {
   audience: 'ronor-model-egress/v1'; budget_id: string; mission_id: string;
   role: 'author' | 'verifier'; ceiling_micro_usd: number; prior_micro_usd: number;
-  expires_at: string; rate_card: typeof MODEL_RATE_CARD.id;
+  expires_at: string; rate_card: string;
 }
 export class ModelBudgetError extends Error {}
 
@@ -51,7 +77,7 @@ export function signModelBudget(mandate: ExecutionMandate, context: ModelBudgetC
   const claims: ModelBudgetClaims = { audience: 'ronor-model-egress/v1', budget_id: context.run_id,
     mission_id: mandate.mission_id, role, ceiling_micro_usd: Math.floor(mandate.max_cost_usd * 1e6),
     prior_micro_usd: Math.ceil(context.accounted_cost_usd * 1e6), expires_at: mandate.expires_at,
-    rate_card: MODEL_RATE_CARD.id };
+    rate_card: rateCardFor(role).id };
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   return `${payload}.${crypto.createHmac('sha256', key).update(payload).digest('base64url')}`;
 }
@@ -65,7 +91,7 @@ export function verifyModelBudget(token: string, key: string, now = Date.now()):
     if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
     const v = JSON.parse(Buffer.from(payload, 'base64url').toString()) as ModelBudgetClaims;
     if (v.audience !== 'ronor-model-egress/v1' || !safeId(v.budget_id) || !safeId(v.mission_id) ||
-        !['author','verifier'].includes(v.role) || v.rate_card !== MODEL_RATE_CARD.id ||
+        !['author','verifier'].includes(v.role) || v.rate_card !== rateCardFor(v.role).id ||
         !integer(v.ceiling_micro_usd) || !v.ceiling_micro_usd || !integer(v.prior_micro_usd) ||
         v.prior_micro_usd >= v.ceiling_micro_usd || !Number.isFinite(Date.parse(v.expires_at)) ||
         Date.parse(v.expires_at) <= now) return null;
@@ -189,15 +215,25 @@ function textContentBlock(value: unknown): boolean {
   return !('cache_control' in c) || ephemeralCacheControl(c.cache_control);
 }
 
+/** Removes every prompt-cache marker in place. Markers carry no content, so the
+ * request is unchanged in meaning; without them no cache write can be billed. */
+function stripCacheControl(payload: Record<string, unknown>): void {
+  if (!Array.isArray(payload.messages)) return;
+  for (const m of payload.messages as Record<string, unknown>[]) {
+    delete m.cache_control;
+    if (Array.isArray(m.content)) for (const c of m.content as Record<string, unknown>[]) delete c.cache_control;
+  }
+}
+
 export interface ReservedModelRequest { payload: Record<string, unknown>; inputBound: number; outputBound: number; reserveMicroUsd: number; }
 /** Text-only conservative reservation, not a claim of exact tokenization.
  * JSON bytes plus a deliberately generous template allowance bound admitted
  * application payloads. Any provider overrun is recorded and freezes the budget.
  * A provider-side billing cap is still needed for an unconditional invoice cap. */
-export function reserveModelRequest(path: string, body: Buffer): ReservedModelRequest {
+export function reserveModelRequest(path: string, body: Buffer, card: ModelRateCard): ReservedModelRequest {
   let payload: Record<string, unknown>;
   try { payload = JSON.parse(body.toString()); } catch { throw new ModelBudgetError('budget_payload_invalid'); }
-  if (!payload || Array.isArray(payload) || payload.model !== MODEL_RATE_CARD.model ||
+  if (!payload || Array.isArray(payload) || payload.model !== card.model ||
       payload.stream === true || payload.previous_response_id || payload.conversation ||
       payload.background === true || payload.n !== undefined && payload.n !== 1)
     throw new ModelBudgetError('budget_payload_unsupported');
@@ -236,21 +272,24 @@ export function reserveModelRequest(path: string, body: Buffer): ReservedModelRe
   const outputField = path === '/v1/chat/completions' ? 'max_tokens' : 'max_output_tokens';
   const requested = payload[outputField] ?? payload.max_completion_tokens ?? 4096;
   if (!integer(requested) || requested < 1) throw new ModelBudgetError('budget_output_limit_invalid');
-  const outputBound = Math.min(requested, 4096);
+  const outputBound = Math.min(requested, card.maxOutputTokens);
   delete payload.max_completion_tokens;
+  // Provider-specific switch of the previous provider; never forwarded.
+  delete payload.enable_thinking;
+  stripCacheControl(payload);
   payload[outputField] = outputBound;
   const inputBound = body.byteLength + 8192 + (messages + tools.length) * 1024;
   if (inputBound > 250_000) throw new ModelBudgetError('budget_context_too_large');
   return { payload, inputBound, outputBound,
-    reserveMicroUsd: inputBound * MODEL_RATE_CARD.inputMicroUsd + outputBound * MODEL_RATE_CARD.outputMicroUsd };
+    reserveMicroUsd: inputBound * card.inputMicroUsd + outputBound * card.outputMicroUsd };
 }
-export function modelResponseCharge(body: Buffer): number | null {
+export function modelResponseCharge(body: Buffer, card: ModelRateCard): number | null {
   try {
     const value = JSON.parse(body.toString()) as { usage?: Record<string,unknown> };
     const input = value.usage?.input_tokens ?? value.usage?.prompt_tokens;
     const output = value.usage?.output_tokens ?? value.usage?.completion_tokens;
     if (!integer(input) || !integer(output)) return null;
-    const result = input * MODEL_RATE_CARD.inputMicroUsd + output * MODEL_RATE_CARD.outputMicroUsd;
+    const result = input * card.inputMicroUsd + output * card.outputMicroUsd;
     return integer(result) ? result : null;
   } catch { return null; }
 }

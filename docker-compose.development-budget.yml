@@ -10,19 +10,19 @@ services:
     build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
     image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
     environment:
-      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
   codex-verifier:
     build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
     image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
     environment:
-      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
-      RONOR_CODEX_INPUT_USD_PER_MTOK: "2"
-      RONOR_CODEX_OUTPUT_USD_PER_MTOK: "6"
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
+      RONOR_CODEX_INPUT_USD_PER_MTOK: "10"
+      RONOR_CODEX_OUTPUT_USD_PER_MTOK: "50"
   model-egress-proxy:
     build: {context: "${RONOR_BUDGET_SOURCE}", dockerfile: Dockerfile.development-tools, target: runtime}
     image: ronor-budget-runtime:${RONOR_BUDGET_TAG}
     environment:
-      RONOR_MODEL_RATE_CARD: dashscope-intl-qwen3.8-max-20260902
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
       RONOR_AUTOMATION_CAPABILITY_KEY_FILE: /run/secrets/automation_capability_key
       RONOR_MODEL_BUDGET_DB: /model-budget/ledger.db
     secrets: [automation_capability_key]

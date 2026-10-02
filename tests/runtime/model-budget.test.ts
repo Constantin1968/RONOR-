@@ -1,7 +1,8 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ModelBudgetLedger, MAX_CONCURRENT_DISPATCH, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
+import { AUTHOR_RATE_CARD, VERIFIER_RATE_CARD, ModelBudgetLedger, MAX_CONCURRENT_DISPATCH, verifyModelBudget, signModelBudget, reserveModelRequest, modelResponseCharge, signBudgetQuery, verifyBudgetQuery } from '../../src/runtime/automation/model-budget';
 import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 
 const key = 'budget-authority-test-key-32-bytes-long';
@@ -78,12 +79,12 @@ describe('signed persistent model budget', () => {
   });
 });
 describe('text-only request reservations', () => {
-  const body = (extra = {}) => Buffer.from(JSON.stringify({model:'qwen3.8-max',messages:[{role:'user',content:'hello'}],...extra}));
+  const body = (extra = {}) => Buffer.from(JSON.stringify({model:'claude-opus-5-5',messages:[{role:'user',content:'hello'}],...extra}));
   it('reserves input plus capped output before a provider request', () => {
-    const r = reserveModelRequest('/v1/chat/completions',body({max_tokens:10000}));
-    expect(r.outputBound).toBe(4096);
-    expect(r.payload.max_tokens).toBe(4096);
-    expect(r.reserveMicroUsd).toBe(r.inputBound*2+4096*6);
+    const r = reserveModelRequest('/v1/chat/completions',body({max_tokens:100000}),AUTHOR_RATE_CARD);
+    expect(r.outputBound).toBe(8192);
+    expect(r.payload.max_tokens).toBe(8192);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*4+8192*20);
   });
   it.each([{stream:true},{model:'unpriced'},{previous_response_id:'stored-context'},
     {tools:[{type:'web_search'}]}, {extra_body:{hidden:true}},
@@ -96,7 +97,7 @@ describe('text-only request reservations', () => {
     {messages:[{role:'assistant'}]},
     {messages:[{role:'user',content:[{type:'image_url',image_url:{url:'https://example.test'}}]}]}])(
     'refuses non-admitted costs %j', extra => {
-      expect(()=>reserveModelRequest('/v1/chat/completions',body(extra))).toThrow();
+      expect(()=>reserveModelRequest('/v1/chat/completions',body(extra),AUTHOR_RATE_CARD)).toThrow();
     });
   // Wire shapes produced by OpenHands SDK 1.42.1 Message.to_chat_dict / _list_serializer.
   it('admits the SDK prompt-cache markers, replayed thinking blocks and content-free tool-call turns', () => {
@@ -107,14 +108,17 @@ describe('text-only request reservations', () => {
         tool_calls:[{id:'call_1',type:'function',function:{name:'bash',arguments:'{}'}}]},
       {role:'tool',tool_call_id:'call_1',name:'bash',content:[{type:'text',text:'ok'}],cache_control:{type:'ephemeral'}},
     ];
-    const r = reserveModelRequest('/v1/chat/completions',body({messages}));
+    const r = reserveModelRequest('/v1/chat/completions',body({messages}),AUTHOR_RATE_CARD);
     expect(r.payload.max_tokens).toBe(4096);
-    expect(r.reserveMicroUsd).toBe(r.inputBound*2+4096*6);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*4+4096*20);
+    // Markers are admitted on the wire but never forwarded: no cache write is billable.
+    expect(JSON.stringify(r.payload)).not.toContain('cache_control');
   });
   it('charges measured input and all output at the catalog ceiling, without claiming invoice equality', () => {
-    expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'))).toBe(260);
-    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'))).toBe(0);
-    expect(modelResponseCharge(Buffer.from('{}'))).toBeNull();
+    expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'),AUTHOR_RATE_CARD)).toBe(600);
+    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":100,"output_tokens":10}}'),VERIFIER_RATE_CARD)).toBe(1500);
+    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'),AUTHOR_RATE_CARD)).toBe(0);
+    expect(modelResponseCharge(Buffer.from('{}'),AUTHOR_RATE_CARD)).toBeNull();
   });
 });
 
@@ -145,5 +149,31 @@ describe('read-only settlement report', () => {
     expect(() => signBudgetQuery('r-budget', 'short-key')).toThrow('budget_query_invalid');
     // A query proof is not a dispatch authorization and cannot be replayed as one.
     expect(verifyModelBudget(proof, key)).toBeNull();
+  });
+});
+
+describe('one rate card per role', () => {
+  it('bounds the verifier at its own output ceiling and price', () => {
+    const r = reserveModelRequest('/v1/responses', Buffer.from(JSON.stringify({model:'gpt-6-astra',input:'evidence',max_output_tokens:32768})), VERIFIER_RATE_CARD);
+    expect(r.outputBound).toBe(32768);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*10+32768*50);
+  });
+  it('never forwards the previous provider\'s thinking switch', () => {
+    const r = reserveModelRequest('/v1/chat/completions', Buffer.from(JSON.stringify({model:'claude-opus-5-5',messages:[{role:'user',content:'x'}],enable_thinking:true})), AUTHOR_RATE_CARD);
+    expect(r.payload).not.toHaveProperty('enable_thinking');
+  });
+  it('signs each role with its own card and refuses a token carrying the other role\'s card', () => {
+    const author = verifyModelBudget(signModelBudget(mandate,{run_id:'r-card',accounted_cost_usd:0},'author',key),key)!;
+    const verifier = verifyModelBudget(signModelBudget(mandate,{run_id:'r-card',accounted_cost_usd:0},'verifier',key),key)!;
+    expect(author.rate_card).toBe(AUTHOR_RATE_CARD.id);
+    expect(verifier.rate_card).toBe(VERIFIER_RATE_CARD.id);
+    const forged = Buffer.from(JSON.stringify({...author,rate_card:VERIFIER_RATE_CARD.id})).toString('base64url');
+    const tok = `${forged}.${crypto.createHmac('sha256',key).update(forged).digest('base64url')}`;
+    expect(verifyModelBudget(tok,key)).toBeNull();
+  });
+  it('keeps the author and the verifier on different providers and model families', () => {
+    expect(AUTHOR_RATE_CARD.host).not.toBe(VERIFIER_RATE_CARD.host);
+    expect(AUTHOR_RATE_CARD.model).toBe('claude-opus-5-5');
+    expect(VERIFIER_RATE_CARD.model).toBe('gpt-6-astra');
   });
 });

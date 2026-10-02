@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { createServiceRateLimit } from './rate-limit';
 import net from 'node:net';
 import express, { type Request } from 'express';
-import { MODEL_RATE_CARD, ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyBudgetQuery, verifyModelBudget } from '../model-budget';
+import { MODEL_RATE_CARD_SET, type ModelRateCard, rateCardFor, ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyBudgetQuery, verifyModelBudget } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const ALLOWED_PATHS = new Set(['/v1/responses', '/v1/chat/completions', '/v1/models']);
@@ -40,14 +40,28 @@ export function modelGatewayBaseUrl(value: string, allowTailscale = false): URL 
   return url;
 }
 
-export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientTokens: string[]; upstreamToken: string; allowTailscale?: boolean; fetcher?: Fetcher;
+/** One provider per role. The author and the verifier never share a provider,
+ * a credential or a rate card, so the verifier stays independent of the author. */
+export interface ModelUpstream { baseUrl: string; token: string; }
+export function createModelEgressProxy(config: { upstreams: { author: ModelUpstream; verifier: ModelUpstream };
+  /** Index 0 authenticates the author, index 1 the verifier. */
+  clientTokens: [string, string]; allowTailscale?: boolean; fetcher?: Fetcher;
+  /** Test seam only: production always enforces the provider host of each card. */
+  enforceProviderHosts?: boolean;
   budget?: { key: string; ledger: ModelBudgetLedger } }) {
-  if (config.clientTokens.length < 1 || config.clientTokens.some((token) => token.length < 16) ||
+  if (!Array.isArray(config.clientTokens) || config.clientTokens.length !== 2 || config.clientTokens.some((token) => typeof token !== 'string' || token.length < 16) ||
       new Set(config.clientTokens).size !== config.clientTokens.length) throw new Error('model_gateway_client_tokens_invalid');
-  if (!config.upstreamToken || config.upstreamToken.length < 16 || config.clientTokens.includes(config.upstreamToken)) {
+  const roles = ['author', 'verifier'] as const;
+  const upstreamTokens = roles.map(r => config.upstreams?.[r]?.token);
+  if (upstreamTokens.some(t => !t || t.length < 16 || config.clientTokens.includes(t)) || upstreamTokens[0] === upstreamTokens[1]) {
     throw new Error('model_gateway_upstream_token_invalid');
   }
-  const upstream = modelGatewayBaseUrl(config.gatewayBaseUrl, config.allowTailscale);
+  const routes = Object.fromEntries(roles.map(r => {
+    const card: ModelRateCard = rateCardFor(r);
+    const url = modelGatewayBaseUrl(config.upstreams[r].baseUrl, config.allowTailscale);
+    if (config.enforceProviderHosts !== false && url.hostname !== card.host) throw new Error('model_budget_provider_mismatch');
+    return [r, { card, url, token: config.upstreams[r].token }];
+  })) as Record<'author' | 'verifier', { card: ModelRateCard; url: URL; token: string }>;
   const fetcher = config.fetcher ?? fetch;
   const app = express(); app.disable('x-powered-by'); app.use(express.raw({ type: 'application/json', limit: '1mb' })); app.use(createServiceRateLimit());
   app.get('/health', (req, res) => authorised(req, config.clientTokens)
@@ -66,7 +80,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
     }
     const settlement = config.budget.ledger.settlement(id);
     if (!settlement) { res.status(404).json({ ok: false, error: 'budget_unknown' }); return; }
-    res.json({ ok: true, protocol: 'ronor-model-egress/v1', rate_card: MODEL_RATE_CARD.id, ...settlement });
+    res.json({ ok: true, protocol: 'ronor-model-egress/v1', rate_card: MODEL_RATE_CARD_SET, ...settlement });
   });
   app.use('/v1', async (req, res) => {
     const path = `/v1${req.path === '/' ? '' : req.path}`;
@@ -74,20 +88,21 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
     if (req.url.includes('?') || !ALLOWED_PATHS.has(path) || (path === '/v1/models' ? req.method !== 'GET' : req.method !== 'POST')) {
       res.status(403).json({ ok: false, error: 'model_egress_path_refused' }); return;
     }
-    const target = new URL(`${upstream.pathname}${path.slice(3)}`, upstream.origin);
+    const clientIndex = config.clientTokens.findIndex(t => req.header('authorization') === `Bearer ${t}`);
+    const route = routes[clientIndex === 0 ? 'author' : 'verifier'];
+    const target = new URL(`${route.url.pathname}${path.slice(3)}`, route.url.origin);
     let reservation: string | undefined;
     let reservedAmount = 0;
     let deadline = Date.now() + 120_000;
     let requestBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (req.method === 'POST' && config.budget) {
       const claims = verifyModelBudget(req.header('x-ronor-budget') ?? '', config.budget.key);
-      const clientIndex = config.clientTokens.findIndex(t => req.header('authorization') === `Bearer ${t}`);
-      if (!claims || claims.role !== (clientIndex === 0 ? 'author' : 'verifier')) {
+      if (!claims || claims.role !== route.card.role) {
         res.status(403).json({ ok: false, error: 'budget_authorization_required' }); return;
       }
       try {
         deadline = Math.min(deadline, Date.parse(claims.expires_at));
-        const bounded = reserveModelRequest(path, requestBody);
+        const bounded = reserveModelRequest(path, requestBody, route.card);
         reservedAmount = bounded.reserveMicroUsd;
         reservation = config.budget.ledger.reserve(claims, reservedAmount);
         requestBody = Buffer.from(JSON.stringify(bounded.payload));
@@ -101,7 +116,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
     try {
       const response = await fetcher(target, {
         method: req.method, redirect: 'error',
-        headers: { authorization: `Bearer ${config.upstreamToken}`, accept: 'application/json', 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${route.token}`, accept: 'application/json', 'content-type': 'application/json' },
         body: req.method === 'POST' ? new Uint8Array(requestBody) : undefined,
         signal: AbortSignal.any([disconnected.signal, AbortSignal.timeout(Math.max(1, deadline - Date.now()))]),
       });
@@ -110,7 +125,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
       const body = new Uint8Array(await response.arrayBuffer());
       if (body.byteLength > 2 * 1024 * 1024) throw new Error('upstream_response_too_large');
       if (reservation && config.budget) {
-        const cost = modelResponseCharge(Buffer.from(body));
+        const cost = modelResponseCharge(Buffer.from(body), route.card);
         // A provider refusal is a *resolved* outcome, not an unknown one: no
         // completion was produced, so the dispatch is settled at its own
         // worst-case reservation rather than freezing the budget. The ceiling

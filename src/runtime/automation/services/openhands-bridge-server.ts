@@ -1,14 +1,14 @@
 import { createNativeOpenHandsClient, pauseConfirmWindowFromEnv } from '../adapters/openhands-native';
 import { createOpenHandsBridgeApp, FileCapabilityNonceStore } from './openhands-bridge';
 import { requiredSecret } from './secret-files';
-import { MODEL_RATE_CARD } from '../model-budget';
+import { AUTHOR_RATE_CARD, MODEL_RATE_CARD_SET } from '../model-budget';
 import path from 'node:path';
 import { createConversationRecorder } from './openhands-conversation-receipts';
 
 export async function startOpenHandsBridge() {
   const model = requiredSecret('RONOR_OPENHANDS_LLM_MODEL');
   const nonceDir = requiredSecret('RONOR_OPENHANDS_NONCE_DIR');
-  if (process.env.RONOR_MODEL_RATE_CARD !== MODEL_RATE_CARD.id || model !== `openai/${MODEL_RATE_CARD.model}`) throw new Error('openhands_budget_rate_card_required');
+  if (process.env.RONOR_MODEL_RATE_CARD !== MODEL_RATE_CARD_SET || model !== `openai/${AUTHOR_RATE_CARD.model}`) throw new Error('openhands_budget_rate_card_required');
   const native = createNativeOpenHandsClient({
     baseUrl: requiredSecret('RONOR_OPENHANDS_AGENT_SERVER_URL'),
     sessionApiKey: requiredSecret('RONOR_OPENHANDS_SESSION_API_KEY'),
@@ -21,8 +21,8 @@ export async function startOpenHandsBridge() {
       apiKey: requiredSecret('RONOR_OPENHANDS_LLM_API_KEY'),
       baseUrl: requiredSecret('RONOR_OPENHANDS_LLM_BASE_URL'),
       apiMode: 'chat',
-      inputCostPerToken: MODEL_RATE_CARD.inputMicroUsd / 1e6,
-      outputCostPerToken: MODEL_RATE_CARD.outputMicroUsd / 1e6,
+      inputCostPerToken: AUTHOR_RATE_CARD.inputMicroUsd / 1e6,
+      outputCostPerToken: AUTHOR_RATE_CARD.outputMicroUsd / 1e6,
     },
   });
   if (!await native.health()) throw new Error('openhands_agent_server_not_ready');

@@ -102,9 +102,12 @@ describe('isolated automation composition', () => {
     expect(proxy.environment).toMatchObject({
       RONOR_MODEL_GATEWAY_OPENHANDS_TOKEN_FILE: '/run/secrets/openhands_llm_api_key',
       RONOR_MODEL_GATEWAY_CODEX_TOKEN_FILE: '/run/secrets/codex_api_key',
-      RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE: '/run/secrets/model_gateway_upstream_token',
+      RONOR_MODEL_AUTHOR_UPSTREAM_TOKEN_FILE: '/run/secrets/model_author_upstream_token',
+      RONOR_MODEL_VERIFIER_UPSTREAM_TOKEN_FILE: '/run/secrets/model_verifier_upstream_token',
+      RONOR_MODEL_AUTHOR_BASE_URL: 'https://api.anthropic.com/v1',
+      RONOR_MODEL_VERIFIER_BASE_URL: 'https://api.openai.com/v1',
     });
-    expect(proxy.secrets).toEqual(expect.arrayContaining(['openhands_llm_api_key', 'codex_api_key', 'model_gateway_upstream_token']));
+    expect(proxy.secrets).toEqual(expect.arrayContaining(['openhands_llm_api_key', 'codex_api_key', 'model_author_upstream_token', 'model_verifier_upstream_token']));
   });
 
   it('attaches production only through an explicit opt-in override', () => {

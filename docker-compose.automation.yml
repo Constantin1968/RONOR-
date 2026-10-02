@@ -45,12 +45,15 @@ services:
     environment:
       RONOR_MODEL_EGRESS_HOST: 0.0.0.0
       RONOR_MODEL_EGRESS_PORT: "3004"
-      RONOR_MODEL_GATEWAY_BASE_URL: ${RONOR_MODEL_GATEWAY_BASE_URL:?set the approved HTTPS model gateway in .env.automation}
+      # One provider per role: Anthropic for the author, OpenAI for the verifier.
+      RONOR_MODEL_AUTHOR_BASE_URL: https://api.anthropic.com/v1
+      RONOR_MODEL_VERIFIER_BASE_URL: https://api.openai.com/v1
       RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE: ${RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE:-false}
       RONOR_MODEL_GATEWAY_OPENHANDS_TOKEN_FILE: /run/secrets/openhands_llm_api_key
       RONOR_MODEL_GATEWAY_CODEX_TOKEN_FILE: /run/secrets/codex_api_key
-      RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE: /run/secrets/model_gateway_upstream_token
-    secrets: [openhands_llm_api_key, codex_api_key, model_gateway_upstream_token]
+      RONOR_MODEL_AUTHOR_UPSTREAM_TOKEN_FILE: /run/secrets/model_author_upstream_token
+      RONOR_MODEL_VERIFIER_UPSTREAM_TOKEN_FILE: /run/secrets/model_verifier_upstream_token
+    secrets: [openhands_llm_api_key, codex_api_key, model_author_upstream_token, model_verifier_upstream_token]
     networks: [model-egress, model-uplink]
     healthcheck:
       test: [CMD, node, -e, "const fs=require('fs'),http=require('http');const t=fs.readFileSync('/run/secrets/openhands_llm_api_key','utf8').trim();http.get({host:'127.0.0.1',port:3004,path:'/health',headers:{authorization:'Bearer '+t}},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
@@ -268,8 +271,10 @@ secrets:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_verifier_token
   codex_api_key:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/codex_api_key
-  model_gateway_upstream_token:
-    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/model_gateway_upstream_token
+  model_author_upstream_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/model_author_upstream_token
+  model_verifier_upstream_token:
+    file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/model_verifier_upstream_token
   assurance_token:
     file: ${RONOR_AUTOMATION_SECRET_DIR:?secret directory required}/assurance_token
   codex_receipt_private_key:

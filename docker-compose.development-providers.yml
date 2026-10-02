@@ -1,0 +1,31 @@
+# Apply LAST, after every installed overlay. Moves the author to Anthropic
+# Claude Opus 5.5 and the independent verifier to OpenAI GPT-6 Astra, each with
+# its own provider credential and its own rate card. Budgets, ledgers, mandates
+# and every other secret remain exactly as installed.
+services:
+  openhands-agent:
+    environment:
+      LLM_MODEL: openai/claude-opus-5-5
+  openhands-bridge:
+    environment:
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
+      RONOR_OPENHANDS_LLM_MODEL: openai/claude-opus-5-5
+  codex-verifier:
+    environment:
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
+      RONOR_CODEX_MODEL: gpt-6-astra
+      RONOR_CODEX_INPUT_USD_PER_MTOK: "10"
+      RONOR_CODEX_OUTPUT_USD_PER_MTOK: "50"
+  model-egress-proxy:
+    environment:
+      RONOR_MODEL_RATE_CARD: ronor-rate-cards-20261001
+      RONOR_MODEL_AUTHOR_BASE_URL: https://api.anthropic.com/v1
+      RONOR_MODEL_VERIFIER_BASE_URL: https://api.openai.com/v1
+      RONOR_MODEL_AUTHOR_UPSTREAM_TOKEN_FILE: /run/secrets/model_author_upstream_token
+      RONOR_MODEL_VERIFIER_UPSTREAM_TOKEN_FILE: /run/secrets/model_verifier_upstream_token
+    secrets: [model_author_upstream_token, model_verifier_upstream_token]
+secrets:
+  model_author_upstream_token:
+    file: /srv/ronor/automation/secrets/model_author_upstream_token
+  model_verifier_upstream_token:
+    file: /srv/ronor/automation/secrets/model_verifier_upstream_token

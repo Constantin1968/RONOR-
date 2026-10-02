@@ -9,7 +9,7 @@ import { createEvidenceRunnerApp } from '../../src/runtime/automation/services/e
 import { createAssuranceAuthorityApp, createCodexVerifierApp } from '../../src/runtime/automation/services/verification-authorities';
 import { createOpenAIResponsesCodexEvaluator } from '../../src/runtime/automation/services/codex-evaluator';
 import { createModelEgressProxy } from '../../src/runtime/automation/services/model-egress-proxy';
-import { MODEL_RATE_CARD, ModelBudgetLedger } from '../../src/runtime/automation/model-budget';
+import { VERIFIER_RATE_CARD as MODEL_RATE_CARD, ModelBudgetLedger } from '../../src/runtime/automation/model-budget';
 
 /**
  * PROTOCOL-FAITHFUL STACK. Nothing here stands in for a RONOR component: the
@@ -112,6 +112,7 @@ export async function startProtocolFaithfulStack(config: {
     author: crypto.randomBytes(32).toString('hex'),
     verifier: crypto.randomBytes(32).toString('hex'),
     upstream: crypto.randomBytes(32).toString('hex'),
+    upstreamVerifier: crypto.randomBytes(32).toString('hex'),
   };
   const calls: string[] = [];
   const provider: ProviderScript = {};
@@ -148,8 +149,10 @@ export async function startProtocolFaithfulStack(config: {
   const ledgerDb = `${config.ledgerDir ?? config.artifactRoot}/faithful-ledger.db`;
   const ledger = new ModelBudgetLedger(ledgerDb);
   const proxy = createModelEgressProxy({
-    gatewayBaseUrl: `http://${PROVIDER_HOST}/v1`, allowTailscale: true, fetcher,
-    clientTokens: [tokens.author, tokens.verifier], upstreamToken: tokens.upstream,
+    upstreams: { author: { baseUrl: `http://${PROVIDER_HOST}/v1`, token: tokens.upstream },
+      verifier: { baseUrl: `http://${PROVIDER_HOST}/v1`, token: tokens.upstreamVerifier } },
+    allowTailscale: true, enforceProviderHosts: false, fetcher,
+    clientTokens: [tokens.author, tokens.verifier],
     budget: { key: config.capabilityKey, ledger },
   });
 

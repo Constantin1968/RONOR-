@@ -6,7 +6,10 @@ import type { ExecutionMandate } from '../../src/runtime/automation/contracts';
 const token = 'gateway-token-for-tests-0123456789';
 const codexToken = 'codex-client-token-tests-0123456789';
 const upstreamToken = 'upstream-provider-token-0123456789';
-const config = { gatewayBaseUrl: 'https://models.example/api/v1', clientTokens: [token, codexToken], upstreamToken };
+const verifierUpstreamToken = 'verifier-provider-token-0123456789';
+const upstreams = (author = 'https://models.example/api/v1', verifier = 'https://verifier.example/v1') =>
+  ({ author: { baseUrl: author, token: upstreamToken }, verifier: { baseUrl: verifier, token: verifierUpstreamToken } });
+const config = { upstreams: upstreams(), clientTokens: [token, codexToken] as [string, string], enforceProviderHosts: false };
 
 describe('automation model egress proxy', () => {
   it('forwards only the three model API routes to the configured HTTPS gateway', async () => {
@@ -23,7 +26,7 @@ describe('automation model egress proxy', () => {
   });
 
   it('refuses missing authentication and arbitrary network paths before fetch', async () => {
-    const fetcher = jest.fn(); const app = createModelEgressProxy({ ...config, gatewayBaseUrl: 'https://models.example/v1', fetcher });
+    const fetcher = jest.fn(); const app = createModelEgressProxy({ ...config, upstreams: upstreams('https://models.example/v1'), fetcher });
     expect((await request(app).post('/v1/responses').send({})).status).toBe(401);
     expect((await request(app).post('/v1/files').set('Authorization', `Bearer ${token}`).send({})).status).toBe(403);
     expect((await request(app).get('/v1/responses').set('Authorization', `Bearer ${token}`)).status).toBe(403);
@@ -53,7 +56,7 @@ describe('automation model egress proxy', () => {
   });
 
   it('fails closed without relaying upstream error bodies', async () => {
-    const app = createModelEgressProxy({ ...config, gatewayBaseUrl: 'https://models.example/v1', fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
+    const app = createModelEgressProxy({ ...config, upstreams: upstreams('https://models.example/v1'), fetcher: jest.fn(async () => { throw new Error('secret upstream detail'); }) });
     const result = await request(app).post('/v1/chat/completions').set('Authorization', `Bearer ${token}`).send({});
     expect(result.status).toBe(502); expect(JSON.stringify(result.body)).not.toContain('secret upstream detail');
   });
@@ -62,7 +65,7 @@ describe('automation model egress proxy', () => {
 describe('production model budget enforcement', () => {
   const key = 'budget-key-for-proxy-tests-32-bytes';
   const mandate = {mission_id:'m-proxy',max_cost_usd:1,expires_at:new Date(Date.now()+600000).toISOString()} as ExecutionMandate;
-  const payload = {model:'qwen3.8-max',messages:[{role:'user',content:'test'}]};
+  const payload = {model:'claude-opus-5-5',messages:[{role:'user',content:'test'}]};
   const signed = (spent = 0, role: 'author'|'verifier' = 'author') => signModelBudget(mandate,{run_id:'r-proxy',accounted_cost_usd:spent},role,key);
   it('refuses missing, mismatched-role and exhausted budget authorizations before upstream access', async () => {
     const ledger = new ModelBudgetLedger(':memory:'); const fetcher = jest.fn();
@@ -80,7 +83,7 @@ describe('production model budget enforcement', () => {
     const proof = signBudgetQuery('r-proxy',key);
     const ok = await request(app).get('/budget/r-proxy').set('x-ronor-budget-query',proof);
     expect(ok.status).toBe(200);
-    expect(ok.body).toMatchObject({ok:true,budget_id:'r-proxy',settled_micro_usd:260,settled_reservations:1,pending_reservations:0,frozen:false});
+    expect(ok.body).toMatchObject({ok:true,budget_id:'r-proxy',settled_micro_usd:600,settled_reservations:1,pending_reservations:0,frozen:false});
     // A client credential is not a settlement authority, and a settlement proof
     // is not a client credential.
     expect((await request(app).get('/budget/r-proxy')).status).toBe(401);
@@ -97,10 +100,10 @@ describe('production model budget enforcement', () => {
     const fetcher = jest.fn(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
     const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
     const r = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed(0.2)).send(payload);
-    expect(r.status).toBe(200); expect(r.headers['x-ronor-accounted-micro-usd']).toBe('260');
-    const second = await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed(0,'verifier')).send({model:'qwen3.8-max',input:'verify'});
+    expect(r.status).toBe(200); expect(r.headers['x-ronor-accounted-micro-usd']).toBe('600');
+    const second = await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed(0,'verifier')).send({model:'gpt-6-astra',input:'verify'});
     expect(second.status).toBe(200);
-    expect(ledger.snapshot('r-proxy')?.spent).toBe(200520);
+    expect(ledger.snapshot('r-proxy')?.spent).toBe(202100);
     expect(JSON.stringify(fetcher.mock.calls)).not.toContain('x-ronor-budget');
     ledger.close();
   });
@@ -133,7 +136,7 @@ describe('production model budget enforcement', () => {
     fetcher.mockImplementation(async()=>new Response('{"usage":{"input_tokens":100,"output_tokens":10}}'));
     const recovered = await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed()).send(payload);
     expect(recovered.status).toBe(200);
-    expect(recovered.headers['x-ronor-accounted-micro-usd']).toBe('260');
+    expect(recovered.headers['x-ronor-accounted-micro-usd']).toBe('600');
     ledger.close();
   });
 
@@ -147,5 +150,44 @@ describe('production model budget enforcement', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(ledger.snapshot('r-proxy')).toMatchObject({frozen:1,pending:1});
     ledger.close();
+  });
+});
+
+describe('one provider per role', () => {
+  const key = 'budget-key-for-proxy-tests-32-bytes';
+  const mandate = {mission_id:'m-route',max_cost_usd:5,expires_at:new Date(Date.now()+600000).toISOString()} as ExecutionMandate;
+  const signed = (role: 'author'|'verifier') => signModelBudget(mandate,{run_id:'r-route',accounted_cost_usd:0},role,key);
+  const usage = () => new Response('{"usage":{"input_tokens":100,"output_tokens":10}}');
+  it('sends the author to the author provider and the verifier to the verifier provider, each with its own credential', async () => {
+    const ledger = new ModelBudgetLedger(':memory:'); const fetcher = jest.fn(async () => usage());
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed('author'))
+      .send({model:'claude-opus-5-5',messages:[{role:'user',content:'a'}]})).status).toBe(200);
+    expect((await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed('verifier'))
+      .send({model:'gpt-6-astra',input:'v'})).status).toBe(200);
+    const calls = fetcher.mock.calls as unknown as [URL, RequestInit][];
+    expect(String(calls[0][0])).toBe('https://models.example/api/v1/chat/completions');
+    expect((calls[0][1].headers as Record<string,string>).authorization).toBe(`Bearer ${upstreamToken}`);
+    expect(String(calls[1][0])).toBe('https://verifier.example/v1/responses');
+    expect((calls[1][1].headers as Record<string,string>).authorization).toBe(`Bearer ${verifierUpstreamToken}`);
+    ledger.close();
+  });
+  it('refuses the other role\'s model before any provider is contacted', async () => {
+    const ledger = new ModelBudgetLedger(':memory:'); const fetcher = jest.fn(async () => usage());
+    const app = createModelEgressProxy({...config,fetcher,budget:{key,ledger}});
+    expect((await request(app).post('/v1/chat/completions').set('Authorization',`Bearer ${token}`).set('x-ronor-budget',signed('author'))
+      .send({model:'gpt-6-astra',messages:[{role:'user',content:'a'}]})).body.error).toBe('budget_payload_unsupported');
+    expect((await request(app).post('/v1/responses').set('Authorization',`Bearer ${codexToken}`).set('x-ronor-budget',signed('verifier'))
+      .send({model:'claude-opus-5-5',input:'v'})).body.error).toBe('budget_payload_unsupported');
+    expect(fetcher).not.toHaveBeenCalled(); ledger.close();
+  });
+  it('admits only the provider host named by each rate card in production', () => {
+    expect(() => createModelEgressProxy({ upstreams: upstreams(), clientTokens: [token, codexToken] })).toThrow('model_budget_provider_mismatch');
+    expect(() => createModelEgressProxy({ upstreams: upstreams('https://api.anthropic.com/v1', 'https://api.anthropic.com/v1'), clientTokens: [token, codexToken] })).toThrow('model_budget_provider_mismatch');
+    expect(() => createModelEgressProxy({ upstreams: upstreams('https://api.anthropic.com/v1', 'https://api.openai.com/v1'), clientTokens: [token, codexToken] })).not.toThrow();
+  });
+  it('refuses one credential shared by both providers', () => {
+    const shared = { author: { baseUrl: 'https://a.example/v1', token: upstreamToken }, verifier: { baseUrl: 'https://b.example/v1', token: upstreamToken } };
+    expect(() => createModelEgressProxy({ upstreams: shared, clientTokens: [token, codexToken], enforceProviderHosts: false })).toThrow('model_gateway_upstream_token_invalid');
   });
 });

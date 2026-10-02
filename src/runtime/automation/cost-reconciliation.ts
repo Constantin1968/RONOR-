@@ -1,4 +1,4 @@
-import { MODEL_RATE_CARD, signBudgetQuery } from './model-budget';
+import { MODEL_RATE_CARD_SET, signBudgetQuery } from './model-budget';
 import { readBoundedVerificationJson } from './post-execution-verifier';
 
 /** An observed cost is what the egress proxy actually settled with the provider
@@ -79,7 +79,7 @@ export function createCostReconciler(config: {
         if (!response.ok) return unavailable;
         const body = await readBoundedVerificationJson(response, 4096) as Record<string, unknown>;
         if (body.ok !== true || body.protocol !== 'ronor-model-egress/v1' ||
-            body.rate_card !== MODEL_RATE_CARD.id || body.budget_id !== budgetId) return unavailable;
+            body.rate_card !== MODEL_RATE_CARD_SET || body.budget_id !== budgetId) return unavailable;
         const settled = body.settled_micro_usd;
         const settledCount = body.settled_reservations;
         const pending = body.pending_reservations;

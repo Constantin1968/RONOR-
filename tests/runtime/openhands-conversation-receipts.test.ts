@@ -10,7 +10,7 @@ const secret = 'private-receipt-test-material';
 const claims = {
   audience: 'ronor-model-egress/v1', role: 'author', budget_id: 'run_0123456789abcdefabcd',
   mission_id: 'msn-receipt', ceiling_micro_usd: 1_000_000, prior_micro_usd: 0,
-  expires_at: '2099-01-01T00:00:00.000Z', rate_card: 'dashscope-intl-qwen3.8-max-20260902',
+  expires_at: '2099-01-01T00:00:00.000Z', rate_card: 'do-inference-opus5.5-author-gpt6.1sol-verifier-20261002',
 };
 function token(value: unknown = claims): string {
   const payload = Buffer.from(JSON.stringify(value)).toString('base64url');

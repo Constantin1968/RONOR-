@@ -78,12 +78,12 @@ describe('signed persistent model budget', () => {
   });
 });
 describe('text-only request reservations', () => {
-  const body = (extra = {}) => Buffer.from(JSON.stringify({model:'qwen3.8-max',messages:[{role:'user',content:'hello'}],...extra}));
+  const body = (extra = {}) => Buffer.from(JSON.stringify({model:'anthropic-claude-opus-5.5',messages:[{role:'user',content:'hello'}],...extra}));
   it('reserves input plus capped output before a provider request', () => {
-    const r = reserveModelRequest('/v1/chat/completions',body({max_tokens:10000}));
+    const r = reserveModelRequest('/v1/chat/completions',body({max_tokens:10000}),'author');
     expect(r.outputBound).toBe(4096);
     expect(r.payload.max_tokens).toBe(4096);
-    expect(r.reserveMicroUsd).toBe(r.inputBound*2+4096*6);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*8+4096*20);
   });
   it.each([{stream:true},{model:'unpriced'},{previous_response_id:'stored-context'},
     {tools:[{type:'web_search'}]}, {extra_body:{hidden:true}},
@@ -96,7 +96,7 @@ describe('text-only request reservations', () => {
     {messages:[{role:'assistant'}]},
     {messages:[{role:'user',content:[{type:'image_url',image_url:{url:'https://example.test'}}]}]}])(
     'refuses non-admitted costs %j', extra => {
-      expect(()=>reserveModelRequest('/v1/chat/completions',body(extra))).toThrow();
+      expect(()=>reserveModelRequest('/v1/chat/completions',body(extra),'author')).toThrow();
     });
   // Wire shapes produced by OpenHands SDK 1.42.1 Message.to_chat_dict / _list_serializer.
   it('admits the SDK prompt-cache markers, replayed thinking blocks and content-free tool-call turns', () => {
@@ -107,14 +107,30 @@ describe('text-only request reservations', () => {
         tool_calls:[{id:'call_1',type:'function',function:{name:'bash',arguments:'{}'}}]},
       {role:'tool',tool_call_id:'call_1',name:'bash',content:[{type:'text',text:'ok'}],cache_control:{type:'ephemeral'}},
     ];
-    const r = reserveModelRequest('/v1/chat/completions',body({messages}));
+    const r = reserveModelRequest('/v1/chat/completions',body({messages}),'author');
     expect(r.payload.max_tokens).toBe(4096);
-    expect(r.reserveMicroUsd).toBe(r.inputBound*2+4096*6);
+    expect(r.reserveMicroUsd).toBe(r.inputBound*8+4096*20);
   });
   it('charges measured input and all output at the catalog ceiling, without claiming invoice equality', () => {
-    expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'))).toBe(260);
-    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'))).toBe(0);
-    expect(modelResponseCharge(Buffer.from('{}'))).toBeNull();
+    expect(modelResponseCharge(Buffer.from('{"usage":{"prompt_tokens":100,"completion_tokens":10}}'),'author')).toBe(700);
+    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":100,"output_tokens":10}}'),'verifier')).toBe(400);
+    expect(modelResponseCharge(Buffer.from('{"usage":{"input_tokens":0,"output_tokens":0}}'),'author')).toBe(0);
+    expect(modelResponseCharge(Buffer.from('{}'),'author')).toBeNull();
+  });
+  it('binds each role to its own model, in the request and in the response', () => {
+    const verifierBody = Buffer.from(JSON.stringify({model:'openai-gpt-6-1-sol',input:'verify'}));
+    expect(()=>reserveModelRequest('/v1/responses',verifierBody,'author')).toThrow('budget_payload_unsupported');
+    expect(()=>reserveModelRequest('/v1/chat/completions',body(),'verifier')).toThrow('budget_payload_unsupported');
+    const v = reserveModelRequest('/v1/responses',verifierBody,'verifier');
+    expect(v.reserveMicroUsd).toBe(v.inputBound*3+4096*10);
+    expect(modelResponseCharge(Buffer.from('{"model":"openai-gpt-6-1-sol","usage":{"input_tokens":1,"output_tokens":1}}'),'author')).toBeNull();
+    expect(modelResponseCharge(Buffer.from('{"model":"anthropic-claude-opus-5.5","usage":{"prompt_tokens":1,"completion_tokens":1}}'),'author')).toBe(25);
+  });
+  it('surcharges provider-reported one-hour cache writes to their catalog rate', () => {
+    const usage = {prompt_tokens:100,completion_tokens:0,cache_creation:{ephemeral_1h_input_tokens:40,ephemeral_5m_input_tokens:0}};
+    expect(modelResponseCharge(Buffer.from(JSON.stringify({usage})),'author')).toBe(100*5+40*3);
+    expect(modelResponseCharge(Buffer.from(JSON.stringify({usage:{...usage,cache_creation:{ephemeral_1h_input_tokens:101}}})),'author')).toBeNull();
+    expect(modelResponseCharge(Buffer.from(JSON.stringify({usage:{input_tokens:100,output_tokens:0,cache_creation:{ephemeral_1h_input_tokens:1}}})),'verifier')).toBeNull();
   });
 });
 

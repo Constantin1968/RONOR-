@@ -25,9 +25,9 @@ snapshot() {
 before="$(containers)"
 [[ "$(printf '%s\n' "$before" | wc -l)" == 8 ]]
 before_state="$(snapshot)"
-docker exec ronor-development-openhands-bridge-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(r("RONOR_OPENHANDS_LLM_MODEL")!=="openai/qwen3.8-max")process.exit(2)'
-docker exec ronor-development-codex-verifier-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(r("RONOR_CODEX_MODEL")!=="qwen3.8-max")process.exit(2)'
-docker exec ronor-development-model-egress-proxy-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(new URL(r("RONOR_MODEL_GATEWAY_BASE_URL")).hostname!=="dashscope-intl.aliyuncs.com")process.exit(2)'
+docker exec ronor-development-openhands-bridge-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(r("RONOR_OPENHANDS_LLM_MODEL")!=="openai/anthropic-claude-opus-5.5")process.exit(2)'
+docker exec ronor-development-codex-verifier-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(r("RONOR_CODEX_MODEL")!=="openai-gpt-6-1-sol")process.exit(2)'
+docker exec ronor-development-model-egress-proxy-1 node -e 'const {requiredSecret:r}=require("/app/dist/runtime/automation/services/secret-files.js");if(new URL(r("RONOR_MODEL_GATEWAY_BASE_URL")).hostname!=="inference.do-ai.run")process.exit(2)'
 export RONOR_BUDGET_SOURCE="$source_dir" RONOR_BUDGET_TAG="$revision"
 compose=(docker compose --project-name ronor-development
   --env-file "$root/environment" --env-file "$root/verification-fix.env" --env-file "$root/controller-fix.env" --env-file "$root/accounting-fix.env"

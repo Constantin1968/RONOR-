@@ -1,0 +1,25 @@
+# Model change (2 October 2026): author Claude Opus 5.5, verifier GPT-6.1 Sol,
+# both through the DigitalOcean serverless inference gateway (one HTTPS upstream,
+# one dedicated key). Apply LAST. The rate card id must equal MODEL_RATE_CARD.id
+# in src/runtime/automation/model-budget.ts; every service refuses to start otherwise.
+services:
+  model-egress-proxy:
+    environment:
+      RONOR_MODEL_RATE_CARD: do-inference-opus5.5-author-gpt6.1sol-verifier-20261002
+      RONOR_MODEL_GATEWAY_BASE_URL: https://inference.do-ai.run/v1
+  openhands-bridge:
+    environment:
+      RONOR_MODEL_RATE_CARD: do-inference-opus5.5-author-gpt6.1sol-verifier-20261002
+      RONOR_OPENHANDS_LLM_MODEL: openai/anthropic-claude-opus-5.5
+  openhands-agent:
+    environment:
+      LLM_MODEL: openai/anthropic-claude-opus-5.5
+  codex-verifier:
+    environment:
+      RONOR_MODEL_RATE_CARD: do-inference-opus5.5-author-gpt6.1sol-verifier-20261002
+      RONOR_CODEX_MODEL: openai-gpt-6-1-sol
+      RONOR_CODEX_INPUT_USD_PER_MTOK: "3"
+      RONOR_CODEX_OUTPUT_USD_PER_MTOK: "10"
+secrets:
+  model_gateway_upstream_token:
+    file: ${RONOR_MODEL_GATEWAY_UPSTREAM_TOKEN_FILE:?dedicated gateway key file}

@@ -61,7 +61,7 @@ if (mode === 'receiver') {
   (async () => {
     const before = await call(prefix);
     if (!['paused', 'error'].includes(before.execution_status)
-        || before.agent?.llm?.model !== 'openai/qwen3.8-max'
+        || before.agent?.llm?.model !== 'openai/anthropic-claude-opus-5.5'
         || before.confirmation_policy?.kind !== 'AlwaysConfirm'
         || before.agent.llm.base_url !== r('RONOR_OPENHANDS_LLM_BASE_URL')) throw Error('identity_refused');
     const oldEvents = new Set((await call(prefix + '/events/search?limit=100')).items.map(e => e.id));

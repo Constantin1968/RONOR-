@@ -79,7 +79,7 @@ const PROVIDER_HOST = '100.64.0.1';
 function responsesEnvelope(script: ProviderScript) {
   const verdict = script.verdict ?? { verdict: 'pass' as const, summary: 'Diff is coherent and the supplied test report passes.', evidence: ['faithful-evaluation:pass'] };
   return {
-    id: `resp_${crypto.randomBytes(12).toString('hex')}`, object: 'response', model: MODEL_RATE_CARD.model,
+    id: `resp_${crypto.randomBytes(12).toString('hex')}`, object: 'response', model: MODEL_RATE_CARD.verifier.model,
     status: 'completed',
     output: [{ id: `msg_${crypto.randomBytes(12).toString('hex')}`, type: 'message', role: 'assistant',
       content: [{ type: 'output_text', text: JSON.stringify(verdict), annotations: [] }] }],
@@ -167,8 +167,8 @@ export async function startProtocolFaithfulStack(config: {
     // the rate card, so the evaluator's arithmetic and the ledger's settlement
     // are two independent computations over the same provider counters.
     evaluator: createOpenAIResponsesCodexEvaluator({
-      apiKey: tokens.verifier, model: MODEL_RATE_CARD.model, baseUrl: 'http://model-egress-proxy/v1',
-      inputUsdPerMillionTokens: MODEL_RATE_CARD.inputMicroUsd, outputUsdPerMillionTokens: MODEL_RATE_CARD.outputMicroUsd,
+      apiKey: tokens.verifier, model: MODEL_RATE_CARD.verifier.model, baseUrl: 'http://model-egress-proxy/v1',
+      inputUsdPerMillionTokens: MODEL_RATE_CARD.verifier.inputMicroUsd, outputUsdPerMillionTokens: MODEL_RATE_CARD.verifier.outputMicroUsd,
       fetcher, timeoutMs: 20_000,
     }),
   });

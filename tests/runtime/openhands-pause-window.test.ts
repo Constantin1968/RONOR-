@@ -20,7 +20,7 @@ const json = (value: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(value), { status }));
 
 const boundedLlm = {
-  model: 'openai/qwen3.8-max', base_url: 'http://model-egress-proxy:3004/v1',
+  model: 'openai/anthropic-claude-opus-5.5', base_url: 'http://model-egress-proxy:3004/v1',
   max_input_tokens: CONTEXT_BOUNDS.maxInputTokens, max_message_chars: CONTEXT_BOUNDS.maxMessageChars,
   max_output_tokens: 4096, num_retries: 0, extra_headers: { 'x-ronor-budget': 'test-budget' },
 };
@@ -37,7 +37,7 @@ const state = (status: string, tokens: number) => ({
   workspace: { working_dir: '/workspace/project' },
   confirmation_policy: { kind: 'AlwaysConfirm' },
   stats: { usage_to_metrics: { agent: {
-    model_name: 'openai/qwen3.8-max',
+    model_name: 'openai/anthropic-claude-opus-5.5',
     accumulated_token_usage: { prompt_tokens: tokens, completion_tokens: 0 },
   } } },
 });
@@ -73,12 +73,12 @@ function harness(settleAfterMs: number, windowMs?: number) {
     ...(windowMs === undefined ? {} : { pauseConfirmWindowMs: windowMs }),
     now: () => clock,
     sleep: async (ms: number) => { clock += ms; },
-    llm: { model: 'openai/qwen3.8-max', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
+    llm: { model: 'openai/anthropic-claude-opus-5.5', apiKey: 'test-key', baseUrl: 'http://model-egress-proxy:3004/v1' },
   });
   const envelope: OpenHandsExecutionEnvelope = {
     assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'],
     objective_hash: 'c'.repeat(64), deadline: new Date(clock + 45 * 60_000).toISOString(),
-    budget_token: 'test-budget', resume: { conversation_id: conversationId, accounted_cost_usd: 0.2 },
+    budget_token: 'test-budget', resume: { conversation_id: conversationId, accounted_cost_usd: 0.5 },
   };
   return {
     client, envelope, fetcher,

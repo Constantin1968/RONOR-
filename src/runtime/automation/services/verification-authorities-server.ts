@@ -12,9 +12,9 @@ const artifacts = createWorkspaceArtifactCollector(requiredSecret('RONOR_AUTOMAT
 let app; let port: number;
 if (role === 'codex') {
   if (process.env.RONOR_MODEL_RATE_CARD !== MODEL_RATE_CARD.id ||
-      requiredSecret('RONOR_CODEX_MODEL') !== MODEL_RATE_CARD.model ||
-      price('RONOR_CODEX_INPUT_USD_PER_MTOK') !== MODEL_RATE_CARD.inputMicroUsd ||
-      price('RONOR_CODEX_OUTPUT_USD_PER_MTOK') !== MODEL_RATE_CARD.outputMicroUsd) throw new Error('verifier_budget_rate_card_required');
+      requiredSecret('RONOR_CODEX_MODEL') !== MODEL_RATE_CARD.verifier.model ||
+      price('RONOR_CODEX_INPUT_USD_PER_MTOK') !== MODEL_RATE_CARD.verifier.inputMicroUsd ||
+      price('RONOR_CODEX_OUTPUT_USD_PER_MTOK') !== MODEL_RATE_CARD.verifier.outputMicroUsd) throw new Error('verifier_budget_rate_card_required');
   app = createCodexVerifierApp({ serviceToken: requiredSecret('RONOR_CODEX_VERIFIER_TOKEN'), receiptPrivateKey: requiredSecret('RONOR_CODEX_RECEIPT_PRIVATE_KEY'), artifacts, evaluator: createOpenAIResponsesCodexEvaluator({
     apiKey: requiredSecret('RONOR_CODEX_API_KEY'), model: requiredSecret('RONOR_CODEX_MODEL'),
     baseUrl: process.env.RONOR_CODEX_BASE_URL, timeoutMs: codexTimeoutFromEnv(),

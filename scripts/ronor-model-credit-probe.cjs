@@ -15,7 +15,7 @@ function readToken() {
 
 async function main() {
   const base = (process.env.RONOR_MODEL_GATEWAY_BASE_URL || '').replace(/\/+$/, '');
-  const model = process.env.RONOR_MODEL_CREDIT_PROBE_MODEL || 'qwen3.8-max';
+  const model = process.env.RONOR_MODEL_CREDIT_PROBE_MODEL || 'anthropic-claude-opus-5.5';
   if (!base) { console.log(JSON.stringify({ verdict: 'probe_misconfigured', detail: 'gateway_base_url_missing' })); process.exit(2); }
   const started = Date.now();
   let response;

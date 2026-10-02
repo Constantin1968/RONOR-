@@ -3,9 +3,9 @@ import { createNativeOpenHandsClient, nativeOpenHandsCost, nativeOpenHandsCatalo
 describe('native catalog accounting', () => {
   it('computes the conservative catalog subtotal from measured tokens without double-counting cache hits', () => {
     expect(nativeOpenHandsCatalogCost({stats:{usage_to_metrics:{agent:{
-      model_name:'openai/qwen3.8-max',accumulated_cost:0,costs:[],
+      model_name:'openai/anthropic-claude-opus-5.5',accumulated_cost:0,costs:[],
       accumulated_token_usage:{prompt_tokens:306258,completion_tokens:4135,cache_read_tokens:270336},
-    }}}})).toBe(0.637326);
+    }}}})).toBe(1.61399);
   });
   it('refuses missing usage or a different model even if it advertises a zero cost', () => {
     expect(nativeOpenHandsCatalogCost({})).toBeNull();
@@ -21,7 +21,7 @@ const envelope: OpenHandsExecutionEnvelope = {
   assignment_id: 'a1', instruction: 'Run tests.', allowed_actions: ['read_repo', 'run_tests'], objective_hash: 'a'.repeat(64), deadline: new Date(Date.now() + 120_000).toISOString(),
 };
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status }));
-const boundedLlm = {model:'openai/qwen3.8-max',base_url:'http://model-egress-proxy:3004/v1',
+const boundedLlm = {model:'openai/anthropic-claude-opus-5.5',base_url:'http://model-egress-proxy:3004/v1',
   max_input_tokens:CONTEXT_BOUNDS.maxInputTokens,max_message_chars:CONTEXT_BOUNDS.maxMessageChars,max_output_tokens:4096,num_retries:0,
   extra_headers:{'x-ronor-budget':'test-budget'}};
 const boundedAgent = {llm:boundedLlm,condenser:{kind:'LLMSummarizingCondenser',max_size:CONTEXT_BOUNDS.condenserMaxSize,max_tokens:CONTEXT_BOUNDS.condenserMaxTokens,keep_first:2,
@@ -30,9 +30,9 @@ const boundedAgent = {llm:boundedLlm,condenser:{kind:'LLMSummarizingCondenser',m
 describe('native OpenHands Agent Server client', () => {
   it('resumes the same paused conversation with verified budget headers and reports only incremental usage',async()=>{
     const state=(tokens:number,configured=false)=>({execution_status:'paused',
-      agent:configured?boundedAgent:{llm:{model:'openai/qwen3.8-max'}},
+      agent:configured?boundedAgent:{llm:{model:'openai/anthropic-claude-opus-5.5'}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
     const fetcher=jest.fn()
       .mockImplementationOnce(()=>json(state(100000)))
       .mockImplementationOnce(()=>json({success:true}))
@@ -41,9 +41,9 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(()=>json({...state(110000,true),execution_status:'finished'}))
       .mockImplementationOnce(()=>json({items:[]}));
     const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
-      catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
-    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
-      .toMatchObject({ok:true,cost_usd:0.02,evidence:[`conversation:${conversationId}`]});
+      catalogAccounting:true,llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.5}}))
+      .toMatchObject({ok:true,cost_usd:0.05,evidence:[`conversation:${conversationId}`]});
     expect(fetcher.mock.calls.map(c=>new URL(c[0]).pathname)).toEqual([
       `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/switch_llm`,
       `/api/conversations/${conversationId}`,`/api/conversations/${conversationId}/run`,
@@ -54,7 +54,7 @@ describe('native OpenHands Agent Server client', () => {
     const state=(status:string,tokens:number)=>({execution_status:status,
       agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:tokens,completion_tokens:0}}}}});
     const fetcher=jest.fn()
       .mockImplementationOnce(()=>json(state('paused',100000)))
       .mockImplementationOnce(()=>json({success:true}))
@@ -66,15 +66,15 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementationOnce(()=>json({items:[]}));
     const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,sleep:async()=>undefined,catalogAccounting:true,
-      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
-    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
-      .toMatchObject({ok:true,cost_usd:0.02});
+      llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.5}}))
+      .toMatchObject({ok:true,cost_usd:0.05});
   });
   it('reports the refusal code from the conversation error events when a run really stops',async()=>{
     const state=(status:string)=>({execution_status:status,
       agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
     const fetcher=jest.fn()
       .mockImplementationOnce(()=>json(state('paused')))
       .mockImplementationOnce(()=>json({success:true}))
@@ -85,8 +85,8 @@ describe('native OpenHands Agent Server client', () => {
         : state('paused')));
     const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
-      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
-    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
+      llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.5}});
     expect(result.ok).toBe(false);
     expect(result.summary).toBe('openhands_terminated_paused_budget_nontext_refused');
   });
@@ -94,7 +94,7 @@ describe('native OpenHands Agent Server client', () => {
     const state=(execution_status:string)=>({execution_status,
       agent:boundedAgent,
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}});
     // A healthy earlier event names a secret; the LAST event carries the real cause.
     const events={items:[
       {kind:'ActionEvent',source:'agent',thought:'reading openhands_llm_api_key from the environment'},
@@ -110,20 +110,20 @@ describe('native OpenHands Agent Server client', () => {
       .mockImplementation((input:URL)=>json(new URL(input).pathname.endsWith('/events/search')?events:state('error')));
     const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
       pollIntervalMs:0,startupPolls:0,sleep:async()=>undefined,catalogAccounting:true,
-      llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
-    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}});
+      llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    const result=await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.5}});
     expect(result.ok).toBe(false);
     expect(result.summary).toBe('openhands_terminated_error_budget_insufficient_before_dispatch');
   });
   it('does not start a preserved conversation when the budget header cannot be verified',async()=>{
-    const state={execution_status:'paused',agent:{llm:{model:'openai/qwen3.8-max'}},
+    const state={execution_status:'paused',agent:{llm:{model:'openai/anthropic-claude-opus-5.5'}},
       workspace:{working_dir:'/workspace/project'},confirmation_policy:{kind:'AlwaysConfirm'},
-      stats:{usage_to_metrics:{agent:{model_name:'openai/qwen3.8-max',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
+      stats:{usage_to_metrics:{agent:{model_name:'openai/anthropic-claude-opus-5.5',accumulated_token_usage:{prompt_tokens:100000,completion_tokens:0}}}}};
     const fetcher=jest.fn().mockImplementationOnce(()=>json(state)).mockImplementationOnce(()=>json({success:true}))
       .mockImplementationOnce(()=>json(state));
     const client=createNativeOpenHandsClient({pauseConfirmWindowMs:0,baseUrl:'https://hands.invalid',sessionApiKey:'test-session',fetcher,
-      catalogAccounting:true,llm:{model:'openai/qwen3.8-max',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
-    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.2}}))
+      catalogAccounting:true,llm:{model:'openai/anthropic-claude-opus-5.5',apiKey:'test-key',baseUrl:'http://model-egress-proxy:3004/v1'}});
+    expect(await client.execute({...envelope,budget_token:'test-budget',resume:{conversation_id:conversationId,accounted_cost_usd:0.5}}))
       .toMatchObject({ok:false,cost_usd:0,summary:'openhands_resume_configuration_unverified'});
     expect(fetcher).toHaveBeenCalledTimes(3);
   });

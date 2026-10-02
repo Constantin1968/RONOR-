@@ -7,7 +7,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('model_
 const host = process.env.RONOR_MODEL_EGRESS_HOST || '127.0.0.1';
 if (process.env.RONOR_MODEL_RATE_CARD !== MODEL_RATE_CARD.id) throw new Error('model_budget_rate_card_required');
 const gatewayBaseUrl = requiredSecret('RONOR_MODEL_GATEWAY_BASE_URL');
-if (new URL(gatewayBaseUrl).hostname !== 'dashscope-intl.aliyuncs.com') throw new Error('model_budget_provider_mismatch');
+if (new URL(gatewayBaseUrl).hostname !== MODEL_RATE_CARD.gatewayHost) throw new Error('model_budget_provider_mismatch');
 createModelEgressProxy({
   gatewayBaseUrl,
   clientTokens: [

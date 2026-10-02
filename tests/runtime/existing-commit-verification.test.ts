@@ -108,7 +108,7 @@ it('complete workflow runs the real range/test/model/receipt gates without autho
   const result = await terminal(started.body.verification.verification_id);
   // The cost is the catalogue arithmetic over the counters the provider really
   // reported, computed independently by the evaluator and by the proxy ledger.
-  const expected = (1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd) / 1_000_000;
+  const expected = (1800 * MODEL_RATE_CARD.verifier.inputMicroUsd + 120 * MODEL_RATE_CARD.verifier.outputMicroUsd) / 1_000_000;
   expect(result).toMatchObject({ operation: 'verify-existing', full_development: false, status: 'verified',
     base_commit: base, head_commit: head, victoria_accepted: true });
   expect(result.cost_usd).toBeCloseTo(expected, 9);
@@ -121,11 +121,11 @@ it('complete workflow runs the real range/test/model/receipt gates without autho
     'model-egress-proxy/v1/responses', 'model-provider/v1/responses',
     'victoria-assurance/v1/assure',
   ]);
-  expect(stack.providerRequests[0]).toMatchObject({ model: MODEL_RATE_CARD.model });
+  expect(stack.providerRequests[0]).toMatchObject({ model: MODEL_RATE_CARD.verifier.model });
   expect(String(stack.providerRequests[0].input)).toContain('+candidate');
   const settlement = stack.ledger.settlement(result.verification_id ?? started.body.verification.verification_id);
   expect(settlement).toMatchObject({ settled_reservations: 1, pending_reservations: 0, frozen: false });
-  expect(settlement!.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd);
+  expect(settlement!.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.verifier.inputMicroUsd + 120 * MODEL_RATE_CARD.verifier.outputMicroUsd);
   expect(getDb().prepare('SELECT COUNT(*) AS n FROM runtime_automation_runs').get()).toEqual({ n: 0 });
   const stored = getDb().prepare('SELECT payload FROM runtime_existing_commit_verifications').get() as { payload: string };
   // The model's free text is never persisted into the verification record.
@@ -197,7 +197,7 @@ it('fails closed on non-2xx Codex even when its body claims pass and never auto-
   const id = started.body.verification.verification_id;
   const settled = stack.ledger.settlement(id)!;
   expect(settled).toMatchObject({ settled_reservations: 1, pending_reservations: 0, frozen: false });
-  expect(settled.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.inputMicroUsd + 120 * MODEL_RATE_CARD.outputMicroUsd);
+  expect(settled.settled_micro_usd).toBe(1800 * MODEL_RATE_CARD.verifier.inputMicroUsd + 120 * MODEL_RATE_CARD.verifier.outputMicroUsd);
   const failed = (await status(id)).body.verification;
   expect(failed.reason).toBe('codex_failure_response_invalid');
   expect(failed.cost_usd).toBeCloseTo(settled.settled_micro_usd / 1_000_000, 9);
@@ -351,7 +351,7 @@ it('observes the settled egress ledger for a run that ended without reporting a 
       queried = { id, authorised };
       if (!authorised) return new Response(JSON.stringify({ ok: false }), { status: 401 });
       return new Response(JSON.stringify({ ok: true, protocol: 'ronor-model-egress/v1',
-        rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id, settled_micro_usd: 17284,
+        rate_card: MODEL_RATE_CARD.id, budget_id: id, settled_micro_usd: 17284,
         settled_reservations: 2, pending_reservations: 1, outstanding_micro_usd: 40000, frozen: true }), { status: 200 });
     }
     return fetcher(input, init);
@@ -475,7 +475,7 @@ it('keeps the barrier after a cancellation while a model dispatch is still unres
   // must stay even though the worktree itself is idle.
   pauseEvidence = true;
   const local = withLedgerController(id => new Response(JSON.stringify({ ok: true,
-    protocol: 'ronor-model-egress/v1', rate_card: 'dashscope-intl-qwen3.8-max-20260902', budget_id: id,
+    protocol: 'ronor-model-egress/v1', rate_card: MODEL_RATE_CARD.id, budget_id: id,
     settled_micro_usd: 4000, settled_reservations: 1, pending_reservations: 1,
     outstanding_micro_usd: 200000, frozen: true }), { status: 200 }));
   try {

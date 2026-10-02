@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { createServiceRateLimit } from './rate-limit';
 import net from 'node:net';
 import express, { type Request } from 'express';
-import { MODEL_RATE_CARD, ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyBudgetQuery, verifyModelBudget } from '../model-budget';
+import { MODEL_RATE_CARD, type ModelRole, ModelBudgetError, ModelBudgetLedger, modelResponseCharge, reserveModelRequest, verifyBudgetQuery, verifyModelBudget } from '../model-budget';
 
 type Fetcher = typeof fetch;
 const ALLOWED_PATHS = new Set(['/v1/responses', '/v1/chat/completions', '/v1/models']);
@@ -77,6 +77,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
     const target = new URL(`${upstream.pathname}${path.slice(3)}`, upstream.origin);
     let reservation: string | undefined;
     let reservedAmount = 0;
+    let role: ModelRole | undefined;
     let deadline = Date.now() + 120_000;
     let requestBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (req.method === 'POST' && config.budget) {
@@ -87,7 +88,8 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
       }
       try {
         deadline = Math.min(deadline, Date.parse(claims.expires_at));
-        const bounded = reserveModelRequest(path, requestBody);
+        const bounded = reserveModelRequest(path, requestBody, claims.role);
+        role = claims.role;
         reservedAmount = bounded.reserveMicroUsd;
         reservation = config.budget.ledger.reserve(claims, reservedAmount);
         requestBody = Buffer.from(JSON.stringify(bounded.payload));
@@ -110,7 +112,7 @@ export function createModelEgressProxy(config: { gatewayBaseUrl: string; clientT
       const body = new Uint8Array(await response.arrayBuffer());
       if (body.byteLength > 2 * 1024 * 1024) throw new Error('upstream_response_too_large');
       if (reservation && config.budget) {
-        const cost = modelResponseCharge(Buffer.from(body));
+        const cost = role ? modelResponseCharge(Buffer.from(body), role) : null;
         // A provider refusal is a *resolved* outcome, not an unknown one: no
         // completion was produced, so the dispatch is settled at its own
         // worst-case reservation rather than freezing the budget. The ceiling

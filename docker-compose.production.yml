@@ -304,8 +304,13 @@ services:
     profiles: ["energy-trading"]
     environment:
       POWERTRADE_STAGE: shadow
-      POWERTRADE_TOKEN: ${ET_API_TOKEN:?ET_API_TOKEN obligatoriu}
-      POWERTRADE_LEDGER_HMAC_KEY: ${TRADING_LEDGER_HMAC_KEY:?TRADING_LEDGER_HMAC_KEY obligatoriu}
+      # `:-` și nu `:?`: Compose interpolează tot fișierul, inclusiv serviciile din
+      # profiluri oprite, deci `:?` făcea fișierul imposibil de încărcat pe orice
+      # gazdă fără cheile de trading, chiar și pentru `up ronor`. Serviciul rămâne
+      # închis fără ele: fără jeton, rutele autentificate răspund 503; fără cheia
+      # registrului, scrierea este refuzată (services/r-powertrade/api.py, ledger.py).
+      POWERTRADE_TOKEN: ${ET_API_TOKEN:-}
+      POWERTRADE_LEDGER_HMAC_KEY: ${TRADING_LEDGER_HMAC_KEY:-}
       POWERTRADE_LEDGER_PATH: /app/state/powertrade-ledger.db
     networks:
       default:

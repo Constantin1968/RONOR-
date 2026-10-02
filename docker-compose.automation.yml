@@ -81,7 +81,10 @@ services:
       - /tmp:rw,exec,nosuid,nodev,size=512m
       # Conversation state is ephemeral and intentionally excluded from the
       # repository worktree. Evidence is exported separately before teardown.
-      - /workspace/conversations:rw,nosuid,nodev,size=1g
+      # uid/gid: tmpfs is recreated root-owned on every container start; the agent
+      # runs as 10001 with all capabilities dropped and could not create
+      # conversations after a host reboot (run_4540ee2000c3bb9de91a, 2 Oct 2026).
+      - /workspace/conversations:rw,nosuid,nodev,size=1g,uid=10001,gid=10001,mode=0700
     command: [--host, 0.0.0.0, --port, "8000"]
     environment:
       HOME: /tmp/openhands-home

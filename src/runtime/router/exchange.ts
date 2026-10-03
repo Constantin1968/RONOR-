@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Model Exchange Executor
+ * Ronor Runtime — L1 · Model Exchange Executor
  * ────────────────────────────────────────────
  * Policy → 6D rank → execute → fall back → account. One function, one
  * transaction, one auditable record of what was attempted and why.

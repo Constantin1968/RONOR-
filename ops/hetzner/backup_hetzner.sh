@@ -24,7 +24,7 @@ log() { echo "$(date -u +%H:%M:%S) $*" | tee -a "$LOG"; }
 log "=== BACKUP HETZNER $TS ==="
 
 # ---------------------------------------------------------------- 1. Qdrant
-log "--- 1. Qdrant (memoria RONOR) ---"
+log "--- 1. Qdrant (memoria Ronor) ---"
 # Cheia se afla in containerul `ronor-qdrant` (nu `ronor-qdrant-tls`), sub
 # numele QDRANT__SERVICE__API_KEY. Valoarea poate contine `=`, deci `cut -f2-`.
 QK=$(docker inspect ronor-qdrant --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^QDRANT__SERVICE__API_KEY=' | cut -d= -f2-)
@@ -111,7 +111,7 @@ log "--- 5. Inventar pentru restaurare ---"
   docker ps --format '{{.Names}}|{{.Image}}|{{.Status}}'
   echo "## Volume"
   docker volume ls --format '{{.Name}}'
-  echo "## Servicii systemd RONOR"
+  echo "## Servicii systemd Ronor"
   systemctl list-units --type=service --state=running --no-legend 2>/dev/null | grep -iE 'ronor|caddy' | awk '{print $1}'
   echo "## Cron"
   crontab -l 2>/dev/null

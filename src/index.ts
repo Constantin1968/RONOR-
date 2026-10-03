@@ -1,5 +1,5 @@
 /**
- * RONOR — Governed Intelligence for Energy Operations
+ * Ronor — Governed Intelligence for Energy Operations
  * Main Entry Point (Build Week 2026)
  *
  * Ma11AI · Mayleven Ecosystem
@@ -68,8 +68,8 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 async function bootstrap(): Promise<void> {
   logger.info('╔══════════════════════════════════════════════════╗');
-  logger.info('║  RONOR — Model Exchange & Governance Spine       ║');
-  logger.info('║  for Energy Operations · Ma11AI Mayleven         ║');
+  logger.info('║  Ronor SIS — Sovereign Intelligence System       ║');
+  logger.info('║  Ronor Runtime · Ma11AI · Mayleven Ecosystem     ║');
   logger.info('╚══════════════════════════════════════════════════╝');
 
   // OPENAI_API_KEY is recommended but not required — the decision loop
@@ -370,7 +370,7 @@ async function bootstrap(): Promise<void> {
   }
 
   const server = app.listen(PORT, () => {
-    logger.info(`RONOR Runtime listening on http://localhost:${PORT}`);
+    logger.info(`Ronor Runtime listening on http://localhost:${PORT}`);
     logger.info(`API: http://localhost:${PORT}/api/v1`);
     logger.info(`Health: http://localhost:${PORT}/health`);
     logger.info(`Models active: ${modelFabric.getAvailableModels().length}`);

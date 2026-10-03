@@ -1,4 +1,4 @@
-# RONOR — Release Manifest
+# Ronor — Release Manifest
 
 ## Release identity
 
@@ -6,7 +6,7 @@
 |-------|-------|
 | Version | `0.4.0-core-active` |
 | Tag | `v0.4.0-core-active` |
-| Release title | RONOR v0.4.0 — Core Active (MIP-014 R-Knowledge Merged) |
+| Release title | Ronor v0.4.0 — Core Active (MIP-014 R-Knowledge Merged) |
 | Release date | 3 August 2026 |
 | Repository | [Constantin1968/RONOR-](https://github.com/Constantin1968/RONOR-) |
 | Branch | `main` |

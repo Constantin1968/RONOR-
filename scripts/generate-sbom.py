@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RONOR — CycloneDX 1.5 SBOM generator.
+"""Ronor — CycloneDX 1.5 SBOM generator.
 
 Builds SBOM.json from package.json (declared ranges) and package-lock.json
 (resolved versions, integrity hashes and licences where available).
@@ -114,7 +114,7 @@ sbom = {
     "metadata": {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tools": [{
-            "vendor": "Mayleven / RONOR Engineering",
+            "vendor": "Mayleven / Ronor Engineering",
             "name": "ronor-sbom-generator",
             "version": "1.0.0",
         }],

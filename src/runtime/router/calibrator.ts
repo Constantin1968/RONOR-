@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Telemetry Calibrator
+ * Ronor Runtime — L1 · Telemetry Calibrator
  * ─────────────────────────────────────────
  * The 6D router is only as honest as its inputs. A router that scores latency
  * from a constant in a source file cannot notice that a provider has degraded,

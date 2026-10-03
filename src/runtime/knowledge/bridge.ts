@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L2 · Knowledge Bridge
+ * Ronor Runtime — L2 · Knowledge Bridge
  * ─────────────────────────────────────
  * Connects the runtime request path to the existing R-Knowledge plane, which
  * already implements the parts that are hard to get right: chunking, embedding

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# RONOR — Deployment
+# Ronor — Deployment
 # ----------------------------------------------------------------------------
 # Builds and brings up the production composition on a host already prepared by
 # deploy/setup-server.sh, then VERIFIES the result and reports what it actually
@@ -285,7 +285,7 @@ fi
 # ---------------------------------------------------------------------------
 # Deploy
 # ---------------------------------------------------------------------------
-head1 "RONOR — deploy"
+head1 "Ronor — deploy"
 printf '  repo    : %s\n' "$REPO_ROOT"
 printf '  branch  : %s\n' "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'not a git checkout')"
 printf '  commit  : %s\n' "$(git rev-parse --short HEAD 2>/dev/null || echo '-')"

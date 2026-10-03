@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram · Energy Trading · Command Handlers
+ * Ronor — L0 · Telegram · Energy Trading · Command Handlers
  * ──────────────────────────────────────────────────────────
  * Every command is a pure function of (parsed args, user identity, trading
  * client) → formatted text for the bot to send. Handlers never touch the
@@ -663,7 +663,7 @@ export function tradingTrainerOnboarding(userName: string): string {
   return [
     `👋 Bine ai venit, ${name}.`,
     '',
-    'Ai fost înrolată în RONOR ca <b>nrgpaths:trading_trainer</b>. Acest bot este brațul de trading crossborder de energie electrică. Rolul tău este să inițiezi sesiuni de trading (fără plafon de volum), să contribui cazuri și feedback, și să vezi rapoarte. Fiecare sesiune propusă de arm necesită co-semnătură din partea suveranului (Liviu) înainte de a fi nominată și decontată.',
+    'Ai fost înrolată în Ronor ca <b>nrgpaths:trading_trainer</b>. Acest bot este brațul de trading crossborder de energie electrică. Rolul tău este să inițiezi sesiuni de trading (fără plafon de volum), să contribui cazuri și feedback, și să vezi rapoarte. Fiecare sesiune propusă de arm necesită co-semnătură din partea suveranului (Liviu) înainte de a fi nominată și decontată.',
     '',
     '<b>Fluxul unei sesiuni de trading</b>',
     '1. Tu: <code>/trade_request day=YYYY-MM-DD</code> (opțional <code>zones=</code>, <code>min_spread=</code>, <code>max_trades=</code>, <code>volume=</code>).',
@@ -686,7 +686,7 @@ export function tradingTrainerOnboarding(userName: string): string {
     '',
     '<b>Ce nu poți face din rolul actual</b>',
     '· nu poți nominaliza sau deconta un book fără co-sign suveran',
-    '· nu ai acces la comenzile generale RONOR (query, mission, runtime status)',
+    '· nu ai acces la comenzile generale Ronor (query, mission, runtime status)',
     '',
     '<b>Atenție</b>',
     'Actualizările structurate (poziție, umpluturi, limite) merg PRIN <code>/upload_case</code> cu un .xlsx. <code>/feedback</code> și <code>/correct</code> alimentează doar raționamentul arm-ului, nu corpusul de învățare zilnic.',

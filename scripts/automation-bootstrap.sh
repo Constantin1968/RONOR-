@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RONOR automation activation bootstrap — host-side, idempotent, non-destructive.
+# Ronor automation activation bootstrap — host-side, idempotent, non-destructive.
 #
 # Creates ONLY what scripts/automation-preflight.sh audits: the three Docker
 # networks, the secret directory with bounded permissions, the Ed25519 receipt

@@ -46,4 +46,4 @@ if (receiptRoot) {
 }
 const app = createEvidenceRunnerApp({ token: requiredSecret('RONOR_EVIDENCE_RUNNER_TOKEN'), workspaceRoot, artifacts, tests, boundedTests, acceptance });
 const port = Number(process.env.RONOR_EVIDENCE_RUNNER_PORT ?? 3005);
-app.listen(port, '0.0.0.0', () => process.stdout.write(`RONOR evidence runner listening on 0.0.0.0:${port}\n`));
+app.listen(port, '0.0.0.0', () => process.stdout.write(`Ronor evidence runner listening on 0.0.0.0:${port}\n`));

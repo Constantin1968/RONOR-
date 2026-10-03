@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram Interface · API Client
+ * Ronor — L0 · Telegram Interface · API Client
  * ─────────────────────────────────────────────
  * A minimal, typed wrapper around the Telegram Bot API. Only the methods this
  * bridge actually calls are implemented; the rest of the surface does not exist

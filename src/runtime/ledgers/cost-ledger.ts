@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L7 · Cost-of-Intelligence and Value Ledgers
+ * Ronor Runtime — L7 · Cost-of-Intelligence and Value Ledgers
  * ─────────────────────────────────────────────────────────
  * The Cost-of-Intelligence ledger answers the question a CFO actually asks:
  * not "what does the model cost per million tokens" but "what did this

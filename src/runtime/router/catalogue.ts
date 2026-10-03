@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Model Catalogue
+ * Ronor Runtime — L1 · Model Catalogue
  * ────────────────────────────────────
  * The registry the Runtime Active router scores against. It differs from the
  * legacy `src/model-exchange/registry.ts` in three ways that matter, and the
@@ -36,7 +36,7 @@ export type RuntimeCapability =
   | 'decomposition';
 
 export interface CatalogueEntry {
-  /** Canonical RONOR identifier, `provider/model`. */
+  /** Canonical Ronor identifier, `provider/model`. */
   id: string;
   provider: ProviderId;
   /** Vendor-facing model identifier passed to the adapter. */
@@ -428,7 +428,7 @@ export const RUNTIME_CATALOGUE: CatalogueEntry[] = [
     id: 'ronor/deterministic-core',
     provider: 'deterministic',
     vendorModel: 'ronor/deterministic-core',
-    displayName: 'RONOR Deterministic Core',
+    displayName: 'Ronor Deterministic Core',
     capabilities: ['calculation', 'validation', 'lookup'],
     input_cost_per_1m: 0,
     output_cost_per_1m: 0,

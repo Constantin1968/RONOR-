@@ -37,7 +37,7 @@ export async function startOpenHandsBridge() {
   const port = Number(process.env.RONOR_OPENHANDS_BRIDGE_PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('RONOR_OPENHANDS_BRIDGE_PORT_invalid');
   return app.listen(port, host, () => {
-    process.stdout.write(`RONOR OpenHands bridge ready on ${host}:${port}\n`);
+    process.stdout.write(`Ronor OpenHands bridge ready on ${host}:${port}\n`);
   });
 }
 

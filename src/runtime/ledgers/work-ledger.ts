@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L7 · Work Ledger
+ * Ronor Runtime — L7 · Work Ledger
  * ────────────────────────────────
  * Every governed request produces exactly one work row and one row per provider
  * attempt. The invariant that makes the ledger trustworthy is that it is written

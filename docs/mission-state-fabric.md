@@ -1,7 +1,7 @@
-# RONOR Mission State Fabric v1
+# Ronor Mission State Fabric v1
 
 The Mission State Fabric is the vendor-neutral, persistent collaboration contract
-for RONOR agents. Conversation history is not authoritative state. Codex,
+for Ronor agents. Conversation history is not authoritative state. Codex,
 LangGraph, OpenHands, RONOR-native agents and human operators all publish bounded
 events to the same mission stream.
 
@@ -66,7 +66,7 @@ must never retry blindly.
 LangGraph owns workflow transitions but records them as fabric events. OpenHands
 owns code execution inside its sandbox but records tasks, checkpoints, failures
 and messages here. Codex independently records verification evidence and review
-decisions. RONOR remains the authority: external frameworks can be replaced
+decisions. Ronor remains the authority: external frameworks can be replaced
 without losing institutional state.
 
 Event payloads must contain a bounded string `id`. Credentials, tokens,

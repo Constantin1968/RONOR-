@@ -52,7 +52,7 @@ const APPROVER = pair();
 const EXECUTOR = pair();
 const MANDATE_KEYS = keyringFrom([ISSUER.publicKey]);
 const APPROVAL_KEYS = keyringFrom([APPROVER.publicKey]);
-const OBJECTIVE = 'Repornește runtime-ul RONOR pe gazda de probă';
+const OBJECTIVE = 'Repornește runtime-ul Ronor pe gazda de probă';
 const HOST = 'gazda-proba';
 
 let dir: string;

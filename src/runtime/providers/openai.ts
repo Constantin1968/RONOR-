@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · OpenAI Adapter
+ * Ronor Runtime — L1 · OpenAI Adapter
  * ───────────────────────────────────
  * The GPT-5 family. Notable family behaviours, each of which the shared
  * transport already encodes but which are worth stating where an operator will

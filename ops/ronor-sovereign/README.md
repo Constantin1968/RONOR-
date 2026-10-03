@@ -1,6 +1,6 @@
 # ops/ronor-sovereign
 
-Fișiere pentru reconstrucția gazdei primare (DigitalOcean): runtime-ul RONOR, Qdrant, Redis și
+Fișiere pentru reconstrucția gazdei primare (DigitalOcean): runtime-ul Ronor, Qdrant, Redis și
 Postgres. Documentul care le leagă este `docs/reconstructie-primara-digitalocean.md`.
 
 | Fișier | Dependența declarată |

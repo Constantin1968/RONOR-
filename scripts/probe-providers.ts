@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 Live Provider Probe
+ * Ronor Runtime — L1 Live Provider Probe
  * ──────────────────────────────────────
  * Exercises every adapter against whatever credentials the environment actually
  * holds and prints one line per provider. This is the script an operator runs
@@ -16,7 +16,7 @@ import { listAdapters, providerStatuses } from '../src/runtime/providers/registr
 import { entriesForProvider } from '../src/runtime/router/catalogue';
 
 async function main(): Promise<void> {
-  console.log('RONOR L1 Model Exchange — live provider probe\n');
+  console.log('Ronor L1 Model Exchange — live provider probe\n');
 
   const statuses = providerStatuses();
   for (const s of statuses) {

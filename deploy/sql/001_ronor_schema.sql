@@ -1,5 +1,5 @@
 -- ============================================================================
--- RONOR v0.5.0 — Supabase schema migration
+-- Ronor v0.5.0 — Supabase schema migration
 -- Project: mrmauhtdmmyaxrxfsqsn
 -- Schema: ronor
 -- ----------------------------------------------------------------------------
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS ronor.schema_migrations (
 );
 
 INSERT INTO ronor.schema_migrations (version, description)
-VALUES ('001', 'Initial RONOR v0.5.0 schema: conversations, memory_entries, agent_state, missions, audit_events')
+VALUES ('001', 'Initial Ronor v0.5.0 schema: conversations, memory_entries, agent_state, missions, audit_events')
 ON CONFLICT (version) DO NOTHING;
 
 -- ============================================================================
@@ -241,7 +241,7 @@ DECLARE
   tbl TEXT;
   cnt INTEGER;
 BEGIN
-  RAISE NOTICE '=== RONOR schema migration 001 complete ===';
+  RAISE NOTICE '=== Ronor schema migration 001 complete ===';
   FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'ronor' ORDER BY tablename LOOP
     EXECUTE format('SELECT count(*) FROM ronor.%I', tbl) INTO cnt;
     RAISE NOTICE '  table ronor.% — % rows', tbl, cnt;

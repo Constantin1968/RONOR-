@@ -1,9 +1,9 @@
-# RONOR Architecture Reconciliation
+# Ronor Architecture Reconciliation
 _Build Week 2026 · anchored to Strategic Brief Layer 0–7_
 
 ## TL;DR
 
-Five architecture descriptions exist for RONOR (as-shipped TypeScript, Model Exchange v0.1, Platform Brief 9-plane, Robotics Brief Layer 0–6, Strategic Brief Layer 0–7). This doc maps all four onto the fifth as the single canonical frame, per the [briefing pack](_briefing-pack-pas3-pas4.md). **Canonical answer: the Strategic Brief's Layer 0–7 (`docs/qma11-strategic-brief-18jul2026.md`) is the anchor** — Build Week 2026 ships Layer 1 (Model Exchange) and Layer 4 (MI9 Governance) in full, plus a Layer 7 partial (Work Ledger). Everything else in E, and all of C and D, is forward-look.
+Five architecture descriptions exist for Ronor (as-shipped TypeScript, Model Exchange v0.1, Platform Brief 9-plane, Robotics Brief Layer 0–6, Strategic Brief Layer 0–7). This doc maps all four onto the fifth as the single canonical frame, per the [briefing pack](_briefing-pack-pas3-pas4.md). **Canonical answer: the Strategic Brief's Layer 0–7 (`docs/qma11-strategic-brief-18jul2026.md`) is the anchor** — Build Week 2026 ships Layer 1 (Model Exchange) and Layer 4 (MI9 Governance) in full, plus a Layer 7 partial (Work Ledger). Everything else in E, and all of C and D, is forward-look.
 
 ## 1. Why five architectures exist
 
@@ -11,7 +11,7 @@ The five descriptions were produced at different times, by different authors, fo
 
 ## 2. Canonical anchor: Strategic Brief Layer 0–7
 
-Source: [`docs/qma11-strategic-brief-18jul2026.md`](qma11-strategic-brief-18jul2026.md), "Updated RONOR target architecture (canonical)".
+Source: [`docs/qma11-strategic-brief-18jul2026.md`](qma11-strategic-brief-18jul2026.md), "Updated Ronor target architecture (canonical)".
 
 | Layer | One-line purpose |
 |---|---|

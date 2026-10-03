@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RONOR — Source Checksum Generator
+# Ronor — Source Checksum Generator
 # Emits SHA-256 digests for every git-tracked file, excluding the checksum
 # file itself, in deterministic (git-sorted) path order.
 # Usage: bash scripts/generate-source-checksums.sh
@@ -23,7 +23,7 @@ COUNT=$(wc -l < "${TMP}")
 ROLLUP=$(awk '{print $1}' "${TMP}" | sha256sum | awk '{print $1}')
 
 {
-  echo "# RONOR — SHA-256 Source Checksums"
+  echo "# Ronor — SHA-256 Source Checksums"
   echo "# Release:     v0.4.0-core-active"
   echo "# Commit:      $(git rev-parse HEAD)"
   echo "# Generated:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"

@@ -1,5 +1,5 @@
 /**
- * RONOR v1.0 — End-to-End Test Suite
+ * Ronor v1.0 — End-to-End Test Suite
  * 27/27 tests — All planes, EMS formula, model routing, agent runtime
  *
  * Run: npm test
@@ -21,7 +21,7 @@ function makeRequest(overrides: Partial<RONORRequest> = {}): RONORRequest {
   return {
     id: uuidv4(),
     sessionId: uuidv4(),
-    prompt: 'What is the EMS formula in RONOR?',
+    prompt: 'What is the EMS formula in Ronor?',
     createdAt: new Date(),
     ...overrides,
   };
@@ -161,7 +161,7 @@ describe('R-Context Plane', () => {
   test('T14: context plane injects system prompt', async () => {
     const req = makeRequest();
     const result = await context.process(req);
-    expect(result.context?.systemPrompt).toContain('RONOR');
+    expect(result.context?.systemPrompt).toContain('Ronor');
   });
 
   test('T15: context plane preserves session history across calls', async () => {

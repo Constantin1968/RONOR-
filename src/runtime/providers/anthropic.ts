@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Anthropic Adapter
+ * Ronor Runtime — L1 · Anthropic Adapter
  * ──────────────────────────────────────
  * Two routes, one contract.
  *

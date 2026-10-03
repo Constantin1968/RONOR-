@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# RONOR — deploy to Railway
+# Ronor — deploy to Railway
 #
 # Prereqs:
 #   1. Install Railway CLI:  npm i -g @railway/cli
 #   2. Login:                railway login
-#   3. Link project:         railway link   (choose the RONOR project)
+#   3. Link project:         railway link   (choose the Ronor project)
 #   4. Set the OpenAI key:   railway variables --set "OPENAI_API_KEY=sk-..."
 #
 # Then:
@@ -19,7 +19,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "─────────────────────────────────────────────"
-echo "RONOR — Build Week Deploy"
+echo "Ronor — Build Week Deploy"
 echo "─────────────────────────────────────────────"
 
 if ! command -v railway >/dev/null 2>&1; then

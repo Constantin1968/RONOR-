@@ -46,7 +46,7 @@
     ev.preventDefault();
     var target = el('target').value, mode = el('mode').value, objective = el('objective').value.trim();
     if (!objective) { el('result').textContent = 'EROARE: obiectivul este obligatoriu.'; return; }
-    el('result').textContent = 'RONOR procesează mandatul…';
+    el('result').textContent = 'Ronor procesează mandatul…';
     try {
       if (target === 'codex') {
         el('result').textContent = 'Codex este autoritatea independentă de verificare. Primește automat dovezile produse de OpenHands; nu acceptă instrucțiuni de implementare directă.';

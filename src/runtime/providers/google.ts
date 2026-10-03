@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Google Gemini Adapter
+ * Ronor Runtime — L1 · Google Gemini Adapter
  * ──────────────────────────────────────────
  * NATIVE: `POST /v1beta/models/{model}:generateContent`, which departs from the
  * OpenAI schema more than any other vendor in the exchange:

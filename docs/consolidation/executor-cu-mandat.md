@@ -1,6 +1,6 @@
 # Executorul cu mandat (lotul B, 25.09.2026; reparat după proba STOP)
 
-Executorul cu mandat este singura cale prin care runtime-ul RONOR produce un efect pe o gazdă. Codul e în `src/runtime/executor/`, testele în `tests/executor/executor.test.ts`.
+Executorul cu mandat este singura cale prin care runtime-ul Ronor produce un efect pe o gazdă. Codul e în `src/runtime/executor/`, testele în `tests/executor/executor.test.ts`.
 
 ## Ce remediază
 

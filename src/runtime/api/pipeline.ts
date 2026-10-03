@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Query Pipeline
+ * Ronor Runtime — L0 · Query Pipeline
  * ───────────────────────────────────
  * The single path every governed query takes:
  *
@@ -542,7 +542,7 @@ function premiumCostFor(ex: ExchangeResult | null): { cost: number; qualityDelta
 
 function defaultSystemPrompt(retrieval: RetrievalOutcome | null): string {
   const base =
-    'You are RONOR, a sovereign generative intelligence runtime operating under MI9 governance. ' +
+    'You are Ronor, a sovereign generative intelligence runtime operating under MI9 governance. ' +
     'Answer precisely and state uncertainty plainly. Never assert a fact you cannot support.';
   if (retrieval?.used && retrieval.results.length > 0) {
     return (

@@ -1,4 +1,4 @@
-# RONOR - suprapunere pentru proiectul compose `app` de pe gazda primară (ronor-postgres).
+# Ronor - suprapunere pentru proiectul compose `app` de pe gazda primară (ronor-postgres).
 #
 # Declară dependențele 5 și 6 din reconstrucția pe probă (25.09.2026): compose-ul de pe gazdă
 # (/opt/ronor/app/docker-compose.yml) publică 5432 pe 127.0.0.1 și pe adresa Tailscale a

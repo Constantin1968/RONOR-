@@ -3,7 +3,7 @@
  * MIP-013 · Operational Resource Intelligence Plane
  *
  * The Sentinel plane observes the physical and runtime substrate on which
- * RONOR executes (RAM, CPU, storage, GPU, context sessions, token throughput,
+ * Ronor executes (RAM, CPU, storage, GPU, context sessions, token throughput,
  * inference latency), evaluates it against a five-band severity ladder, and
  * emits reversible, policy-gated degradation recommendations.
  */

@@ -1,5 +1,5 @@
 /**
- * RONOR — retinerea deciziilor care cer cosemnare umana.
+ * Ronor — retinerea deciziilor care cer cosemnare umana.
  *
  * Cand poarta MI9 intoarce `escalate` sau `allow-with-cosign`, raspunsul nu
  * pleaca. Se retine aici, alaturi de contextul si de verdictul care au produs

@@ -1,7 +1,7 @@
 # Reconstrucția gazdei primare (ronor-sovereign, DigitalOcean): dependențele declarate
 
 Acest document completează `docs/reconstructie-de-la-zero.md`, care descrie gazda secundară și
-automatizarea dezvoltării. Aici este gazda primară: runtime-ul RONOR, Qdrant, Redis și Postgres.
+automatizarea dezvoltării. Aici este gazda primară: runtime-ul Ronor, Qdrant, Redis și Postgres.
 
 **De unde vine lista.** La 25 septembrie 2026, gazda primară a fost reconstruită pe o gazdă de
 probă curată, din `main@1143201` și din copiile existente. Cele patru containere au fost
@@ -186,7 +186,7 @@ reguli de rețea ale gazdelor.
 
 ## 8. Serviciul gazdei `ronor.service`
 
-„RONOR Memory & Alert Engine”, activ în producție, rulează
+„Ronor Memory & Alert Engine”, activ în producție, rulează
 `/opt/ronor/venv/bin/python3 /opt/ronor/main.py` cu `EnvironmentFile=/opt/ronor/config/ronor.env`.
 Rețeta are numai unitatea systemd. `main.py`, mediul virtual și configurația nu sunt colectate.
 Serviciul nu face parte din niciun proiect compose și nu a fost reconstruit pe probă, pentru

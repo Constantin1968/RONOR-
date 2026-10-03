@@ -1,7 +1,7 @@
-# RONOR — Build Week 2026 Demo Script
+# Ronor — Build Week 2026 Demo Script
 
 **Duration:** 2:57 · **Format:** 1920×1080, 30fps, H.264, ~10–12 Mbps · **Audio:** −14 LUFS
-**Track:** Work & Productivity · **Product:** RONOR — Model Exchange & Governance Spine for Energy Operations
+**Track:** Work & Productivity · **Product:** Ronor — Model Exchange & Governance Spine for Energy Operations
 **Attribution:** OpenAI GPT-5.6 (BESS decision-loop proposer) · OpenAI Codex (backend + orchestration scaffolding)
 
 ---
@@ -10,9 +10,9 @@
 
 > **Voice-over:**
 > "Energy operators need frontier reasoning. What they cannot afford is unaudited reasoning.
-> RONOR is the model exchange and governance spine that closes that gap."
+> Ronor is the model exchange and governance spine that closes that gap."
 
-**Screen:** RONOR wordmark on Nexus background. Sub-line fades in: `Model Exchange & Governance Spine for Energy Operations`.
+**Screen:** Ronor wordmark on Nexus background. Sub-line fades in: `Model Exchange & Governance Spine for Energy Operations`.
 
 ---
 
@@ -28,7 +28,7 @@
 ## Act 2 — Model Exchange  ·  0:35–1:20
 
 > **Voice-over:**
-> "RONOR starts with a governed model exchange. A registry of five engines, tiered by sovereignty. A policy layer with eight rules — P1 through P8 — that filters out ineligible engines before scoring even begins. A six-dimension router that scores every survivor on quality, sovereignty, evidence, cost, latency, and operational risk."
+> "Ronor starts with a governed model exchange. A registry of five engines, tiered by sovereignty. A policy layer with eight rules — P1 through P8 — that filters out ineligible engines before scoring even begins. A six-dimension router that scores every survivor on quality, sovereignty, evidence, cost, latency, and operational risk."
 
 **Screen:** UI — **Model Exchange** tab.
 1. Click **Refresh registry** → 5-model table renders (sov=1..3, cost, latency).
@@ -53,7 +53,7 @@
    - `assurance.verified_confidence: 100`
    - `audit_seq: 7`
    - `audit_chain_hash: 709573e485f0…`
-   - `answer_preview: "Deterministic evaluation: 15.7 * (240 - 85) / 3 = 811.166666666666. Computed locally by RONOR Deterministic Core — exact, reproducible, zero marginal cost, no data left the sovereign boundary."`
+   - `answer_preview: "Deterministic evaluation: 15.7 * (240 - 85) / 3 = 811.166666666666. Computed locally by Ronor Deterministic Core — exact, reproducible, zero marginal cost, no data left the sovereign boundary."`
 
 > **Voice-over (over the JSON reveal):**
 > "MI9 escalated on evidence, but did not block. The deterministic engine executed. R-Assurance verified at one hundred percent. The result was appended to an SHA-256 hash-chained audit log at sequence seven. Every prior decision remains cryptographically anchored to every subsequent one."
@@ -77,7 +77,7 @@ Output:
 ```
 
 > **Voice-over:**
-> "This is the difference between a log and an audit. RONOR ships both."
+> "This is the difference between a log and an audit. Ronor ships both."
 
 ---
 
@@ -93,7 +93,7 @@ Output:
 ## Close — 2:50–2:57
 
 > **Voice-over:**
-> "RONOR — Model Exchange and Governance Spine for Energy Operations. Ma11AI, Mayleven Ecosystem."
+> "Ronor — Model Exchange and Governance Spine for Energy Operations. Ma11AI, Mayleven Ecosystem."
 
 **Screen:** End card. Wordmark. URLs: repo, live demo, docs. Small attribution line: `Built with OpenAI GPT-5.6 + Codex.`
 

@@ -1,4 +1,4 @@
-# RONOR v0.5.0 — Sovereign Deployment Build Report
+# Ronor v0.5.0 — Sovereign Deployment Build Report
 
 **Date:** 03 August 2026  
 **Author:** AMB · Principal AI/ML AgenticsAI, Mayleven Ecosystem  
@@ -6,9 +6,9 @@
 
 ## Executive Summary
 
-The sovereign deployment package for RONOR v0.5.0 has been fully architected, implemented, and pushed. The package provides a complete L0–L7 stack capable of running on a single Ubuntu 22.04 droplet with off-host durable persistence via Supabase and Cloudflare R2, plus a secure Telegram operator interface and Tailscale sovereign plane integration.
+The sovereign deployment package for Ronor v0.5.0 has been fully architected, implemented, and pushed. The package provides a complete L0–L7 stack capable of running on a single Ubuntu 22.04 droplet with off-host durable persistence via Supabase and Cloudflare R2, plus a secure Telegram operator interface and Tailscale sovereign plane integration.
 
-> **Minimum server specification: 4 GB RAM, 2 vCPU (DigitalOcean $24/month tier).** When all four services run simultaneously — RONOR runtime (~400 MB), Qdrant v1.18.3 (~600 MB under load), Redis 7 (~50 MB), and the Telegram bridge (~150 MB) — total RSS approaches 1.2 GB before the TypeScript build, which adds a further ~600 MB peak. A 2 GB droplet will OOM-kill during the first `docker compose build` even with a 2 GB swapfile, because swap cannot substitute for the RAM needed by the compiler and the linker simultaneously. The 4 GB tier provides a safe operating margin and is the recommended minimum for a production deployment.
+> **Minimum server specification: 4 GB RAM, 2 vCPU (DigitalOcean $24/month tier).** When all four services run simultaneously — Ronor runtime (~400 MB), Qdrant v1.18.3 (~600 MB under load), Redis 7 (~50 MB), and the Telegram bridge (~150 MB) — total RSS approaches 1.2 GB before the TypeScript build, which adds a further ~600 MB peak. A 2 GB droplet will OOM-kill during the first `docker compose build` even with a 2 GB swapfile, because swap cannot substitute for the RAM needed by the compiler and the linker simultaneously. The 4 GB tier provides a safe operating margin and is the recommended minimum for a production deployment.
 
 All TypeScript code was written in strict mode and compiles cleanly (`tsc --noEmit` passes with zero errors).
 

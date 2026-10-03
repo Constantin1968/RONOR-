@@ -19,7 +19,7 @@ fail() { echo "${RED}✗${NC} $1"; exit 1; }
 step() { echo "${BOLD}${YELLOW}▶${NC} ${BOLD}$1${NC}"; }
 
 echo
-echo "${BOLD}RONOR — fresh-clone smoke test${NC}"
+echo "${BOLD}Ronor — fresh-clone smoke test${NC}"
 echo "================================"
 echo
 

@@ -1,4 +1,4 @@
-# Claims register RONOR — format canonic (Cap. 23)
+# Claims register Ronor — format canonic (Cap. 23)
 
 > Orice afirmație publică (`validat`, `suveran`, `autonom`, `câștig de productivitate`) intră aici înainte să călătorească. Fără nivel + disconfirmări + next test, statutul rămâne `neacoperit`.
 

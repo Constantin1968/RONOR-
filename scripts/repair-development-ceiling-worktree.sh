@@ -66,7 +66,7 @@ test "$(git status --porcelain)" = ' M tests/runtime/development-controller.test
 test "$(git diff --binary | sha256sum | cut -d' ' -f1)" = 9c5be32a18bd63c6e76ac945e6d141b698469ee244cce36f0ba490bdf07d9922
 git diff --check
 git add -- tests/runtime/development-controller.test.ts
-git -c user.name='RONOR recovery operator' -c user.email=ops@ronor.local \
+git -c user.name='Ronor recovery operator' -c user.email=ops@ronor.local \
   commit -m 'tests: preserve the autonomous empty-objective regression test' \
   -m 'Recovered from run_4fa94a9f0481d4d65c54 after its budget refusal. Exact diff archived before this operator-assisted commit. No claim of autonomous completion.'
 test -z "$(git status --porcelain)"

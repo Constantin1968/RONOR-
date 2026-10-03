@@ -41,7 +41,7 @@ Example delegation body:
 
 ```json
 {
-  "objective": "Rezolvă situația de securitate și fiabilitate a runtime-ului RONOR."
+  "objective": "Rezolvă situația de securitate și fiabilitate a runtime-ului Ronor."
 }
 ```
 

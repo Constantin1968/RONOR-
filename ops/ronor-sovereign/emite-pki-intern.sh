@@ -1,5 +1,5 @@
 #!/bin/bash
-# RONOR - emiterea autorității interne (CA) și a certificatului TLS al lui Qdrant, gazda primară.
+# Ronor - emiterea autorității interne (CA) și a certificatului TLS al lui Qdrant, gazda primară.
 #
 # Declară dependența 3 din reconstrucția pe probă (25.09.2026): `/etc/ronor/pki` nu era în
 # rețete, în copii sau în vreun script. Fără el Qdrant nu pornește cu TLS, iar runtime-ul nu
@@ -51,7 +51,7 @@ case "$MOD" in
       exit 4
     fi
     openssl req -x509 -newkey rsa:4096 -nodes -days 3650 \
-      -subj "/CN=RONOR Internal CA/O=RONOR" -keyout "$LUCRU/ca.key" -out "$LUCRU/ca.crt" 2>/dev/null
+      -subj "/CN=Ronor Internal CA/O=Ronor" -keyout "$LUCRU/ca.key" -out "$LUCRU/ca.crt" 2>/dev/null
     install -m 600 "$LUCRU/ca.key" "$CA_DIR/ca.key"
     install -m 644 "$LUCRU/ca.crt" "$CA_DIR/ca.crt"
     ;;
@@ -63,7 +63,7 @@ case "$MOD" in
     exit 2 ;;
 esac
 
-openssl req -newkey rsa:2048 -nodes -subj "/CN=qdrant/O=RONOR" \
+openssl req -newkey rsa:2048 -nodes -subj "/CN=qdrant/O=Ronor" \
   -keyout "$LUCRU/qdrant.key" -out "$LUCRU/qdrant.csr" 2>/dev/null
 printf 'subjectAltName=%s\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' \
   "$QDRANT_SAN" > "$LUCRU/qdrant.ext"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Colector unic de cens pentru RONOR.
+"""Colector unic de cens pentru Ronor.
 
 Principiu: cine masoara nu formateaza. Produce un singur cens JSON in care
 FIECARE valoare poarta trei campuri de provenienta:

@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Kimi (Moonshot AI) Adapter
+ * Ronor Runtime — L1 · Kimi (Moonshot AI) Adapter
  * ────────────────────────────────────────────────────
  * Moonshot AI publishes an OpenAI-compatible endpoint at api.moonshot.ai/v1.
  * The supported identifiers mirror the provider's published model list. The

@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · OpenAI-Compatible Transport
+ * Ronor Runtime — L1 · OpenAI-Compatible Transport
  * ────────────────────────────────────────────────
  * Four of the five vendors expose an OpenAI-shaped `/chat/completions` surface,
  * either natively (OpenAI, DeepSeek, Perplexity) or through a gateway that

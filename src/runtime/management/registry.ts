@@ -1,4 +1,4 @@
-/** RONOR CONTROL · Ma11AI Executive Intelligence Council. */
+/** Ronor CONTROL · Ma11AI Executive Intelligence Council. */
 
 export type ManagementDomain =
   | 'executive' | 'strategy' | 'operations' | 'technology' | 'governance'

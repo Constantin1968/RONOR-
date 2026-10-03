@@ -43,7 +43,7 @@ export function prepareDevelopmentJob(input: {
         job: { job_id: prior.job_id, mission_id: prior.mission_id, created_at: prior.created_at },
       };
     }
-    const mission = createMission({ title: 'Dezvoltare RONOR', objective, operatorId: 'merlin' });
+    const mission = createMission({ title: 'Dezvoltare Ronor', objective, operatorId: 'merlin' });
     const job: DevelopmentJob = {
       job_id: jobId, mission_id: mission.mission_id, created_at: new Date().toISOString(),
     };

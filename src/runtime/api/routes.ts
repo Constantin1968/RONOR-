@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · HTTP Surface
+ * Ronor Runtime — L0 · HTTP Surface
  * ─────────────────────────────────
  * The unified request API. Mounted at `/api/runtime` alongside the existing
  * Core Active routers, which are left untouched so their contracts and their

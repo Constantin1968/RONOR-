@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Deterministic Core
+ * Ronor Runtime — L1 · Deterministic Core
  * ───────────────────────────────────────
  * A local, exact arithmetic evaluator dressed in the provider contract. It
  * exists because for a genuinely exact task — a sum, a unit conversion, a
@@ -283,7 +283,7 @@ export function computeExactly(query: string): { expression: string; value: numb
 export class DeterministicAdapter implements ProviderAdapter {
   readonly descriptor: ProviderDescriptor = {
     id: 'deterministic',
-    displayName: 'RONOR Deterministic Core',
+    displayName: 'Ronor Deterministic Core',
     models: [DETERMINISTIC_MODEL],
     searchAugmented: false,
     jurisdictions: ['sovereign'],
@@ -318,7 +318,7 @@ export class DeterministicAdapter implements ProviderAdapter {
     const content = JSON.stringify({
       answer: `${result.expression} = ${result.value}`,
       confidence: 100,
-      method: 'IEEE 754 double-precision evaluation, RONOR Deterministic Core',
+      method: 'IEEE 754 double-precision evaluation, Ronor Deterministic Core',
       sovereign: true,
     });
 

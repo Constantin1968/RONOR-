@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L3 · Agent Registry and Passports
+ * Ronor Runtime — L3 · Agent Registry and Passports
  * ─────────────────────────────────────────────────
  * An Agent Passport is the machine-readable statement of what a digital worker
  * is permitted to do: which capabilities it claims, which tools it may call,

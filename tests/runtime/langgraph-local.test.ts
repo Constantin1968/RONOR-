@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { COMMIT_INSTRUCTION, createLangGraphLocalApp, planningGraph } from '../../src/runtime/automation/services/langgraph-local';
 
-describe('RONOR local LangGraph planner', () => {
+describe('Ronor local LangGraph planner', () => {
   it('uses a compiled graph and emits mandate-safe actions only', async () => {
     const result = await planningGraph.invoke({ objective: 'Verifică securitatea și testele', domains: [], assignments: [], readOnly: false });
     expect(result.assignments.length).toBeGreaterThan(1);

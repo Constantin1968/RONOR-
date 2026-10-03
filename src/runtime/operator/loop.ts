@@ -1,5 +1,5 @@
 /**
- * RONOR Operator — bucla OODA (schelet Tranșa 1, fără efecte laterale)
+ * Ronor Operator — bucla OODA (schelet Tranșa 1, fără efecte laterale)
  * ────────────────────────────────────────────────────────────────────
  * observe → plan → approve → execute(gated) → verify → memorize.
  * Această versiune implementează doar POARTA (gating): validează mandatul,

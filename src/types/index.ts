@@ -1,6 +1,6 @@
 /**
- * RONOR v1.0 — Core Type Definitions
- * Sovereign Generative Intelligence Runtime
+ * Ronor v1.0 — Core Type Definitions
+ * Ronor SIS — Sovereign Intelligence System (Ronor Runtime types)
  * Ma11AI · Mayleven Ecosystem
  */
 

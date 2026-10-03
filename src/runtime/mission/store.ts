@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L2 · Mission State
+ * Ronor Runtime — L2 · Mission State
  * ──────────────────────────────────
  * A mission is a unit of work that outlives a single request: an objective, an
  * accumulating body of findings, a running cost, and a status. It is what makes

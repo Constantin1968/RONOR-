@@ -1,6 +1,6 @@
 /**
- * RONOR API Router
- * RESTful API surface for the RONOR runtime.
+ * Ronor API Router
+ * RESTful API surface for the Ronor runtime.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';

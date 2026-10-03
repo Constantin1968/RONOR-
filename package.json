@@ -1,7 +1,7 @@
 {
   "name": "ronor-model-exchange-governance-spine",
   "version": "2.0.0-build-week",
-  "description": "RONOR — Model Exchange & Governance Spine for Energy Operations. A 6D model router, MI9 governance gate, R-Assurance evidence layer, SHA-256 audit chain, and Work + Cost of Intelligence ledgers — wired end-to-end for a 20 MWh BESS Romania scenario.",
+  "description": "Ronor SIS — Sovereign Intelligence System. Ronor Runtime: coordination and execution subsystem. A 6D model router, MI9 governance gate, R-Assurance evidence layer, SHA-256 audit chain, and Work + Cost of Intelligence ledgers — wired end-to-end for a 20 MWh BESS Romania scenario.",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",

@@ -1,5 +1,5 @@
 /*
-  RONOR Operator Console — client
+  Ronor Operator Console — client
   ───────────────────────────────
   No framework, no build step. Every DOM insertion goes through `text()` or the
   `el()` helper, which set textContent rather than innerHTML.

@@ -1,4 +1,4 @@
-# MI9 Gate Policy — RONOR Build Week
+# MI9 Gate Policy — Ronor Build Week
 #
 # This is the declarative rule set consulted by the MI9 Gate on every
 # decision request. It is intentionally simple and human-auditable.
@@ -19,7 +19,7 @@ description: >
   market analysis (max daily spread ~€168/MWh, average DAM ~€110/MWh, aFRR
   upward ~€9/MW/h).
 
-  Development plane: the plane that modifies RONOR's own code. Its verdicts
+  Development plane: the plane that modifies Ronor's own code. Its verdicts
   mirror the prohibitions already enforced in code at
   src/runtime/automation/policy.ts (ALWAYS_DENIED_ACTIONS), so that a single
   declarative source describes what both planes may do. Merge, release and
@@ -62,7 +62,7 @@ gates:
       runtime.tool:                    limited
       runtime.ingest:                  limited
       runtime.worker:                  high
-      # --- Development plane (RONOR modifying its own code) ---
+      # --- Development plane (Ronor modifying its own code) ---
       development.repo.read:           minimal
       development.worktree.edit:       limited
       development.tests.run:           limited

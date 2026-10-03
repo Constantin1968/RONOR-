@@ -42,7 +42,7 @@ export interface FrontierProposal {
   fallbackUsed: boolean;
 }
 
-const SYSTEM_PROMPT = `You are the reasoning core of RONOR — a governed intelligence platform for Romanian energy operations.
+const SYSTEM_PROMPT = `You are the reasoning core of Ronor — a governed intelligence platform for Romanian energy operations.
 
 Your job: propose a 24-hour dispatch policy for a Battery Energy Storage System (BESS) trading on OPCOM day-ahead market (DAM) and providing reserves.
 

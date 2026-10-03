@@ -1,5 +1,5 @@
 /**
- * RONOR — L2 · Persistence · Memory Manager
+ * Ronor — L2 · Persistence · Memory Manager
  * ──────────────────────────────────────────
  * The single interface through which the runtime reads and writes durable
  * memory. It composes the Supabase adapter (relational), the R2 adapter

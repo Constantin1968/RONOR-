@@ -12,7 +12,7 @@
  * an alert is emitted; recovery to GREEN likewise requires N consecutive
  * observations before the condition is cleared. Each emitted alert carries a
  * deterministic SHA-256 audit record identifier so it can be anchored into the
- * existing RONOR hash-chain without a second hashing scheme.
+ * existing Ronor hash-chain without a second hashing scheme.
  */
 
 import { createHash } from 'crypto';

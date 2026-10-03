@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to RONOR will be documented in this file.
+All notable changes to Ronor will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -12,7 +12,7 @@ No changes are pending. The R-Knowledge integration described under
 
 ## [0.4.0-core-active] — 2026-08-03
 
-This release marks the **CORE ACTIVE** threshold for RONOR. Three consecutive
+This release marks the **CORE ACTIVE** threshold for Ronor. Three consecutive
 engineering programmes — MIP-012, MIP-013 and MIP-014 — are merged into `main`,
 the continuous integration pipeline reports five green jobs, and the whole test
 corpus passes. The runtime now carries nine planes, of which eight are
@@ -149,7 +149,7 @@ baseline, so R-Knowledge holds no handle on the programme's integrity root.
 
 ### Added
 
-- Initial RONOR architecture with seven operational planes
+- Initial Ronor architecture with seven operational planes
 - R-Gateway, R-Context, R-Model Fabric, R-Agent Runtime, R-Execution, R-Assurance and R-Economics
 - Basic health monitoring
 - Environment configuration template

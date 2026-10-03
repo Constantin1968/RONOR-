@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Policy Filter P1–P8
+ * Ronor Runtime — L1 · Policy Filter P1–P8
  * ────────────────────────────────────────
  * Eight deterministic rules applied BEFORE any scoring. Filtering first and
  * ranking second is the whole point: a cheap, fast, high-quality engine that

@@ -1,5 +1,5 @@
 /**
- * Decisions Router — RONOR Build Week
+ * Decisions Router — Ronor Build Week
  *
  * Exposes the governed decision loop over HTTP:
  *

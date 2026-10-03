@@ -1,4 +1,4 @@
-# RONOR Runtime Active — AMB Build Notes (internal working file)
+# Ronor Runtime Active — AMB Build Notes (internal working file)
 
 Repo: `Constantin1968/RONOR-` · branch `build/runtime-active` · base tag `v0.4.0-core-active` (57f4379)
 Working dir: `/home/ubuntu/ronor`

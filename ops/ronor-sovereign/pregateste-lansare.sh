@@ -1,5 +1,5 @@
 #!/bin/bash
-# RONOR - pregătirea directorului de lansare al runtime-ului pe gazda primară (ronor-sovereign).
+# Ronor - pregătirea directorului de lansare al runtime-ului pe gazda primară (ronor-sovereign).
 #
 # Înlocuiește pasul manual 1 din reconstrucția pe probă (25.09.2026): până acum lansarea
 # se făcea copiind de mână suprapunerea din lansarea anterioară, apoi `Dockerfile` ca

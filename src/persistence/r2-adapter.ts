@@ -1,5 +1,5 @@
 /**
- * RONOR — L6 · Persistence · Cloudflare R2 Adapter
+ * Ronor — L6 · Persistence · Cloudflare R2 Adapter
  * ──────────────────────────────────────────────────
  * Object store for evidence bundles, audit transcripts and large payloads
  * addressed by SHA-256, backed by the `ronor-evidence` R2 bucket.

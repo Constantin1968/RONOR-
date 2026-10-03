@@ -1,5 +1,5 @@
 /**
- * RONOR — executorul cu mandat (F07, cu F09 și F04)
+ * Ronor — executorul cu mandat (F07, cu F09 și F04)
  * ──────────────────────────────────────────────────
  * Singurul loc din runtime care produce un efect pe gazdă. Până acum, planul
  * R-Execution declara „executed” pentru apeluri de unelte fără să existe un

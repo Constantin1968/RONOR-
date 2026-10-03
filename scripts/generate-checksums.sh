@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RONOR — Release Checksum Generator
+# Ronor — Release Checksum Generator
 # Generates SHA-256 checksums for release artifacts.
 # Usage: ./scripts/generate-checksums.sh [version]
 
@@ -8,7 +8,7 @@ set -euo pipefail
 VERSION="${1:-$(node -p "require('./package.json').version")}"
 OUTDIR="release-artifacts"
 
-echo "=== RONOR Release Checksum Generator ==="
+echo "=== Ronor Release Checksum Generator ==="
 echo "Version: ${VERSION}"
 echo ""
 

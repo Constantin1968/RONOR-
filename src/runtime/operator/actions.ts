@@ -1,5 +1,5 @@
 /**
- * RONOR Operator — acțiuni tipizate (schelet Tranșa 1)
+ * Ronor Operator — acțiuni tipizate (schelet Tranșa 1)
  * ────────────────────────────────────────────────────
  * Înlocuiește filtrarea de text din `effect-policy.ts` cu operații tipizate.
  * Regula G1.1: tipul efectiv al operației decide, niciodată textul comenzii.

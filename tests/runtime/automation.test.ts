@@ -13,7 +13,7 @@ import { AutomationAdapterError } from '../../src/runtime/automation/adapters/ht
 import type { AutomationAdapters, ExecutionMandate, PlannedAssignment } from '../../src/runtime/automation/contracts';
 import type { TestExecutor } from '../../src/runtime/automation/test-executor';
 
-const objective = 'Implement and verify a bounded RONOR feature.';
+const objective = 'Implement and verify a bounded Ronor feature.';
 const workspace = 'C:/sandbox/ronor';
 const branch = 'agent/mission-1';
 const authorityKey = 'test-runner-authority-key-0123456789abcdef';

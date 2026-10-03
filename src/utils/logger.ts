@@ -1,5 +1,5 @@
 /**
- * RONOR Logger Utility
+ * Ronor Logger Utility
  */
 
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';

@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Provider Registry
+ * Ronor Runtime — L1 · Provider Registry
  * ──────────────────────────────────────
  * The single place the runtime learns which adapters exist and which of them can
  * actually run. Two design choices are deliberate:

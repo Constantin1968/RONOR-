@@ -1,4 +1,8 @@
-# RONOR — Model Exchange & Governance Spine for Energy Operations
+# Ronor SIS — Sovereign Intelligence System
+
+Ronor SIS is the central product of Ma11AI: an integrated system for the governance, intelligence and operational management of private and public entities. This repository contains Ronor Runtime (formerly RSIOR, Sovereign Intelligence Operating Runtime), the coordination and execution subsystem, together with its governance, assurance and operator interfaces. The architectural authority is `documente/ronor-sis-arhitectura-canonica.md`.
+
+> Historical title of the original prototype: Model Exchange & Governance Spine for Energy Operations.
 
 _A governed runtime that turns frontier reasoning into auditable industrial work._
 
@@ -11,7 +15,7 @@ _A governed runtime that turns frontier reasoning into auditable industrial work
 
 ## What this is
 
-RONOR is a Node.js/TypeScript runtime that wires four things together into a single governed pipeline:
+Ronor is a Node.js/TypeScript runtime that wires four things together into a single governed pipeline:
 
 1. **A model exchange** — a registry of five engines behind a deterministic policy filter and a six-dimension router.
 2. **A governance spine** — an MI9 Gate with nine pre-execution checks and an R-Assurance layer with five post-execution checks.

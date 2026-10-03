@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · DeepSeek Adapter
+ * Ronor Runtime — L1 · DeepSeek Adapter
  * ─────────────────────────────────────
  * DeepSeek publishes an OpenAI-compatible endpoint at `api.deepseek.com/v1`, so
  * the native route reuses the shared transport rather than reimplementing the

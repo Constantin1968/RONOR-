@@ -1,5 +1,5 @@
 /**
- * RONOR — Supabase Schema Provisioning
+ * Ronor — Supabase Schema Provisioning
  * ─────────────────────────────────────
  * Executes the SQL migration in deploy/sql/001_ronor_schema.sql against the
  * Supabase project mrmauhtdmmyaxrxfsqsn.

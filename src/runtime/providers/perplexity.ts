@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · Perplexity Adapter (search-augmented)
+ * Ronor Runtime — L1 · Perplexity Adapter (search-augmented)
  * ─────────────────────────────────────────────────────────
  * Perplexity's Sonar family is the only provider in the exchange that performs
  * live retrieval as part of generation, which is why it is marked

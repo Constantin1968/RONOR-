@@ -1,9 +1,9 @@
-# RONOR — Post-Hackathon Roadmap
+# Ronor — Post-Hackathon Roadmap
 _Anchor: Strategic Brief Layer 0–7 (canonical). Build Week baseline captured 20 July 2026._
 
 ## TL;DR (≤6 lines)
 
-Build Week ships the governance-and-routing spine — Model Exchange (L1), MI9 Gate (L4), hash-chained audit, a BESS decision loop, and a Work Ledger — as working, tested code, not a plan. The Outcome Economics Engine, Mission State Fabric, Independent Outcome Evaluator, Evaluation Factory, AIDR layer, and Agent Passport are explicitly not delivered and move into the P0–P2 queue below. XMPro (Gartner Hype Cycle 2026, Agent Orchestration + Agentic AI) is the first named Tier-1 competitor; RONOR's differentiator is sovereignty-tier routing plus MI9 plus hash-chained audit plus the Work/Cost/Value ledger triad, none of which XMPro has. Doctrine: "Spine now, platform vision as forward-look" — the 9-plane and Layer 0–6/0–7 architectures remain R&D signal-tracked, not committed builds. Commercial track stays OSaaS pay-for-verified-gain, capped at 15% / €1,000 per day during pilot. Next hard date: P0 kickoff 5 August 2026.
+Build Week ships the governance-and-routing spine — Model Exchange (L1), MI9 Gate (L4), hash-chained audit, a BESS decision loop, and a Work Ledger — as working, tested code, not a plan. The Outcome Economics Engine, Mission State Fabric, Independent Outcome Evaluator, Evaluation Factory, AIDR layer, and Agent Passport are explicitly not delivered and move into the P0–P2 queue below. XMPro (Gartner Hype Cycle 2026, Agent Orchestration + Agentic AI) is the first named Tier-1 competitor; Ronor's differentiator is sovereignty-tier routing plus MI9 plus hash-chained audit plus the Work/Cost/Value ledger triad, none of which XMPro has. Doctrine: "Spine now, platform vision as forward-look" — the 9-plane and Layer 0–6/0–7 architectures remain R&D signal-tracked, not committed builds. Commercial track stays OSaaS pay-for-verified-gain, capped at 15% / €1,000 per day during pilot. Next hard date: P0 kickoff 5 August 2026.
 
 ## 1. Build Week baseline — what shipped
 
@@ -53,11 +53,11 @@ Build Week ships the governance-and-routing spine — Model Exchange (L1), MI9 G
 
 ## 4. Competitive landscape (updated)
 
-| Vendor | Category | Overlap with RONOR | Differentiator RONOR has |
+| Vendor | Category | Overlap with Ronor | Differentiator Ronor has |
 |---|---|---|---|
 | **XMPro** | Agent Orchestration + Agentic AI ([Gartner Hype Cycle 2026](https://www.gartner.com/)) | Industrial agent orchestration for energy, utilities, manufacturing | Sovereignty-tier routing + MI9 Gate + hash-chained audit + Work/Cost/Value ledger triad. No equivalent evidence-anchoring or sovereignty routing on XMPro's side. **Tier-1 competitor.** |
-| OpenAI / Anthropic / Meta (model providers) | Frontier model supply | Underlying inference capacity RONOR routes across | RONOR is model-agnostic by design; no single-provider dependency, governed fallback built in |
-| DNV (bankability/certification bodies) | Governance/audit certification | Assurance of RONOR's audit chain, not a competing product | Partnership target, not a competitor |
+| OpenAI / Anthropic / Meta (model providers) | Frontier model supply | Underlying inference capacity Ronor routes across | Ronor is model-agnostic by design; no single-provider dependency, governed fallback built in |
+| DNV (bankability/certification bodies) | Governance/audit certification | Assurance of Ronor's audit chain, not a competing product | Partnership target, not a competitor |
 
 Note: Full R&D signal tracking lives in `docs/rd-signals-tracker.md` (evidence tiers A/B/C).
 
@@ -73,7 +73,7 @@ First-pilot plan:
 - Identify counterparty — target a single Romanian BESS operator already engaged through the decision-loop scenario.
 - Sign a framework agreement defining baseline methodology, verification protocol, and the 15% / €1,000-day pilot cap.
 - Instrument the Value Ledger against the counterparty's real dispatch data before any live routing.
-- Run a 30-day dry run: RONOR proposes, human operator decides, no invoicing, chain-verified retrospectively.
+- Run a 30-day dry run: Ronor proposes, human operator decides, no invoicing, chain-verified retrospectively.
 - Run a 60-day live pilot: RONOR-gated decisions execute, Net Verified Gain computed and invoiced under the cap.
 - Independent monthly attestation of the gain calculation before scaling to a second counterparty.
 

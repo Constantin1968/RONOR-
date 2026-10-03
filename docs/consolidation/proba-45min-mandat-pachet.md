@@ -1,4 +1,4 @@
-# Proba RONOR — mandat minimal + pachet de acceptare (45 min / 5 USD)
+# Proba Ronor — mandat minimal + pachet de acceptare (45 min / 5 USD)
 
 > Scop: o singură sarcină mică, rezultat verificabil, **fără efecte externe**, care să închidă cap-coadă bucla cerință → execuție autorizată → rezultat verificat, conform auditului 09.09.2026 §13 și doctrinei Cap. 23–25.
 > Regula auditului: execuția **nu moștenește implicit** plafonul de 100 USD al controllerului (`scripts/install-development-runtime-window.sh`). Mandatul de mai jos fixează explicit limitele probei.

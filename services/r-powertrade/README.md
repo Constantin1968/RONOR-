@@ -1,9 +1,9 @@
-# R-PowerTrade: brațul de trading energetic transfrontalier al RONOR
+# R-PowerTrade: brațul de trading energetic transfrontalier al Ronor
 
-Specificația este exportul consolidat v0.1 din 27.09.2026, lucrat cu Muse. Constructorul lucrează în cadrul RONOR. Serviciul anterior, `energy-trading-arm`, a fost mutat intact în `arhiva/energy-trading-arm-fe8119b/`.
+Specificația este exportul consolidat v0.1 din 27.09.2026, lucrat cu Muse. Constructorul lucrează în cadrul Ronor. Serviciul anterior, `energy-trading-arm`, a fost mutat intact în `arhiva/energy-trading-arm-fe8119b/`.
 
 ## Principiu
-R-PowerTrade propune, iar RONOR decide. Nicio cifră nu vine dintr-un model de limbaj. În Etapa 1, R-PowerTrade nu nominalizează și nu execută.
+R-PowerTrade propune, iar Ronor decide. Nicio cifră nu vine dintr-un model de limbaj. În Etapa 1, R-PowerTrade nu nominalizează și nu execută.
 
 ## Etape
 - **Shadow (acum).** R-PowerTrade calculează limitele și închiderea zilei și le scrie în registru. Operatorul decide în afara sistemului.

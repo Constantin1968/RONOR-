@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================================
-# RONOR — Sovereign host preparation
+# Ronor — Sovereign host preparation
 # ----------------------------------------------------------------------------
 # One-time preparation of a bare Ubuntu 22.04 host (DigitalOcean 2 GB droplet or
-# equivalent) to run RONOR v0.5.0.
+# equivalent) to run Ronor v0.5.0.
 #
 # It installs Docker Engine + Compose v2, Tailscale, a UFW firewall posture,
 # fail2ban and unattended security upgrades; creates a non-root `ronor` service
@@ -102,7 +102,7 @@ if $NO_SSH && [[ -z "$TS_AUTHKEY" ]]; then
   fail "--no-ssh requires --tailscale-authkey, otherwise the tailnet path does not exist yet. Refusing."
 fi
 
-head1 "RONOR — sovereign host preparation"
+head1 "Ronor — sovereign host preparation"
 log "host      : $(hostname)"
 log "os        : $(. /etc/os-release && echo "$PRETTY_NAME")"
 log "arch      : $(uname -m)"
@@ -167,7 +167,7 @@ fi
 # ---------------------------------------------------------------------------
 head1 "3 · Kernel tuning"
 cat > /etc/sysctl.d/99-ronor.conf <<'SYSCTL'
-# RONOR host tuning — prepared by AMB
+# Ronor host tuning — prepared by AMB
 vm.swappiness = 10
 vm.overcommit_memory = 1
 # Qdrant memory-maps its segments; the default map count is reached by a corpus
@@ -288,7 +288,7 @@ if [[ -n "$TS_AUTHKEY" ]]; then
   if tailscale ping --c 2 --timeout 5s "$PEER_IP" >/dev/null 2>&1; then
     ok "peer $PEER_HOST reachable over the tailnet"
   else
-    warn "peer $PEER_HOST ($PEER_IP) did NOT answer. It may be offline, or ACLs may forbid this host. RONOR will start regardless; the peer path is optional."
+    warn "peer $PEER_HOST ($PEER_IP) did NOT answer. It may be offline, or ACLs may forbid this host. Ronor will start regardless; the peer path is optional."
   fi
 else
   warn "no --tailscale-authkey given: tailscaled is installed and enabled but this host has NOT joined a tailnet. Run: tailscale up --ssh"
@@ -323,7 +323,7 @@ if $PUBLIC_EDGE; then
   ufw allow 443/tcp comment 'https — nginx TLS edge' >/dev/null
   ok "public 80/443 open for the nginx edge"
 else
-  ok "no public web listener — RONOR is reachable only over the tailnet"
+  ok "no public web listener — Ronor is reachable only over the tailnet"
 fi
 
 # 3000, 6333, 6334 and 6379 are NEVER opened. Every one of those services binds
@@ -438,7 +438,7 @@ head1 "11 · Certbot renewal timer"
 
 cat > /etc/systemd/system/ronor-certbot-renew.service <<'SVC'
 [Unit]
-Description=RONOR — Certbot TLS certificate renewal
+Description=Ronor — Certbot TLS certificate renewal
 After=docker.service
 Requires=docker.service
 
@@ -453,7 +453,7 @@ SVC
 
 cat > /etc/systemd/system/ronor-certbot-renew.timer <<'TMR'
 [Unit]
-Description=RONOR — Certbot renewal (twice daily)
+Description=Ronor — Certbot renewal (twice daily)
 
 [Timer]
 # 04:17 and 16:17 UTC — staggered to avoid the top-of-hour spike on
@@ -515,7 +515,7 @@ Next steps
       chmod 600 .env.production
   4.  ./deploy/deploy.sh --first-run
 
-  Nothing above has started RONOR. This script prepared the host only.
+  Nothing above has started Ronor. This script prepared the host only.
 
 Prepared by AMB · Mayleven Ecosystem
 NEXT

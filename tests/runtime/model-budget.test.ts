@@ -101,7 +101,7 @@ describe('text-only request reservations', () => {
   // Wire shapes produced by OpenHands SDK 1.42.1 Message.to_chat_dict / _list_serializer.
   it('admits the SDK prompt-cache markers, replayed thinking blocks and content-free tool-call turns', () => {
     const messages = [
-      {role:'system',content:[{type:'text',text:'You are RONOR.',cache_control:{type:'ephemeral'}}]},
+      {role:'system',content:[{type:'text',text:'You are Ronor.',cache_control:{type:'ephemeral'}}]},
       {role:'user',content:[{type:'text',text:'Run tests.'}]},
       {role:'assistant',thinking_blocks:[{type:'thinking',thinking:'plan',signature:'sig'},{type:'redacted_thinking',data:'xx'}],
         tool_calls:[{id:'call_1',type:'function',function:{name:'bash',arguments:'{}'}}]},

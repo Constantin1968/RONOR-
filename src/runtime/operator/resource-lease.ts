@@ -1,5 +1,5 @@
 /**
- * RONOR Operator — lease pe resursă (schelet Tranșa 1, fix F09)
+ * Ronor Operator — lease pe resursă (schelet Tranșa 1, fix F09)
  * ─────────────────────────────────────────────────────────────
  * `run-lease.ts` protejează `run_id`/`mandate_id`, nu calea canonică a
  * arborelui sau echipamentul. Rezultat: două mandate distincte pe același

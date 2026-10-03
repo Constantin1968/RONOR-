@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L3 · Task Decomposition
+ * Ronor Runtime — L3 · Task Decomposition
  * ───────────────────────────────────────
  * Turns an objective into an ordered plan of agent tasks.
  *
@@ -112,7 +112,7 @@ export async function decomposeObjective(params: {
     .join('\n');
 
   const system =
-    'You are the RONOR task decomposition planner. Break an objective into the smallest ' +
+    'You are the Ronor task decomposition planner. Break an objective into the smallest ' +
     'sufficient sequence of agent tasks. Rules: (1) use ONLY the listed agents; (2) a task ' +
     'that reasons over evidence MUST depend on the task that gathered it; (3) prefer fewer, ' +
     'well-scoped tasks over many shallow ones; (4) task_id values must be short and unique; ' +

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RONOR — generator de rapoarte periodice (CBD / OBD / TODO)
+Ronor — generator de rapoarte periodice (CBD / OBD / TODO)
 
 Ruleaza PE NODUL SUVERAN (Hetzner), nu pe infrastructura Manus.
 Livrare dubla: Telegram (@ronor_sovereign_bot) + e-mail via Resend
@@ -187,7 +187,7 @@ def send_email(subject, text):
     if not RESEND_KEY:
         return False, "RESEND_API_KEY absent"
     body = json.dumps({
-        "from": f"RONOR Control <{MAIL_FROM}>",
+        "from": f"Ronor Control <{MAIL_FROM}>",
         "to": [MAIL_TO],
         "subject": subject,
         "text": text,
@@ -217,10 +217,10 @@ def build(kind):
     L = []
     A = L.append
 
-    titles = {"OBD": "RONOR — OPEN BUSINESS DAY",
-              "CBD": "RONOR — CLOSE BUSINESS DAY",
-              "TODO": "RONOR — TO-DO GENERAL (săptămânal)"}
-    A(titles.get(kind, "RONOR — RAPORT"))
+    titles = {"OBD": "Ronor — OPEN BUSINESS DAY",
+              "CBD": "Ronor — CLOSE BUSINESS DAY",
+              "TODO": "Ronor — TO-DO GENERAL (săptămânal)"}
+    A(titles.get(kind, "Ronor — RAPORT"))
     A("=" * 36)
     A(f"{zi} {now.strftime('%d.%m.%Y %H:%M')} EEST")
     A(f"Nod: {socket.gethostname()}")
@@ -255,7 +255,7 @@ def build(kind):
         A(f"  [{mark}] {k:22} {v}")
     A("")
 
-    A("MEMORIE RONOR")
+    A("MEMORIE Ronor")
     st = rmemory_stats()
     if "eroare" in st:
         A(f"  NEVERIFICABIL — {st['eroare']}")
@@ -321,7 +321,7 @@ def main():
     print(txt)
 
     ok_t, msg_t = send_telegram(txt)
-    subj = f"RONOR {kind} — {datetime.now(TZ).strftime('%d.%m.%Y %H:%M')}"
+    subj = f"Ronor {kind} — {datetime.now(TZ).strftime('%d.%m.%Y %H:%M')}"
     ok_e, msg_e = send_email(subj, txt)
     print(f"\n[Telegram] {'OK' if ok_t else 'EȘEC'}: {msg_t}")
     print(f"[E-mail]   {'OK' if ok_e else 'EȘEC'}: {msg_e}")

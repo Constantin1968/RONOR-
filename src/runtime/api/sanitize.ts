@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Input Sanitisation and Injection Screening
+ * Ronor Runtime — L0 · Input Sanitisation and Injection Screening
  * ─────────────────────────────────────────────────────────────
  * What this module does and, more importantly, what it does NOT claim to do.
  *

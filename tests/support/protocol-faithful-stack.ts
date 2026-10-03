@@ -12,7 +12,7 @@ import { createModelEgressProxy } from '../../src/runtime/automation/services/mo
 import { MODEL_RATE_CARD, ModelBudgetLedger } from '../../src/runtime/automation/model-budget';
 
 /**
- * PROTOCOL-FAITHFUL STACK. Nothing here stands in for a RONOR component: the
+ * PROTOCOL-FAITHFUL STACK. Nothing here stands in for a Ronor component: the
  * evidence runner, the Codex verifier with its real OpenAI-Responses evaluator,
  * the Victoria assurance authority, the model egress proxy and its SQLite budget
  * ledger are the production implementations, each bound to a real loopback

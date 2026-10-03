@@ -18,4 +18,4 @@ createModelEgressProxy({
   allowTailscale: process.env.RONOR_MODEL_GATEWAY_ALLOW_TAILSCALE === 'true',
   budget: {key:requiredSecret('RONOR_AUTOMATION_CAPABILITY_KEY'),
     ledger:new ModelBudgetLedger(requiredSecret('RONOR_MODEL_BUDGET_DB'))},
-}).listen(port, host, () => process.stdout.write(`RONOR model egress proxy listening on ${host}:${port}\n`));
+}).listen(port, host, () => process.stdout.write(`Ronor model egress proxy listening on ${host}:${port}\n`));

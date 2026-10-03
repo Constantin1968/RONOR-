@@ -1,5 +1,5 @@
 /**
- * RONOR — L2 · Persistence · Audit Mirror (oglindirea lanțului de audit)
+ * Ronor — L2 · Persistence · Audit Mirror (oglindirea lanțului de audit)
  * ──────────────────────────────────────────────────────────────────────
  * The local SHA-256 hash chain (`data/audit.db`, table `audit_chain`) is and
  * remains the AUTHORITATIVE register. This module mirrors every link of that

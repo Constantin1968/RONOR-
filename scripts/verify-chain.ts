@@ -2,7 +2,7 @@
  * Offline audit-chain verifier
  *
  * Purpose: allow a bank, TSO regulator, insurer, or OSaaS client to
- * independently verify the RONOR audit chain WITHOUT running the RONOR
+ * independently verify the Ronor audit chain WITHOUT running the Ronor
  * server. It takes either:
  *   - a JSON file exported from `GET /api/v1/audit/export`
  *   - or the live SQLite audit DB

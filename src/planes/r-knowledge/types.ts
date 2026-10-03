@@ -2,7 +2,7 @@
  * R-Knowledge — Type Surface
  * MIP-014 STEP 2 · Phase 1 (Contract Foundations)
  *
- * The ninth operational plane of the RONOR runtime. This module declares the
+ * The ninth operational plane of the Ronor runtime. This module declares the
  * plane's type surface only: the Knowledge Object contract of STEP 1 § 7, the
  * retrieval result contract of STEP 1 § 7.5, the store and embedding
  * abstractions of STEP 1 §§ 9.1 and 11.2, the four-level degradation ladder of

@@ -1,8 +1,8 @@
-# RONOR — Devpost Submission
+# Ronor — Devpost Submission
 _OpenAI Build Week 2026 · Work & Productivity_
 
 ## Project name
-**RONOR — Model Exchange & Governance Spine for Energy Operations**
+**Ronor — Model Exchange & Governance Spine for Energy Operations**
 
 ## Category
 **Work & Productivity** — the operator work being productivised is BESS dispatch, DSO settlement, and energy-trading decisions across a portfolio of frontier models.
@@ -16,7 +16,7 @@ Five models, one governed pipeline, and an audit chain any regulator can verify 
 
 I run a small AI-and-energy consultancy in Bucharest. Every operator I talk to says the same thing: they cannot deploy AI they cannot audit. So over Build Week I built the thing they keep asking for.
 
-RONOR is a Node/TypeScript runtime that puts five engines — GPT-4.1, Claude Sonnet 4, Mistral Large 2, Qwen3-72B, and a local Deterministic Core — behind one Unified Request API. A deterministic policy layer (eight rules, P1–P8) filters the registry before scoring. A six-dimension router then picks the winner on quality, sovereignty, evidence, cost, latency, and operational risk. Around that router sits the MI9 Gate: six pre-execution checks that return allow, escalate, or block, plus five post-execution checks on the output. Every request, verdict, cost, and result is appended to a SHA-256 hash-chained SQLite audit log — one CLI command verifies the whole chain. A realistic 20 MWh Romanian BESS scenario on OPCOM day-ahead and aFRR data runs end-to-end through the same pipeline.
+Ronor is a Node/TypeScript runtime that puts five engines — GPT-4.1, Claude Sonnet 4, Mistral Large 2, Qwen3-72B, and a local Deterministic Core — behind one Unified Request API. A deterministic policy layer (eight rules, P1–P8) filters the registry before scoring. A six-dimension router then picks the winner on quality, sovereignty, evidence, cost, latency, and operational risk. Around that router sits the MI9 Gate: six pre-execution checks that return allow, escalate, or block, plus five post-execution checks on the output. Every request, verdict, cost, and result is appended to a SHA-256 hash-chained SQLite audit log — one CLI command verifies the whole chain. A realistic 20 MWh Romanian BESS scenario on OPCOM day-ahead and aFRR data runs end-to-end through the same pipeline.
 
 ---
 
@@ -26,7 +26,7 @@ Two things pushed me into this.
 
 The first is that energy operators in the EU are now converged on a very uncomfortable position: REMIT II, the EU AI Act's general-purpose obligations, and their own sector regulators all assume they can explain and reproduce every automated decision. Most AI tooling in the market today cannot pass that bar.
 
-The second is the model landscape itself. Frontier providers have converged on similar capabilities but diverged wildly on cost, latency, jurisdiction, and evidence quality. Nobody should pick one provider per contract. You pick one per request. Every single-provider AI stack I looked at fails one of those two tests. RONOR is designed to fail neither.
+The second is the model landscape itself. Frontier providers have converged on similar capabilities but diverged wildly on cost, latency, jurisdiction, and evidence quality. Nobody should pick one provider per contract. You pick one per request. Every single-provider AI stack I looked at fails one of those two tests. Ronor is designed to fail neither.
 
 ## What it does
 
@@ -82,7 +82,7 @@ Full roadmap: [`docs/roadmap-post-hackathon.md`](./docs/roadmap-post-hackathon.m
 
 ## Ecosystem
 
-Mayleven → Ma11AI → Ronor → QMa11 → OSaaS. RONOR is the runtime layer. OSaaS is the settlement layer. The rest is the parent business.
+Mayleven → Ma11AI → Ronor → QMa11 → OSaaS. Ronor is the runtime layer. OSaaS is the settlement layer. The rest is the parent business.
 
 ## Team
 

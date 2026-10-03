@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L7 Ledger and Mission State Tests
+ * Ronor Runtime — L7 Ledger and Mission State Tests
  *
  * A ledger's value is entirely in its trustworthiness, so these tests target the
  * ways a ledger silently lies: pooling failed spend into an invisible total,

@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Governance Bridge
+ * Ronor Runtime — L0 · Governance Bridge
  * ──────────────────────────────────────
  * Translates a runtime request into the `DecisionContext` that MI9 Gate already
  * evaluates, and writes the outcome into the SHA-256 audit chain that already

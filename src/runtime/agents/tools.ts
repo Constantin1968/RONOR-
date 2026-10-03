@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L3 · Tool Integration Framework
+ * Ronor Runtime — L3 · Tool Integration Framework
  * ───────────────────────────────────────────────
  * Tools are the point at which a language model stops describing the world and
  * starts touching it, so the framework is built around three constraints rather

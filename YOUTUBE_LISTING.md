@@ -3,7 +3,7 @@
 ## Title (100 char max — currently 79)
 
 ```
-RONOR — Model Exchange & Governance Spine for Energy Operations | OpenAI Build Week
+Ronor — Model Exchange & Governance Spine for Energy Operations | OpenAI Build Week
 ```
 
 ## Visibility
@@ -13,7 +13,7 @@ RONOR — Model Exchange & Governance Spine for Energy Operations | OpenAI Build
 ## Description (paste into YouTube description box)
 
 ```
-RONOR — Model Exchange & Governance Spine for Energy Operations
+Ronor — Model Exchange & Governance Spine for Energy Operations
 OpenAI Build Week 2026 · Work & Productivity
 
 A governed Node/TypeScript runtime that puts five frontier engines behind one Unified Request API and one hash-chained audit log — so an energy operator can pick the right model per request AND prove, on demand, what the AI actually did.
@@ -44,7 +44,7 @@ Branch: build-week
 Built by Constantin Liviu NITA (Merlin) · Ma11AI · Mayleven Ecosystem
 Mayleven Ltd, Company No. 17000500, England & Wales
 
-#OpenAIBuildWeek #Codex #GPT56 #EnergyAI #AIGovernance #RONOR
+#OpenAIBuildWeek #Codex #GPT56 #EnergyAI #AIGovernance #Ronor
 ```
 
 ## Tags (add these in YouTube studio → details → show more)
@@ -52,7 +52,7 @@ Mayleven Ltd, Company No. 17000500, England & Wales
 ```
 OpenAI, Build Week, Codex, GPT-5.6, GPT-4.1, AI governance, model exchange,
 audit chain, energy AI, BESS, battery storage, EU AI Act, sovereign AI,
-Romania, work and productivity, RONOR, Ma11AI, Mayleven
+Romania, work and productivity, Ronor, Ma11AI, Mayleven
 ```
 
 ## Thumbnail (optional — if you have time)

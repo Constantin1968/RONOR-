@@ -1,6 +1,6 @@
-# Porți de acceptare RONOR G0–G5 — checklist cu probe negative
+# Porți de acceptare Ronor G0–G5 — checklist cu probe negative
 
-> Sursă: Audit aprofundat RONOR 09.09.2026 (18 constatări F01–F18) + doctrina The New Renaissance v3.0 (claims register, falsifiabilitate).
+> Sursă: Audit aprofundat Ronor 09.09.2026 (18 constatări F01–F18) + doctrina The New Renaissance v3.0 (claims register, falsifiabilitate).
 > Regulă transversală din doctrină: **o afirmație nu călătorește mai departe decât dovada sa**. Fiecare poartă se închide doar cu rezultate observabile, nu cu text de instrucțiuni, comentarii sau etichete de stare noi.
 > Proprietăți, nu șiruri: fiecare test de mai jos e formulat ca proprietate negativă (`după X nu există Y`).
 

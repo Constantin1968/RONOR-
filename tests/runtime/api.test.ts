@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 API Surface Tests
+ * Ronor Runtime — L0 API Surface Tests
  *
  * The tests here concentrate on the properties that fail SILENTLY when wrong:
  * a credential comparison that leaks timing, a sanitiser that passes a
@@ -791,7 +791,7 @@ describe('CONTROL · executive delegation', () => {
     const res = await request(app)
       .post('/api/runtime/management/executive/delegate')
       .set('Authorization', `Bearer ${ARCHITECT_SECRET}`)
-      .send({ objective: 'Resolve the RONOR runtime security and deployment reliability situation.' });
+      .send({ objective: 'Resolve the Ronor runtime security and deployment reliability situation.' });
     expect(res.status).toBe(201);
     const delegation = res.body.delegation;
     expect(delegation.accountable).toBe('richard');

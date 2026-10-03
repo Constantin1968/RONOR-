@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram · Energy Trading · HTTP Client
+ * Ronor — L0 · Telegram · Energy Trading · HTTP Client
  * ────────────────────────────────────────────────────
  * Thin, typed wrapper over the trading arm's FastAPI, reachable only from the
  * internal docker network at TRADING_ARM_BASE_URL. Every request carries the

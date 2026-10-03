@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange — Work Ledger, Cost Ledger, R-Assurance
+ * Ronor Model Exchange — Work Ledger, Cost Ledger, R-Assurance
  * ────────────────────────────────────────────────────────────
  * WorkLedger  : Every request produces one entry recording who requested it,
  *               what engine executed it, what cost it incurred, what result
@@ -13,7 +13,7 @@
  * R-Assurance : Verification layer applied after execution — confidence
  *               scoring + source attribution + consistency checks.
  *
- * Ported from RONOR Model Exchange v0.1 ledger.js. In v0.1 both ledgers were
+ * Ported from Ronor Model Exchange v0.1 ledger.js. In v0.1 both ledgers were
  * in-memory; in the merged spine they persist to SQLite so audits survive
  * process restarts and can be exported for DNV / regulatory review.
  */

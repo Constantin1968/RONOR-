@@ -1,6 +1,6 @@
-"""R-PowerTrade: serviciul brațului de trading din RONOR, Etapa 1 (Light).
+"""R-PowerTrade: serviciul brațului de trading din Ronor, Etapa 1 (Light).
 
-R-PowerTrade propune, RONOR decide. R-PowerTrade nu nominalizează și nu execută în Etapa 1:
+R-PowerTrade propune, Ronor decide. R-PowerTrade nu nominalizează și nu execută în Etapa 1:
 /api/nominate răspunde 403 până la trecerea în modul Gated.
 
 Autentificare: antetul X-RONOR-Token, comparat în timp constant. Dacă
@@ -274,11 +274,11 @@ def powertrade_metrics():
     return jsonable({"metrics": m, "gated_gate": gate(m, th), "stage": STAGE})
 
 
-# ---------------------------------------------------------------- compatibilitate cu botul RONOR
+# ---------------------------------------------------------------- compatibilitate cu botul Ronor
 @app.post("/api/nominate", dependencies=[Depends(auth)])
 def nominate():
     if STAGE != "arm":
-        raise HTTPException(403, f"etapa {STAGE}: R-PowerTrade nu nominalizează; decizia rămâne la RONOR și la operator")
+        raise HTTPException(403, f"etapa {STAGE}: R-PowerTrade nu nominalizează; decizia rămâne la Ronor și la operator")
     raise HTTPException(501, "nominalizarea automată nu e implementată")
 
 

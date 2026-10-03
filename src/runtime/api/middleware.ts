@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Middleware
+ * Ronor Runtime — L0 · Middleware
  * ───────────────────────────────
  * Authentication, rate limiting, provenance capture and error containment for
  * the unified request surface.

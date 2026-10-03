@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange — HTTP Routes
+ * Ronor Model Exchange — HTTP Routes
  * ──────────────────────────────────
  * Exposes the Model Exchange × Governance Spine pipeline over HTTP:
  *

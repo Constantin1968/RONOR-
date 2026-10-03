@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram Interface · Configuration
+ * Ronor — L0 · Telegram Interface · Configuration
  * ───────────────────────────────────────────────
  * Every operational decision the bridge makes is derived from this one resolved
  * object. Nothing downstream reads `process.env` directly.
@@ -52,7 +52,7 @@ export interface TelegramConfig {
    * is what distinguishes a genuine delivery from anyone who guessed the path.
    */
   webhookSecret: string | null;
-  /** Base URL of the RONOR runtime. Inside compose this is http://ronor:3000. */
+  /** Base URL of the Ronor runtime. Inside compose this is http://ronor:3000. */
   apiBaseUrl: string;
   /** Operator key presented as `Authorization: Bearer`. Needs query+read+agent. */
   apiKey: string;

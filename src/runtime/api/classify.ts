@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Request Classification
+ * Ronor Runtime — L0 · Request Classification
  * ───────────────────────────────────────────
  * Turns a free-text request into the structured constraints the router needs:
  * task type, complexity, whether live retrieval is required, and whether the

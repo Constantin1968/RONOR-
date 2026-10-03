@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 · 6D Router
+ * Ronor Runtime — L1 · 6D Router
  * ──────────────────────────────
  * Score = +Quality −Cost −Latency −OperationalRisk +Sovereignty +Evidence
  *

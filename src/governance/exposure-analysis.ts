@@ -1,5 +1,5 @@
 /**
- * Exposure Analysis Module — RONOR Build Week
+ * Exposure Analysis Module — Ronor Build Week
  *
  * A formal risk-register attached to every decision. Answers the question a
  * bank, insurer, TSO, or CFO asks before approving any AI-driven action:
@@ -344,7 +344,7 @@ function narrativeFor(record: Omit<ExposureRecord, 'narrative' | 'advisory'>): s
   return (
     `Aggregate exposure: ${tierFromScore(record.aggregateScore)} ` +
     `(score ${record.aggregateScore.toFixed(3)}, worst-case €${Math.round(record.worstCaseEur)}, ` +
-    `residual after RONOR controls €${Math.round(record.residualExposureEur)}). ` +
+    `residual after Ronor controls €${Math.round(record.residualExposureEur)}). ` +
     `Top drivers: ${parts.join('; ')}.`
   );
 }

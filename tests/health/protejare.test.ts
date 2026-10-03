@@ -1,5 +1,5 @@
 /**
- * RONOR — Calea de sănătate nu poate doborî procesul
+ * Ronor — Calea de sănătate nu poate doborî procesul
  * ─────────────────────────────────────────────────
  *
  * R4 din auditul independent. `/health` compune răspunsul din orchestrator, din

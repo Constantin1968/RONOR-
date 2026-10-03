@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rulează un audit RONOR și livrează rezultatul prin Telegram + email.
+# Rulează un audit Ronor și livrează rezultatul prin Telegram + email.
 # Variabile: RONOR_BOT_TOKEN, RONOR_CHAT_ID, RONOR_MAIL_FROM, RONOR_MAIL_TO,
 #            RESEND_API_KEY  (din /opt/ronor/.report_env)
 set -uo pipefail
@@ -21,7 +21,7 @@ esac
 SUMAR=$(grep -E "SCOR:|VERDICT|TOTAL:|CRITERII CRITICE|\[ok\]|\[EȘEC\]" "$OUT" 2>/dev/null | head -8)
 [ -z "$SUMAR" ] && SUMAR=$(tail -8 "$OUT")
 
-MSG="RONOR — AUDIT AUTOMAT: ${TIP}
+MSG="Ronor — AUDIT AUTOMAT: ${TIP}
 $(date -u '+%Y-%m-%d %H:%M UTC')
 
 ${SUMAR}
@@ -47,7 +47,7 @@ txt = open(sys.argv[1], encoding='utf-8', errors='replace').read()[:60000]
 print(json.dumps({
     'from': sys.argv[2],
     'to': [sys.argv[3]],
-    'subject': 'RONOR Audit automat - ' + sys.argv[4],
+    'subject': 'Ronor Audit automat - ' + sys.argv[4],
     'text': txt,
 }))
 " "$OUT" "${RONOR_MAIL_FROM:-ronor@ma11ai.com}" "${RONOR_MAIL_TO:-constantine@ma11ai.com}" "$TIP")

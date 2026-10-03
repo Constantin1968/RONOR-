@@ -3,7 +3,7 @@
  *
  * Runs N BESS decision sessions and compares:
  *   - baseline "charge low / discharge high" policy
- *   - RONOR governed policy (frontier proposal → MI9 Gate → exposure → audit)
+ *   - Ronor governed policy (frontier proposal → MI9 Gate → exposure → audit)
  *
  * Emits a BENCHMARK.md-friendly table with:
  *   - mean baseline net €

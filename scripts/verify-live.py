@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RONOR Runtime Active — live end-to-end verification.
+Ronor Runtime Active — live end-to-end verification.
 
 Exercises the runtime through its HTTP surface against real providers, exactly as
 an operator would. This is deliberately NOT a unit test: the point is to prove the

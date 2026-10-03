@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram Interface · Types
+ * Ronor — L0 · Telegram Interface · Types
  * ───────────────────────────────────────
  * The subset of the Telegram Bot API surface this bridge relies on, plus the
  * bridge's own domain types.
@@ -203,12 +203,12 @@ export interface PendingApproval {
 }
 
 // ---------------------------------------------------------------------------
-// RONOR runtime response shapes (the fields the bridge reads)
+// Ronor runtime response shapes (the fields the bridge reads)
 // ---------------------------------------------------------------------------
 //
 // Declared structurally rather than imported from src/runtime/api/pipeline.ts.
 // The bridge is an HTTP CLIENT of the runtime: in the compose deployment it runs
-// in a separate container and may be pointed at a different RONOR version
+// in a separate container and may be pointed at a different Ronor version
 // entirely. Importing the server's internal types would create a compile-time
 // coupling that the wire does not have, and would make a field the server
 // renamed look like a bridge type error rather than the protocol change it is.

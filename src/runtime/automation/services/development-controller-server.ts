@@ -52,7 +52,7 @@ export function startDevelopmentController() {
   bootstrapApiKeys(env);
   const controller = createDevelopmentController(env);
   const server = controller.app.listen(port, host, () => {
-    process.stdout.write('RONOR development controller started; use authenticated readiness before execution.\n');
+    process.stdout.write('Ronor development controller started; use authenticated readiness before execution.\n');
   });
   const shutdown = () => { controller.stop(); server.close(); };
   process.once('SIGTERM', shutdown);

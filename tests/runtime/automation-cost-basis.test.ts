@@ -14,7 +14,7 @@ import type { TestExecutor } from '../../src/runtime/automation/test-executor';
  * label carries no amount and is not an assertion of accounting authority.
  */
 
-const objective = 'Implement and verify a bounded RONOR feature.';
+const objective = 'Implement and verify a bounded Ronor feature.';
 const workspace = 'C:/sandbox/ronor';
 const branch = 'agent/mission-1';
 const authorityKey = 'test-runner-authority-key-0123456789abcdef';

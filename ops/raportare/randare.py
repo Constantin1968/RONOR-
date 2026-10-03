@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Randor de rapoarte RONOR. Nu masoara nimic: citeste censul si il reda.
+"""Randor de rapoarte Ronor. Nu masoara nimic: citeste censul si il reda.
 
 Cine masoara nu formateaza, cine formateaza nu masoara. Orice canal
 (OBD, CBD, TODO, sanatate proactiva) e un glas al aceluiasi cens, deci
@@ -222,11 +222,11 @@ def randeaza(cens, tip="CBD", cu_provenienta=True):
     except Exception:
         cap = cens.get("generat_la", "?")
 
-    titluri = {"OBD": "RONOR — DESCHIDEREA ZILEI",
-               "CBD": "RONOR — ÎNCHIDEREA ZILEI",
-               "TODO": "RONOR — TO-DO GENERAL (săptămânal)",
-               "SANATATE": "RONOR — SĂNĂTATE PROACTIVĂ"}
-    A(titluri.get(tip, "RONOR — RAPORT"))
+    titluri = {"OBD": "Ronor — DESCHIDEREA ZILEI",
+               "CBD": "Ronor — ÎNCHIDEREA ZILEI",
+               "TODO": "Ronor — TO-DO GENERAL (săptămânal)",
+               "SANATATE": "Ronor — SĂNĂTATE PROACTIVĂ"}
+    A(titluri.get(tip, "Ronor — RAPORT"))
     A("=" * 46)
     A(cap)
     A("Nod: %s   cens: %s" % (cens.get("nod", "?"), cens.get("schema", "?")))
@@ -317,7 +317,7 @@ def randeaza(cens, tip="CBD", cu_provenienta=True):
     A("")
 
     # ---------------------------------------------------------- memorie
-    A("MEMORIE RONOR")
+    A("MEMORIE Ronor")
     mm = cens["memorie"]
     if "stats" in mm:
         A("  NEVERIFICAT — %s" % mm["stats"].get("motiv"))

@@ -1,5 +1,5 @@
 -- ============================================================================
--- RONOR — Energy Trading Optimization Ledger
+-- Ronor — Energy Trading Optimization Ledger
 -- ----------------------------------------------------------------------------
 -- Proof-of-Optimization ledger for the crossborder Energy Trading Arm.
 -- Every trade request, approval, rejection, execution, and outcome is recorded

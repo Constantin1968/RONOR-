@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram Interface · Entrypoint
+ * Ronor — L0 · Telegram Interface · Entrypoint
  * ─────────────────────────────────────────────
  * Standalone entry point for the Telegram bridge container.
  *
@@ -23,8 +23,8 @@ const logger = createLogger('RONOR:Telegram:Main');
 
 export async function startTelegramBridge(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   logger.info('╔══════════════════════════════════════════════════╗');
-  logger.info('║  RONOR — Telegram Operator Interface             ║');
-  logger.info('║  Sovereign Intelligence Operating Runtime        ║');
+  logger.info('║  Ronor — Telegram Operator Interface             ║');
+  logger.info('║  Ronor SIS — Sovereign Intelligence System       ║');
   logger.info('║  Prepared by AMB · Mayleven Ecosystem            ║');
   logger.info('╚══════════════════════════════════════════════════╝');
 

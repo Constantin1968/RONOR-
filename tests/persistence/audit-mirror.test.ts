@@ -1,5 +1,5 @@
 /**
- * RONOR — Oglindirea lanțului de audit în baza de guvernanță suverană
+ * Ronor — Oglindirea lanțului de audit în baza de guvernanță suverană
  * ───────────────────────────────────────────────────────────────────
  * These tests target the properties that fail SILENTLY when wrong:
  *

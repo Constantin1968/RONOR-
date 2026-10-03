@@ -1,4 +1,4 @@
-# `documente/` — oglinda documentară a lucrării RONOR / RSIOR
+# `documente/` — oglinda documentară a lucrării Ronor SIS
 
 Acest director aduce sub control de versiune tot ce s-a produs în afara codului:
 rapoarte, specificații, scripturi de verificare și jurnalul deciziilor.
@@ -8,8 +8,10 @@ aduce fidel pe orice mașină atât codul, cât și documentele care explică de
 codul arată așa. Nu mai există artefacte care trăiesc doar într-un fir de
 conversație sau într-un folder local.
 
-RSIOR = RONOR Sovereign Intelligence Operating Runtime (runtimul suveran de
-operare a inteligenței RONOR).
+Ronor SIS = Sovereign Intelligence System, produsul central al Ma11AI. Ronor
+Runtime este subsistemul de coordonare și execuție, denumit anterior RSIOR
+(Sovereign Intelligence Operating Runtime). Autoritatea arhitecturală este
+`ronor-sis-arhitectura-canonica.md`.
 
 ## Cum se folosește
 

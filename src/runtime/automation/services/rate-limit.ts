@@ -1,5 +1,5 @@
 /**
- * RONOR Automation — shared ingress limiter for the internal service surfaces
+ * Ronor Automation — shared ingress limiter for the internal service surfaces
  * ──────────────────────────────────────────────────────────────────────────
  * The verification authorities, the evidence runner, the OpenHands bridge and
  * the model egress proxy each expose a small HTTP surface guarded by a static

@@ -2,7 +2,7 @@
  * R-Sentinel — Runtime Collector
  * MIP-013
  *
- * Observes RONOR's own logical resources rather than the host's physical ones:
+ * Observes Ronor's own logical resources rather than the host's physical ones:
  *   · context sessions   — active sessions held by R-Context
  *   · token throughput   — tokens/second observed across recent inferences
  *   · inference latency  — rolling mean latency reported by the runtime

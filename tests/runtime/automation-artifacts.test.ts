@@ -11,7 +11,7 @@ describe('authoritative workspace artifacts', () => {
     const artifacts = path.join(root, 'artifacts');
     mkdirSync(workspace); mkdirSync(artifacts);
     execFileSync('git', ['init', workspace], { stdio: 'ignore' });
-    execFileSync('git', ['-C', workspace, 'config', 'user.name', 'RONOR Test']);
+    execFileSync('git', ['-C', workspace, 'config', 'user.name', 'Ronor Test']);
     execFileSync('git', ['-C', workspace, 'config', 'user.email', 'test@invalid.local']);
     writeFileSync(path.join(workspace, 'tracked.txt'), 'before\n');
     execFileSync('git', ['-C', workspace, 'add', 'tracked.txt']);
@@ -38,7 +38,7 @@ describe('authoritative workspace artifacts', () => {
     const workspace = path.join(root, 'workspace'); const artifacts = path.join(root, 'artifacts');
     mkdirSync(workspace); mkdirSync(artifacts);
     const git = (...args: string[]) => execFileSync('git', ['-C', workspace, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    git('init'); git('config', 'user.name', 'RONOR Test'); git('config', 'user.email', 'test@invalid.local');
+    git('init'); git('config', 'user.name', 'Ronor Test'); git('config', 'user.email', 'test@invalid.local');
     writeFileSync(path.join(workspace, 'tracked.txt'), 'baseline\n');
     git('add', '.'); git('commit', '-m', 'baseline');
     const baseCommit = git('rev-parse', 'HEAD');
@@ -73,7 +73,7 @@ describe('authoritative workspace artifacts', () => {
     const artifacts = path.join(root, 'artifacts');
     mkdirSync(workspace); mkdirSync(artifacts);
     execFileSync('git', ['init', workspace], { stdio: 'ignore' });
-    execFileSync('git', ['-C', workspace, 'config', 'user.name', 'RONOR Test']);
+    execFileSync('git', ['-C', workspace, 'config', 'user.name', 'Ronor Test']);
     execFileSync('git', ['-C', workspace, 'config', 'user.email', 'test@invalid.local']);
     writeFileSync(path.join(workspace, 'config.txt'), 'password=ordinary-placeholder\n');
     execFileSync('git', ['-C', workspace, 'add', 'config.txt']);

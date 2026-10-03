@@ -7,7 +7,7 @@
     "timestamp": "2026-08-03T00:54:04Z",
     "tools": [
       {
-        "vendor": "Mayleven / RONOR Engineering",
+        "vendor": "Mayleven / Ronor Engineering",
         "name": "ronor-sbom-generator",
         "version": "1.0.0"
       }
@@ -22,7 +22,7 @@
       "bom-ref": "pkg:npm/ronor-model-exchange-governance-spine@0.4.0-core-active",
       "name": "ronor-model-exchange-governance-spine",
       "version": "0.4.0-core-active",
-      "description": "RONOR — Model Exchange & Governance Spine for Energy Operations. A 6D model router, MI9 governance gate, R-Assurance evidence layer, SHA-256 audit chain, and Work + Cost of Intelligence ledgers — wired end-to-end for a 20 MWh BESS Romania scenario.",
+      "description": "Ronor — Model Exchange & Governance Spine for Energy Operations. A 6D model router, MI9 governance gate, R-Assurance evidence layer, SHA-256 audit chain, and Work + Cost of Intelligence ledgers — wired end-to-end for a 20 MWh BESS Romania scenario.",
       "purl": "pkg:npm/ronor-model-exchange-governance-spine@0.4.0-core-active",
       "licenses": [
         {

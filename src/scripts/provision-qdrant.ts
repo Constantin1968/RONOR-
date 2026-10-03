@@ -1,7 +1,7 @@
 /**
- * RONOR — Qdrant Collection Provisioning
+ * Ronor — Qdrant Collection Provisioning
  * ───────────────────────────────────────
- * Creates the three collections required by RONOR v0.5.0 if they do not already
+ * Creates the three collections required by Ronor v0.5.0 if they do not already
  * exist. Safe to re-run; existing collections are left untouched.
  *
  * Collections

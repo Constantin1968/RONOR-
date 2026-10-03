@@ -1,5 +1,5 @@
 /**
- * RONOR — Tailscale Sovereign Private Plane Configuration
+ * Ronor — Tailscale Sovereign Private Plane Configuration
  * ────────────────────────────────────────────────────────
  * Tailscale provides the private network plane for RONOR: the production server
  * and the operator's HP laptop (desktop-eapcqug, 100.108.229.28) are peers on

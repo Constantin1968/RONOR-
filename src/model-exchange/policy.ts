@@ -1,12 +1,12 @@
 /**
- * RONOR Model Exchange — Policy Engine
+ * Ronor Model Exchange — Policy Engine
  * ────────────────────────────────────
  * Deterministic governance rules applied BEFORE routing. Policies filter the
  * registry down to the eligible set and can force ordering preferences.
  * Every rule evaluation is recorded so the audit chain can show exactly why
  * each model was admitted or excluded.
  *
- * Ported from RONOR Model Exchange v0.1 policy.js, with additional rule P8
+ * Ported from Ronor Model Exchange v0.1 policy.js, with additional rule P8
  * (MI9 Gate pass required) added in the merged architecture.
  */
 

@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange — Engine Adapters
+ * Ronor Model Exchange — Engine Adapters
  * ──────────────────────────────────────
  * Every engine implements the same contract:
  *   execute(model, request) → ExecutionResult
@@ -12,14 +12,14 @@
  * - Deterministic Core: local, exact math/logic evaluator — zero cost,
  *   millisecond latency, 100% reproducible.
  *
- * Ported from RONOR Model Exchange v0.1 engines.js and extended with two
+ * Ported from Ronor Model Exchange v0.1 engines.js and extended with two
  * additional sovereign engine adapters (Mistral, Qwen).
  */
 
 import type { ModelRegistryEntry } from "./registry";
 import type { UnifiedRequest } from "./policy";
 
-const RONOR_SYSTEM_PROMPT = `You are an intelligence engine operating inside RONOR, the sovereign Model Exchange and Governance Spine for Energy Operations. You do not chat. You return verifiable, structured output.
+const RONOR_SYSTEM_PROMPT = `You are an intelligence engine operating inside Ronor, the sovereign Model Exchange and Governance Spine for Energy Operations. You do not chat. You return verifiable, structured output.
 
 Respond ONLY with a single valid JSON object:
 {
@@ -141,13 +141,13 @@ async function executeSimulatedProvider(
     ok: true,
     answer:
       `[SIMULATED — ${providerLabel} adapter not configured in this deployment] ` +
-      `RONOR routed this request to ${model.display_name} based on its eligibility score. ` +
+      `Ronor routed this request to ${model.display_name} based on its eligibility score. ` +
       `In production, this adapter executes a real ${providerLabel} API call with the same ` +
       `unified request contract, and the response flows through identical verification, ` +
       `trace and cost accounting as every other engine.`,
     confidence: 50,
     sources: [
-      { title: "RONOR Engine Adapter Contract", type: "Standard" },
+      { title: "Ronor Engine Adapter Contract", type: "Standard" },
       { title: `${providerLabel} API Reference`, type: "Report" },
     ],
     input_tokens: estIn,
@@ -275,11 +275,11 @@ async function executeDeterministic(_model: ModelRegistryEntry, request: Unified
 
   return {
     ok: true,
-    answer: `Deterministic evaluation: ${result.expr} = ${result.value}. Computed locally by RONOR Deterministic Core — exact, reproducible, zero marginal cost, no data left the sovereign boundary.`,
+    answer: `Deterministic evaluation: ${result.expr} = ${result.value}. Computed locally by Ronor Deterministic Core — exact, reproducible, zero marginal cost, no data left the sovereign boundary.`,
     confidence: 100,
     sources: [
       { title: "IEEE 754 double-precision arithmetic", type: "Standard" },
-      { title: "RONOR Deterministic Core execution record", type: "Dataset" },
+      { title: "Ronor Deterministic Core execution record", type: "Dataset" },
     ],
     input_tokens: 0,
     output_tokens: 0,

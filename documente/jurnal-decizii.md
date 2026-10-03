@@ -201,3 +201,21 @@ au dat același refuz.
 consecința deciziei. Depozitul are istoric, are verificări automate și are un
 mecanism de sincronizare mai fiabil decât orice copiere de fișiere: pe stația de
 control, un singur `git pull` aduce fidel codul și documentele împreună.
+
+---
+
+## Ronor SIS și grafia „Ronor”, 3 octombrie 2026
+
+**Decis de proprietar.** Produsul se numește **Ronor SIS — Sovereign
+Intelligence System**. Ronor Runtime este subsistemul de coordonare și execuție,
+denumit anterior RSIOR. Vakyn și JEKYO sunt capabilități native ale produsului,
+iar CIDA și Continuumpedia rămân sisteme distincte.
+
+**Regula de grafie aprobată.** În textul de marcă se scrie „Ronor”. Variabilele
+`RONOR_*`, antetele `X-RONOR-*`, delimitatorii `RONOR-DATA`, spațiile de nume
+din jurnale `RONOR:`, identitățile de commit, numele depozitului, arhivele,
+dovezile și rapoartele datate rămân neschimbate. Testul
+`tests/brand/ronor-grafie.test.ts` păzește ambele direcții.
+
+**Autoritate.** `documente/ronor-sis-arhitectura-canonica.md`, propusă spre
+acceptare.

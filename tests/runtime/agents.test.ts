@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L3 Agent Runtime Tests
+ * Ronor Runtime — L3 Agent Runtime Tests
  *
  * The properties under test are the ones whose failure would be invisible in
  * ordinary use: a passport that documents a restriction without enforcing it, a

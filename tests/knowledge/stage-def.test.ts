@@ -406,7 +406,7 @@ describe('Stage F · knowledge grounding integration', () => {
     const result = await plane.process(makeRequest('hello'));
 
     expect(plane.getGroundingStats().attached).toBe(false);
-    expect(result.context?.systemPrompt).toContain('You are RONOR');
+    expect(result.context?.systemPrompt).toContain('You are Ronor');
     // No data region, because no provider contributed one.
     expect(result.context?.systemPrompt).not.toMatch(/BEGIN|DATA REGION|-----/);
   });
@@ -446,7 +446,7 @@ describe('Stage F · knowledge grounding integration', () => {
     expect(contextPlane.getGroundingStats().attached).toBe(true);
     expect(contextPlane.getGroundingStats().grounded).toBe(1);
     // The baseline prompt is PRESERVED and the region is appended, not substituted.
-    expect(result.context?.systemPrompt).toContain('You are RONOR');
+    expect(result.context?.systemPrompt).toContain('You are Ronor');
     expect(result.context!.systemPrompt!.length).toBeGreaterThan(400);
 
     await knowledge.shutdown();
@@ -513,7 +513,7 @@ describe('Stage F · knowledge grounding integration', () => {
 
     // The request is served, ungrounded.
     const result = await contextPlane.process(makeRequest('question'));
-    expect(result.context?.systemPrompt).toContain('You are RONOR');
+    expect(result.context?.systemPrompt).toContain('You are Ronor');
     expect(contextPlane.getGroundingStats().ungrounded).toBe(1);
     expect(contextPlane.getGroundingStats().grounded).toBe(0);
   });

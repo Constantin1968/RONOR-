@@ -1,4 +1,4 @@
-/* RONOR — Governed Intelligence for Energy Operations
+/* Ronor — Governed Intelligence for Energy Operations
  * Web UI logic: decision timeline + audit verifier.
  * No frameworks — vanilla JS, ~200 lines, judge-friendly.
  */

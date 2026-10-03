@@ -1,7 +1,7 @@
 /**
  * BESS Decision Scenario — 20 MWh Romania
  *
- * Realistic scenario for the RONOR Build Week submission. Uses public 2026
+ * Realistic scenario for the Ronor Build Week submission. Uses public 2026
  * Romanian market analysis:
  *   - DAM avg 2025: ~€110/MWh
  *   - Max daily spread: ~€168/MWh
@@ -204,7 +204,7 @@ export function runBaselinePolicy(asset: BessAsset, ticks: MarketTick[]): Policy
 }
 
 // ============================================================
-// RONOR governed policy — evidence-attached, MI9-gated
+// Ronor governed policy — evidence-attached, MI9-gated
 // ============================================================
 
 /**

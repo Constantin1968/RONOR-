@@ -1,6 +1,6 @@
 # ============================================================================
-# RONOR — Sovereign Intelligence Operating Runtime
-# Production composition: RONOR + Qdrant + Redis (+ optional nginx TLS edge)
+# Ronor SIS — Sovereign Intelligence System · Ronor Runtime (formerly RSIOR)
+# Production composition: Ronor + Qdrant + Redis (+ optional nginx TLS edge)
 # ----------------------------------------------------------------------------
 # Target: a single Ubuntu 22.04 host (DigitalOcean 2 GB / 1 vCPU, ~$12/month).
 #
@@ -64,7 +64,7 @@ x-logging: &default-logging
 
 services:
   # --------------------------------------------------------------------------
-  # RONOR runtime — L0 HTTP surface through L7 ledgers
+  # Ronor runtime — L0 HTTP surface through L7 ledgers
   # --------------------------------------------------------------------------
   ronor:
     build:

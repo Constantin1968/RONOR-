@@ -1,7 +1,7 @@
 /**
- * RONOR Runtime — L1 · Gateway Resolution
+ * Ronor Runtime — L1 · Gateway Resolution
  * ───────────────────────────────────────
- * RONOR is model-portable by design, which in practice means an operator may
+ * Ronor is model-portable by design, which in practice means an operator may
  * hold a vendor key, a gateway key that fronts several vendors, or both. This
  * module states the resolution order once so that no adapter invents its own.
  *

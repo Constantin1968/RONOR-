@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L0 · Authentication
+ * Ronor Runtime — L0 · Authentication
  * ───────────────────────────────────
  * API-key authentication with hashed storage, scopes, roles and per-key rate
  * limits. Deliberately simple — this is the first authentication layer, not the

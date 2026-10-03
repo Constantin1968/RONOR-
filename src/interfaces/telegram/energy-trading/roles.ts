@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram · Energy Trading · Role Model
+ * Ronor — L0 · Telegram · Energy Trading · Role Model
  * ────────────────────────────────────────────────────
  * Role-based access for the crossborder trading commands. A user reaching the
  * bridge must clear TWO gates before any trading command runs:
@@ -10,7 +10,7 @@
  *
  *   2. A role assignment in TELEGRAM_ROLE_MAP. A user who is on the allowlist
  *      but NOT in the role map is denied every trading command. They keep
- *      access to the general RONOR commands the bot already gives them, but
+ *      access to the general Ronor commands the bot already gives them, but
  *      the trading surface stays closed.
  *
  * Roles recognised
@@ -87,7 +87,7 @@ export function tradingBucketFor(command: string): TradingCommandBucket | null {
     case 'history':
       return 'initiate';
     // /approve and /reject go through settle() rather than this map, because
-    // whether they touch a TRADE pending or a general RONOR pending is decided
+    // whether they touch a TRADE pending or a general Ronor pending is decided
     // at the approval store, not at parse time.
     default:
       return null;
@@ -187,7 +187,7 @@ export interface AuthorisationDecision {
  * A user with no role assignment is refused every bucket — the trading
  * surface stays closed to any allowed user the operator has not explicitly
  * enrolled. This is the correct default: the bridge already gives them the
- * general RONOR commands, and adding them to the role map is one env-var
+ * general Ronor commands, and adding them to the role map is one env-var
  * edit and a restart away.
  */
 export function authoriseTradingCommand(
@@ -198,7 +198,7 @@ export function authoriseTradingCommand(
     return {
       allowed: false,
       reason:
-        'You have RONOR bridge access but no trading role. Ask the sovereign to add you ' +
+        'You have Ronor bridge access but no trading role. Ask the sovereign to add you ' +
         'to TELEGRAM_ROLE_MAP with the role appropriate to your mandate.',
     };
   }
@@ -238,7 +238,7 @@ export function authoriseTradingCommand(
 
 /**
  * Convenience: whether a specific user is authorised to co-sign a trade
- * pending. Trade co-sign is stricter than general RONOR co-sign: the user must
+ * pending. Trade co-sign is stricter than general Ronor co-sign: the user must
  * (a) be an approver in the base bridge config, (b) hold the sovereign role,
  * and (c) if TELEGRAM_TRADING_APPROVERS is set, be listed there too.
  */

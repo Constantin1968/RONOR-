@@ -1,7 +1,7 @@
 /**
- * RONOR — L0 · Telegram Interface · Runtime Client
+ * Ronor — L0 · Telegram Interface · Runtime Client
  * ─────────────────────────────────────────────────
- * HTTP client the Telegram bridge uses to talk to the RONOR runtime. It is an
+ * HTTP client the Telegram bridge uses to talk to the Ronor runtime. It is an
  * ordinary API client, not an in-process call: in the production composition the
  * bridge runs in a separate container and communicates over the compose network.
  *
@@ -39,7 +39,7 @@ export class RonorClientError extends Error {
     public readonly httpStatus: number | null,
     message: string,
   ) {
-    super(`RONOR client error on ${endpoint}: [${httpStatus ?? 'network'}] ${message}`);
+    super(`Ronor client error on ${endpoint}: [${httpStatus ?? 'network'}] ${message}`);
     this.name = 'RonorClientError';
   }
 }

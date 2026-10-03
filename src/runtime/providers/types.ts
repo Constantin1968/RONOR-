@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L1 Model Exchange · Provider Contract
+ * Ronor Runtime — L1 Model Exchange · Provider Contract
  * ─────────────────────────────────────────────────────
  * One contract, five vendors. Every provider adapter in the exchange implements
  * `ProviderAdapter` and nothing else is permitted to reach a vendor endpoint.

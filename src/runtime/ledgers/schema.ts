@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L7 · Operational Ledger Schema
+ * Ronor Runtime — L7 · Operational Ledger Schema
  * ──────────────────────────────────────────────
  * Three ledgers, one database, one migration path. They share the SQLite file
  * that already holds the SHA-256 audit chain so that an auditor can reconcile

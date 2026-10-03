@@ -281,12 +281,12 @@ export function createNativeOpenHandsClient(config: {
       // 'openhands_pause_unconfirmed', sending the operator after the wrong
       // cause. Re-poll for a bounded window instead of demanding instant proof.
       // 'waiting_for_confirmation' is settled for the purpose of a pause: under the
-      // AlwaysConfirm policy the agent executes nothing until RONOR confirms, and
-      // RONOR never confirms after asking for a pause. On the host (29.09.2026,
+      // AlwaysConfirm policy the agent executes nothing until Ronor confirms, and
+      // Ronor never confirms after asking for a pause. On the host (29.09.2026,
       // run_092829ca3043768cf371) a conversation blocked on confirmation never
       // reported 'paused', so a quiescent run was reported as unconfirmed.
       const SETTLED = ['paused', 'waiting_for_confirmation', 'finished', 'complete', 'completed', 'error', 'failed', 'stopped', 'stuck'];
-      // `rejectedTip`: after RONOR rejected the action at this tip the agent resumes,
+      // `rejectedTip`: after Ronor rejected the action at this tip the agent resumes,
       // so the same tip still blocked on confirmation is not yet quiescent.
       const pauseAndAccount = async (rejectedTip?: unknown): Promise<boolean> => {
         if (!conversationId) return false;
@@ -449,7 +449,7 @@ export function createNativeOpenHandsClient(config: {
           // Retain only closed-schema diagnostics even if rejection/pause fails.
           if (!decision.allowed) refusalDiagnostics = readEffectDiagnostics(decision.diagnostics);
           await call(`/api/conversations/${conversationId}/events/respond_to_confirmation`, 'POST', {
-            accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded RONOR effect policy.' : 'Rejected by bounded RONOR effect policy.',
+            accept: decision.allowed, reason: decision.allowed ? 'Approved by bounded Ronor effect policy.' : 'Rejected by bounded Ronor effect policy.',
           }, executionSignal);
           if (!decision.allowed) {
             const paused = await pauseAndAccount(state.leaf_event_id);

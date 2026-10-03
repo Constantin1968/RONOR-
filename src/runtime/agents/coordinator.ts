@@ -1,5 +1,5 @@
 /**
- * RONOR Runtime — L3 · Mission Coordinator
+ * Ronor Runtime — L3 · Mission Coordinator
  * ────────────────────────────────────────
  * Governs, decomposes, dispatches, synthesises and accounts for a multi-agent
  * mission. This is where the runtime becomes an intelligence system rather than
@@ -626,7 +626,7 @@ async function synthesise(params: {
       max_cost_usd: params.maxCostUsd,
     },
     system:
-      'You are the RONOR mission synthesiser. Combine the supplied worker outputs into one ' +
+      'You are the Ronor mission synthesiser. Combine the supplied worker outputs into one ' +
       'coherent answer to the objective. ABSOLUTE RULE: introduce NO fact that is not present in ' +
       'the worker output. Where workers disagree, say so and explain the disagreement rather than ' +
       'choosing silently. Where a claim is marked UNSUPPORTED, either omit it or state explicitly ' +

@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Sănătate · Protejarea căii de sănătate
+ * Ronor — L0 · Sănătate · Protejarea căii de sănătate
  * ───────────────────────────────────────────────────
  *
  * Two guards, extracted so they are TESTABLE rather than merely present.

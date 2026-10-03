@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Evaluare a maturitatii operationale RONOR pe criterii verificabile.
+Evaluare a maturitatii operationale Ronor pe criterii verificabile.
 
 Nu evalueaza „cat de impresionant" e sistemul, ci daca indeplineste conditiile
 minimale pe care orice sistem de productie trebuie sa le indeplineasca:
@@ -39,7 +39,7 @@ def add(nume, verdict, dovada, materialitate):
 
 
 print("=" * 78)
-print("  MATURITATE OPERAȚIONALĂ RONOR — criterii de producție")
+print("  MATURITATE OPERAȚIONALĂ Ronor — criterii de producție")
 print("=" * 78)
 
 # 1. copii de rezerva
@@ -136,7 +136,7 @@ add("Testare automată",
 add("Redundanță / punct unic de eșec",
     "NEÎNDEPLINIT",
     "un singur nod servește modele (vmi3488431); un singur nod rulează toate "
-    "cele 46 de containere; fără swap. Căderea oricăruia oprește RONOR complet",
+    "cele 46 de containere; fără swap. Căderea oricăruia oprește Ronor complet",
     "ridicată")
 
 # 10. observabilitate

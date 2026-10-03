@@ -1,5 +1,5 @@
 /**
- * RONOR — Adaptorul relațional: starea observată, nu starea sperată
+ * Ronor — Adaptorul relațional: starea observată, nu starea sperată
  * ─────────────────────────────────────────────────────────────────
  *
  * Testele de aici țintesc exact granițele pe care auditul independent dinaintea

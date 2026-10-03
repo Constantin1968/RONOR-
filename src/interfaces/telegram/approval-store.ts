@@ -1,5 +1,5 @@
 /**
- * RONOR — L0 · Telegram Interface · Approval Store
+ * Ronor — L0 · Telegram Interface · Approval Store
  * ─────────────────────────────────────────────────
  * Holds Gate 1/2 co-sign requests that are pending a human decision.
  *

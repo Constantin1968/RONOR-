@@ -1,7 +1,7 @@
 /**
- * RONOR — L0 · Telegram Interface · Bot Handler
+ * Ronor — L0 · Telegram Interface · Bot Handler
  * ──────────────────────────────────────────────
- * The operator interface to the RONOR sovereign runtime over Telegram.
+ * The operator interface to the Ronor sovereign runtime over Telegram.
  *
  * Commands
  * ────────
@@ -772,7 +772,7 @@ export class RonorTelegramBot {
 
   private async cmdHelp(chatId: number): Promise<void> {
     const text = [
-      '🤖 <b>RONOR Sovereign Runtime — Operator Interface</b>',
+      '🤖 <b>Ronor SIS — Operator Interface</b>',
       '',
       '<b>Commands</b>',
       '/status — runtime health, providers, economics',
@@ -800,7 +800,7 @@ export class RonorTelegramBot {
           ]
         : []),
       '<b>Gate 1/2 approval flow</b>',
-      'When MI9 governance requires a co-sign, RONOR sends you a prompt. Reply with /approve or /reject. The request expires if not settled within the configured TTL. Trade requests use the same flow but settle against the trading arm.',
+      'When MI9 governance requires a co-sign, Ronor sends you a prompt. Reply with /approve or /reject. The request expires if not settled within the configured TTL. Trade requests use the same flow but settle against the trading arm.',
       '',
       '<i>Prepared by AMB · Mayleven Ecosystem</i>',
     ].join('\n');
@@ -822,7 +822,7 @@ export class RonorTelegramBot {
       const s = await this.ronor.status();
       const readyEmoji = s.providers.invocable > 0 ? '🟢' : '🔴';
       const lines: string[] = [
-        `${readyEmoji} <b>RONOR Runtime Status</b>`,
+        `${readyEmoji} <b>Ronor Runtime Status</b>`,
         '',
         `<b>Runtime:</b> ${esc(s.runtime)}`,
         `<b>Policy:</b> ${esc(s.policy_version)}`,
@@ -891,7 +891,7 @@ export class RonorTelegramBot {
 
     const thinking = await this.tg.sendMessage({
       chat_id: chatId,
-      text: '⏳ Routing query through RONOR governance…',
+      text: '⏳ Routing query through Ronor governance…',
       reply_to_message_id: replyToMessageId,
     });
 
@@ -965,7 +965,7 @@ export class RonorTelegramBot {
 
     const thinking = await this.tg.sendMessage({
       chat_id: chatId,
-      text: '🚀 Dispatching multi-agent mission through RONOR governance…\n<i>(This may take several minutes.)</i>',
+      text: '🚀 Dispatching multi-agent mission through Ronor governance…\n<i>(This may take several minutes.)</i>',
       parse_mode: 'HTML',
       reply_to_message_id: replyToMessageId,
     });
@@ -1096,7 +1096,7 @@ export class RonorTelegramBot {
       if (!canCoSignTrade) {
         await this.tg.sendMessage({
           chat_id: chatId,
-          text: '⛔ You are approved for RONOR gates but not authorised to co-sign a TRADE. Only the sovereign role (or a user listed in TELEGRAM_TRADING_APPROVERS) may settle a trade ticket.',
+          text: '⛔ You are approved for Ronor gates but not authorised to co-sign a TRADE. Only the sovereign role (or a user listed in TELEGRAM_TRADING_APPROVERS) may settle a trade ticket.',
           parse_mode: 'HTML',
         });
         return;

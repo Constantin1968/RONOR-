@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Driver de livrare pentru raportarea RONOR (cens + randare).
+"""Driver de livrare pentru raportarea Ronor (cens + randare).
 
 Colecteaza, randeaza si livreaza pe aceleasi canale ca scriptul anterior:
 Telegram si e-mail prin Resend. Refoloseste functiile de trimitere din
@@ -60,7 +60,7 @@ def main():
         return 1
 
     ok_tg, det_tg = send_telegram(text)
-    subiect = "RONOR — %s — %s" % (TIPURI[tip], time.strftime("%d.%m.%Y"))
+    subiect = "Ronor — %s — %s" % (TIPURI[tip], time.strftime("%d.%m.%Y"))
     ok_em, det_em = send_email(subiect, text)
     print("telegram: %s (%s) | email: %s (%s)"
           % ("trimis" if ok_tg else "eșuat", det_tg,

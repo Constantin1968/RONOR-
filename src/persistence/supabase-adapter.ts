@@ -1,5 +1,5 @@
 /**
- * RONOR — L2 · Persistence · Supabase Adapter
+ * Ronor — L2 · Persistence · Supabase Adapter
  * ─────────────────────────────────────────────
  * Durable relational persistence for conversations, memory entries, agent state,
  * missions and audit events, backed by the Supabase project
@@ -7,7 +7,7 @@
  *
  * Design commitments
  * ──────────────────
- *   · FAIL-OPEN BY DEFAULT. A Supabase outage degrades RONOR to local SQLite and
+ *   · FAIL-OPEN BY DEFAULT. A Supabase outage degrades Ronor to local SQLite and
  *     says so in every response. `PERSISTENCE_REQUIRED=true` in the environment
  *     inverts this: a request that cannot be persisted is refused rather than
  *     answered silently. The default is fail-open because a governed runtime that

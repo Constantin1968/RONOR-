@@ -87,6 +87,6 @@ if (require.main === module) {
   const serviceToken = requiredSecret('RONOR_LANGGRAPH_TOKEN');
   const host = process.env.RONOR_LANGGRAPH_HOST || '127.0.0.1';
   createLangGraphLocalApp({ serviceToken }).listen(port, host, () => {
-    process.stdout.write(`RONOR LangGraph local listening on ${host}:${port}\n`);
+    process.stdout.write(`Ronor LangGraph local listening on ${host}:${port}\n`);
   });
 }

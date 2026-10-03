@@ -22,7 +22,7 @@ const capability = (nonce = 'nonce-1') => signExecutionCapability({
   objective_hash: envelope.objective_hash, allowed_actions: envelope.allowed_actions, expires_at: deadline, nonce,
 }, key);
 
-describe('RONOR OpenHands bridge', () => {
+describe('Ronor OpenHands bridge', () => {
   it('binds a required monetary authorization to the execution mission and deadline before native dispatch', async () => {
     const execute = jest.fn(async()=>({ok:true,summary:'done',evidence:[],cost_usd:0}));
     const app = createOpenHandsBridgeApp({capabilityKey:key,serviceToken,client:{execute},requireBudget:true});

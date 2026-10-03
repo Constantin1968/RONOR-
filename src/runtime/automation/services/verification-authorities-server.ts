@@ -27,4 +27,4 @@ if (role === 'codex') {
 } else throw new Error('authority_role_invalid');
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('authority_port_invalid');
 const host = process.env.RONOR_AUTHORITY_HOST || '127.0.0.1';
-app.listen(port, host, () => process.stdout.write(`RONOR ${role} authority listening on ${host}:${port}\n`));
+app.listen(port, host, () => process.stdout.write(`Ronor ${role} authority listening on ${host}:${port}\n`));

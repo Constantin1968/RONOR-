@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange × Governance Spine — Unified Orchestrator
+ * Ronor Model Exchange × Governance Spine — Unified Orchestrator
  * ──────────────────────────────────────────────────────────────
  * Wires the Model Exchange (Layer 1) through MI9 Gate (Layer 4) and the
  * SHA-256 audit chain (Layer 4) into the Work Ledger (Layer 7).
@@ -16,7 +16,7 @@
  *      → Work Ledger append           (record what was done and what it cost)
  *
  * This is the single narrative of the Build Week 2026 submission:
- *   "RONOR picks the right model, refuses it if governance fails, executes,
+ *   "Ronor picks the right model, refuses it if governance fails, executes,
  *    verifies, and signs the receipt — end to end."
  */
 

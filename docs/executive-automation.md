@@ -20,14 +20,14 @@ those boundaries.
 
 The CONTROL client approves a mission, workspace, exact branch and bounded
 cost/time/fix-cycle request; it never submits an `ExecutionMandate`. After
-`requireArchitect` authenticates the dedicated Merlin credential, RONOR creates
+`requireArchitect` authenticates the dedicated Merlin credential, Ronor creates
 the mandate server-side, binds it to that credential's non-secret key id and
 the stored mission objective, assigns a random identifier, derives the action
 sets and timestamps, and caps every requested limit by server policy. Client
 authority fields are refused. Exact branches do not use lexical-prefix matching;
 namespace authorization is possible only when policy explicitly ends in `/`.
 
-Every start request also carries a non-secret `Idempotency-Key`. RONOR derives a
+Every start request also carries a non-secret `Idempotency-Key`. Ronor derives a
 stable mandate handle from that key, the stored mission and the authenticated
 architect identity. The first claimant atomically persists the complete mandate
 and obtains a short lease in `runtime_automation_runs`; concurrent claimants are
@@ -119,7 +119,7 @@ price. Evidence above the bounded context is refused rather than truncated.
 `RONOR_AUTOMATION_TEST_COMMANDS_JSON` is a server-side allowlist, never mission
 input. It contains bounded objects such as
 `[{"id":"jest","executable":"npm","args":["test","--","--runInBand"],"timeout_ms":900000}]`.
-RONOR invokes each executable directly with `shell:false`, a secretless minimal
+Ronor invokes each executable directly with `shell:false`, a secretless minimal
 environment, output limits and a per-command timeout. Shell interpreters are
 refused. A SHA-256 `ronor-test-report/v1` artifact is written atomically; a
 non-zero exit, timeout, cancellation, secret-like output or missing executor
@@ -128,7 +128,7 @@ automation container/worktree—the allowlist does not replace OS isolation.
 
 ## Native OpenHands bridge
 
-RONOR never sends a host workspace path or the full mandate to OpenHands. The
+Ronor never sends a host workspace path or the full mandate to OpenHands. The
 runner sends a minimal execution envelope to a dedicated bridge, accompanied by
 a short-lived HMAC capability bound to the objective digest, assignment,
 allowed actions, deadline and one-time nonce. The bridge requires a distinct
@@ -248,7 +248,7 @@ sidecar returns bounded artifact references and SHA-256 digests, which the
 runtime independently re-reads from the artifact volume before Codex receives
 them.
 
-After every completed OpenHands assignment, RONOR independently invokes Git in
+After every completed OpenHands assignment, Ronor independently invokes Git in
 the validated worktree and captures the binary diff and porcelain status. The
 files are written atomically beneath the pre-existing artifact root, bounded to
 2 MiB each, and represented in Mission Fabric and the Codex request only by
@@ -264,7 +264,7 @@ adapter. Failed attempts are counted against `max_fix_cycles`; exceeding the
 ceiling blocks further resume attempts.
 
 Immediately before Codex verification, every artifact is reopened from the
-authoritative artifact root. RONOR rechecks reference containment, symlink
+authoritative artifact root. Ronor rechecks reference containment, symlink
 status, byte count, SHA-256 and DLP policy. Codex receives a typed manifest with
 separate worker claims and verified artifact descriptors; concatenated evidence
 strings and unverified worker paths are not accepted by the live route. Any
@@ -332,7 +332,7 @@ model is installed and declared. Manus remains deferred until after 26 August
 ## Isolated automation composition
 
 `docker-compose.automation.yml` is an opt-in plane, separate from production
-and never started by normal RONOR deployment. It pins OpenHands Agent Server to
+and never started by normal Ronor deployment. It pins OpenHands Agent Server to
 `1.42.1-python`, publishes control ports on loopback only, drops every Linux
 capability, and uses non-root identities, read-only filesystems, bounded
 resources and `no-new-privileges`.
@@ -343,7 +343,7 @@ the Docker socket, SSH agent, home directory, Tailscale socket, GitHub
 credential store or production environment. Host credentials therefore cannot
 be used to push, merge or deploy.
 
-Secrets live outside Git under `RONOR_AUTOMATION_SECRET_DIR`; RONOR services
+Secrets live outside Git under `RONOR_AUTOMATION_SECRET_DIR`; Ronor services
 consume Docker secret files through `*_FILE`. The upstream Agent Server's
 session key is supplied from ignored, permission-restricted `.env.automation`,
 never Compose or Mission Fabric. Each service identity must be distinct.
@@ -354,7 +354,7 @@ agent container.
 
 The `automation-control` and `ronor-model-egress` networks are internal.
 OpenHands and Codex join only `ronor-model-egress`; neither receives a general
-Internet route. A small RONOR reverse proxy is the sole dual-homed component:
+Internet route. A small Ronor reverse proxy is the sole dual-homed component:
 it joins the internal network and `ronor-model-uplink`, validates one configured
 HTTPS hostname, authenticates the gateway credential and permits only
 `/v1/responses`, `/v1/chat/completions` and `/v1/models`. It rejects query
@@ -383,7 +383,7 @@ policy inspection/diff capture and the artifact directory read-write; it never
 mounts credentials or the Docker socket. Use a self-contained clone rather than
 a linked Git worktree whose `.git` file points outside the mounted boundary.
 `Dockerfile.automation-runtime` derives from an explicitly pinned, already
-verified RONOR image and adds the Git CLI only for fixed-argument workspace
+verified Ronor image and adds the Git CLI only for fixed-argument workspace
 inspection and artifact capture. The constitutional production Dockerfile is
 unchanged, and the opt-in derivative receives no Git credentials.
 Use service DNS inside the runtime:

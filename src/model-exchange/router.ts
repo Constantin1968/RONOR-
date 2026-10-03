@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange — Dynamic Router
+ * Ronor Model Exchange — Dynamic Router
  * ─────────────────────────────────────
  * For every eligible engine computes:
  *
@@ -16,7 +16,7 @@
  * configuration that satisfies all policy constraints, and returns the FULL
  * scoring table so the decision is transparent and auditable.
  *
- * Ported from RONOR Model Exchange v0.1 router.js.
+ * Ported from Ronor Model Exchange v0.1 router.js.
  */
 
 import type { ModelRegistryEntry } from "./registry";

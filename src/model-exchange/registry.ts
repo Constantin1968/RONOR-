@@ -1,5 +1,5 @@
 /**
- * RONOR Model Exchange — Model Registry
+ * Ronor Model Exchange — Model Registry
  * ─────────────────────────────────────
  * Catalog of intelligence engines available to the runtime. Each entry declares
  * capabilities, economics, latency, jurisdiction, quality and sovereignty so
@@ -12,7 +12,7 @@
  *   1 = US hyperscaler cloud
  *   0 = unknown / uncertified
  *
- * Ported from RONOR Model Exchange v0.1 (18 Jul 2026 archive) and extended
+ * Ported from Ronor Model Exchange v0.1 (18 Jul 2026 archive) and extended
  * with sovereignty-aligned engines from the Ma11AI Model Sovereignty Matrix.
  */
 
@@ -117,7 +117,7 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   },
   {
     id: "ronor/deterministic-core",
-    provider: "RONOR (on-prem)",
+    provider: "Ronor (on-prem)",
     display_name: "Deterministic Core",
     engine: "deterministic",
     capabilities: ["calculation", "validation", "lookup"],
